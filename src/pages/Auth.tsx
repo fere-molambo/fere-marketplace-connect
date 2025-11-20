@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { loginSchema, signupSchema, LoginFormData, SignupFormData } from "@/lib/validators";
 import fereLogo from "@/assets/fere-logo.webp";
 
@@ -23,16 +24,19 @@ const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { session, signIn, signUp } = useAuth();
+  const { roles, isLoading: rolesLoading } = useUserRoles();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "login");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
-    if (session) {
-      navigate("/");
+    if (session && !rolesLoading) {
+      // Redirect to dashboard if admin, otherwise to home
+      const isAdmin = roles?.includes("super_admin") || roles?.includes("admin");
+      navigate(isAdmin ? "/dashboard" : "/");
     }
-  }, [session, navigate]);
+  }, [session, roles, rolesLoading, navigate]);
 
   // Login form
   const loginForm = useForm<LoginFormData>({

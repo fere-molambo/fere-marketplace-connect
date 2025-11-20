@@ -37,5 +37,26 @@ export const signupSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// Schema pour la création d'utilisateur (par admin/vendeur)
+export const createUserSchema = z.object({
+  nom_complet: z
+    .string()
+    .min(2, "Le nom complet doit contenir au moins 2 caractères")
+    .max(100, "Le nom complet est trop long"),
+  contact: z
+    .string()
+    .regex(/^\+\d{10,15}$/, "Format requis: +223XXXXXXXX (indicatif + numéro)"),
+  email: z.string().email("Format d'email invalide"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+  confirmPassword: z.string(),
+  role: z.enum(["super_admin", "admin", "vendeur", "livreur", "membre", "equipe"], {
+    required_error: "Veuillez sélectionner un rôle",
+  }),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Les mots de passe ne correspondent pas",
+  path: ["confirmPassword"],
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type SignupFormData = z.infer<typeof signupSchema>;
+export type CreateUserFormData = z.infer<typeof createUserSchema>;

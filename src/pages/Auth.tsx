@@ -32,9 +32,13 @@ const Auth = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (session && !rolesLoading) {
-      // Redirect to dashboard if admin, otherwise to home
-      const isAdmin = roles?.includes("super_admin") || roles?.includes("admin");
-      navigate(isAdmin ? "/dashboard" : "/");
+      // Redirect to dashboard if has dashboard access
+      const hasDashboardAccess = 
+        roles?.includes("super_admin") || 
+        roles?.includes("admin") ||
+        roles?.includes("vendeur") ||
+        roles?.includes("equipe");
+      navigate(hasDashboardAccess ? "/dashboard" : "/");
     }
   }, [session, roles, rolesLoading, navigate]);
 

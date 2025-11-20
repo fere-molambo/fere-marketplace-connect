@@ -84,14 +84,15 @@ export const useAuth = () => {
     nom_complet: string,
     contact: string,
     email: string,
-    password: string
+    password: string,
+    role: "vendeur" | "livreur" | "membre"
   ) => {
     try {
       setLoading(true);
       
       const redirectUrl = `${window.location.origin}/`;
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -104,6 +105,21 @@ export const useAuth = () => {
       });
       
       if (error) throw error;
+
+      // Enregistrer le rôle dans la table user_roles
+      if (data.user) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: data.user.id,
+            role: role,
+          });
+
+        if (roleError) {
+          console.error("Erreur lors de l'attribution du rôle:", roleError);
+          // On ne bloque pas l'inscription même si le rôle échoue
+        }
+      }
       
       toast.success("Inscription réussie ! Vérifiez votre email pour confirmer votre compte.");
     } catch (error: any) {

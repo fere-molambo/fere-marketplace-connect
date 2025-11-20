@@ -52,6 +52,7 @@ const Auth = () => {
       email: "",
       password: "",
       confirmPassword: "",
+      role: "membre",
     },
   });
 
@@ -65,7 +66,7 @@ const Auth = () => {
 
   const onSignup = async (data: SignupFormData) => {
     try {
-      await signUp(data.nom_complet, data.contact, data.email, data.password);
+      await signUp(data.nom_complet, data.contact, data.email, data.password, data.role);
     } catch (error) {
       // Error is handled in the hook
     }
@@ -247,6 +248,27 @@ const Auth = () => {
                               className="pl-10"
                             />
                           </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={signupForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vous êtes</FormLabel>
+                        <FormControl>
+                          <select
+                            {...field}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            <option value="membre">Membre</option>
+                            <option value="vendeur">Vendeur</option>
+                            <option value="livreur">Livreur</option>
+                          </select>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

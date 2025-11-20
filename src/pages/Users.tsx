@@ -32,13 +32,7 @@ export default function Users() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Fusionner avec auth.users pour obtenir l'email
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      
-      return (data || []).map((profile: any) => ({
-        ...profile,
-        email: authUsers?.users.find((u: any) => u.id === profile.id)?.email || "N/A"
-      }));
+      return data || [];
     },
   });
 

@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           contact: string
           created_at: string | null
+          email: string | null
           id: string
           nom_complet: string
           photo_profil: string | null
@@ -26,6 +27,7 @@ export type Database = {
         Insert: {
           contact: string
           created_at?: string | null
+          email?: string | null
           id: string
           nom_complet: string
           photo_profil?: string | null
@@ -34,6 +36,7 @@ export type Database = {
         Update: {
           contact?: string
           created_at?: string | null
+          email?: string | null
           id?: string
           nom_complet?: string
           photo_profil?: string | null

@@ -19,7 +19,9 @@ export const useAdminAuth = () => {
 
     const hasAdminRole = 
       roles?.includes("super_admin") || 
-      roles?.includes("admin");
+      roles?.includes("admin") ||
+      roles?.includes("vendeur") ||
+      roles?.includes("equipe");
 
     if (hasAdminRole) {
       setIsAuthorized(true);

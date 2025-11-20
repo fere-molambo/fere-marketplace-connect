@@ -18,21 +18,33 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-const navigationItems = [
-  {
-    title: "GESTION",
-    items: [
-      { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-      { title: "Utilisateurs", icon: Users, href: "/dashboard/users" },
-    ],
-  },
-  {
-    title: "SYSTÈME",
-    items: [
-      { title: "Paramètres", icon: Settings, href: "/dashboard/settings" },
-    ],
-  },
-];
+const getNavigationItems = (roles: string[]) => {
+  const isSuperAdmin = roles.includes("super_admin");
+  const isAdmin = roles.includes("admin");
+  const isVendeur = roles.includes("vendeur");
+
+  const gestionItems = [
+    { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  ];
+
+  // Super admin, admin et vendeur voient les utilisateurs
+  if (isSuperAdmin || isAdmin || isVendeur) {
+    gestionItems.push({ title: "Utilisateurs", icon: Users, href: "/dashboard/users" });
+  }
+
+  return [
+    {
+      title: "GESTION",
+      items: gestionItems,
+    },
+    {
+      title: "SYSTÈME",
+      items: [
+        { title: "Paramètres", icon: Settings, href: "/dashboard/settings" },
+      ],
+    },
+  ];
+};
 
 export const AppSidebar = () => {
   const { state } = useSidebar();
@@ -41,6 +53,8 @@ export const AppSidebar = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
+
+  const navigationItems = getNavigationItems(roles || []);
 
   const handleLogout = async () => {
     await signOut();

@@ -112,7 +112,7 @@ export const useAuth = () => {
           .from("user_roles")
           .insert({
             user_id: data.user.id,
-            role: role,
+            role: role as any, // Cast temporaire en attendant la mise à jour des types
           });
 
         if (roleError) {

@@ -1,0 +1,42 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Redirections pour React Router (SPA)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Force HTTPS pour le domaine principal
+[[redirects]]
+  from = "http://fere.app/*"
+  to = "https://fere.app/:splat"
+  status = 301
+  force = true
+
+# Force HTTPS et redirige www vers le domaine principal
+[[redirects]]
+  from = "http://www.fere.app/*"
+  to = "https://fere.app/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.fere.app/*"
+  to = "https://fere.app/:splat"
+  status = 301
+  force = true
+
+# Headers de sécurité
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-XSS-Protection = "1; mode=block"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"

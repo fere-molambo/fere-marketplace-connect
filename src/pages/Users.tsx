@@ -19,29 +19,47 @@ export default function Users() {
     queryFn: async () => {
       console.log("🔍 Fetching users...");
       
-      let query = supabase
+      // 1ère requête : récupérer tous les profils avec recherche
+      let profilesQuery = supabase
         .from("profiles")
-        .select(`
-          *,
-          roles:user_roles(role)
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (searchQuery) {
-        query = query.or(
+        profilesQuery = profilesQuery.or(
           `nom_complet.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,contact.ilike.%${searchQuery}%`
         );
       }
 
-      const { data, error } = await query;
-      
-      console.log("📊 Query result:", { data, error });
-      console.log("👥 Users count:", data?.length);
-      console.log("🎭 First user roles:", data?.[0]?.roles);
-      
-      if (error) throw error;
+      // 2ème requête : récupérer les rôles (filtrés par RLS selon le rôle de l'utilisateur)
+      const rolesQuery = supabase
+        .from("user_roles")
+        .select("user_id, role");
 
-      return data || [];
+      // Exécuter les deux requêtes en parallèle
+      const [
+        { data: profiles, error: profilesError },
+        { data: roles, error: rolesError }
+      ] = await Promise.all([profilesQuery, rolesQuery]);
+
+      console.log("📊 Profiles result:", { profiles, profilesError });
+      console.log("🎭 Roles result:", { roles, rolesError });
+
+      if (profilesError) throw profilesError;
+      if (rolesError) throw rolesError;
+
+      // Recomposer les utilisateurs avec leurs rôles côté client
+      const usersWithRoles = (profiles || []).map((profile) => ({
+        ...profile,
+        roles: (roles || [])
+          .filter((r) => r.user_id === profile.id)
+          .map((r) => ({ role: r.role })),
+      }));
+
+      console.log("👥 Users with roles count:", usersWithRoles.length);
+      console.log("🎭 First user roles:", usersWithRoles?.[0]?.roles);
+
+      return usersWithRoles;
     },
   });
 
@@ -86,7 +104,16 @@ export default function Users() {
         />
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <div className="text-center py-12">
+          <p className="text-destructive font-semibold mb-2">
+            Erreur lors du chargement des utilisateurs
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Vérifiez la console pour plus de détails
+          </p>
+        </div>
+      ) : isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-16" />

@@ -37,6 +37,13 @@ const Auth = () => {
     // If no session, stay on /auth
     if (!session) return;
 
+    // CRITICAL FIX: Wait for roles to be loaded before redirecting
+    // If we have a session but no roles yet, it means the roles haven't
+    // been fetched from the database yet - wait for the next render
+    if (session && (!roles || roles.length === 0)) {
+      return;
+    }
+
     // Once we have session AND roles loaded, redirect appropriately
     const hasDashboardAccess = 
       roles?.includes("super_admin") || 

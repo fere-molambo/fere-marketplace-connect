@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
-import { User } from "lucide-react";
+import { PasswordSettings } from "@/components/settings/PasswordSettings";
+import { User, KeyRound } from "lucide-react";
 
 export default function Settings() {
   return (
@@ -18,9 +19,16 @@ export default function Settings() {
             <User className="h-4 w-4" />
             Profil
           </TabsTrigger>
+          <TabsTrigger value="password" className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Mot de passe
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />
+        </TabsContent>
+        <TabsContent value="password" className="mt-6">
+          <PasswordSettings />
         </TabsContent>
       </Tabs>
     </div>

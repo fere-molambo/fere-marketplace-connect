@@ -9,11 +9,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Upload } from "lucide-react";
+import { Upload, KeyRound } from "lucide-react";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 interface UserEditSheetProps {
   user: any;
@@ -26,6 +37,9 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.photo_profil);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const { isSuperAdmin, isAdmin } = useUserRoles();
 
   const {
     register,
@@ -100,6 +114,26 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       toast.error(error.message || "Erreur lors de la mise à jour");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    try {
+      setIsResetting(true);
+
+      const { data, error } = await supabase.functions.invoke('reset-user-password', {
+        body: { userId: user.id }
+      });
+
+      if (error) throw error;
+
+      toast.success("Mot de passe réinitialisé avec succès ! Nouveau mot de passe : 12345678");
+      setShowResetDialog(false);
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast.error(error.message || "Erreur lors de la réinitialisation du mot de passe");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -186,6 +220,24 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </p>
           </div>
 
+          {(isSuperAdmin || isAdmin) && (
+            <div className="border-t pt-4">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setShowResetDialog(true)}
+                disabled={isResetting || isLoading}
+                className="w-full"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                {isResetting ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Le mot de passe sera réinitialisé à : 12345678
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-4">
             <Button
               type="button"
@@ -202,6 +254,27 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
           </div>
         </form>
       </SheetContent>
+
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser le mot de passe</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir réinitialiser le mot de passe de{" "}
+              <span className="font-semibold">{user?.nom_complet}</span> ?
+              <br />
+              <br />
+              Le nouveau mot de passe sera : <span className="font-mono font-semibold">12345678</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResetting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePasswordReset} disabled={isResetting}>
+              {isResetting ? "Réinitialisation..." : "Confirmer la réinitialisation"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 };

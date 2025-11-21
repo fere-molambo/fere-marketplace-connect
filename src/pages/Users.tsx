@@ -1,20 +1,24 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { CreateUserDialog } from "@/components/users/CreateUserDialog";
 import { UserTable } from "@/components/users/UserTable";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Users() {
   const [searchQuery, setSearchQuery] = useState("");
   const { canCreateUsers } = useUserRoles();
+  const queryClient = useQueryClient();
 
-  const { data: users, isLoading, refetch } = useQuery({
+  const { data: users, isLoading, error, refetch } = useQuery({
     queryKey: ["users", searchQuery],
     queryFn: async () => {
+      console.log("🔍 Fetching users...");
+      
       let query = supabase
         .from("profiles")
         .select(`
@@ -30,11 +34,28 @@ export default function Users() {
       }
 
       const { data, error } = await query;
+      
+      console.log("📊 Query result:", { data, error });
+      console.log("👥 Users count:", data?.length);
+      console.log("🎭 First user roles:", data?.[0]?.roles);
+      
       if (error) throw error;
 
       return data || [];
     },
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error("❌ Query error:", error);
+    }
+  }, [error]);
+
+  const handleRefresh = () => {
+    console.log("🔄 Manual refresh triggered");
+    queryClient.invalidateQueries({ queryKey: ["users"] });
+    refetch();
+  };
 
   return (
     <div className="space-y-6">
@@ -45,9 +66,14 @@ export default function Users() {
             Gérez tous les utilisateurs de la plateforme
           </p>
         </div>
-        {canCreateUsers() && (
-          <CreateUserDialog onUserCreated={refetch} />
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          {canCreateUsers() && (
+            <CreateUserDialog onUserCreated={refetch} />
+          )}
+        </div>
       </div>
 
       <div className="relative">

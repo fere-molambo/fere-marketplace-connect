@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +35,7 @@ interface UserEditSheetProps {
 }
 
 export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserEditSheetProps) => {
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.photo_profil);
@@ -83,7 +85,20 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
         .from("avatars")
         .getPublicUrl(filePath);
 
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ photo_profil: publicUrl })
+        .eq("id", user.id);
+
+      if (updateError) throw updateError;
+
       setAvatarUrl(publicUrl);
+      
+      queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      
+      onUserUpdated?.();
+
       toast.success("Photo de profil mise à jour !");
     } catch (error: any) {
       toast.error(error.message);

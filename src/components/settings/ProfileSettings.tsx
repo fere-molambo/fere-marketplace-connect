@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const ProfileSettings = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -64,7 +65,18 @@ export const ProfileSettings = () => {
         .from("avatars")
         .getPublicUrl(filePath);
 
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ photo_profil: publicUrl })
+        .eq("id", user?.id);
+
+      if (updateError) throw updateError;
+
       setAvatarUrl(publicUrl);
+      
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+
       toast.success("Photo de profil mise à jour !");
     } catch (error: any) {
       toast.error(error.message);

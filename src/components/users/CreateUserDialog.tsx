@@ -49,28 +49,19 @@ export const CreateUserDialog = ({ onUserCreated }: { onUserCreated?: () => void
     try {
       setIsLoading(true);
 
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: data.email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: {
+      // Call the Edge Function instead of admin.createUser
+      const { data: result, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: data.email,
+          password: data.password,
           nom_complet: data.nom_complet,
           contact: data.contact,
-        },
+          role: data.role,
+        }
       });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: authData.user.id,
-            role: data.role,
-          });
-
-        if (roleError) throw roleError;
-      }
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
 
       toast.success("Utilisateur créé avec succès !");
       reset();

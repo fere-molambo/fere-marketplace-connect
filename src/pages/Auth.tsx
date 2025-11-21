@@ -31,15 +31,21 @@ const Auth = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (session && !rolesLoading) {
-      // Redirect to dashboard if has dashboard access
-      const hasDashboardAccess = 
-        roles?.includes("super_admin") || 
-        roles?.includes("admin") ||
-        roles?.includes("vendeur") ||
-        roles?.includes("equipe");
-      navigate(hasDashboardAccess ? "/dashboard" : "/");
-    }
+    // Wait for both auth and roles to finish loading
+    if (rolesLoading) return;
+    
+    // If no session, stay on /auth
+    if (!session) return;
+
+    // Once we have session AND roles loaded, redirect appropriately
+    const hasDashboardAccess = 
+      roles?.includes("super_admin") || 
+      roles?.includes("admin") ||
+      roles?.includes("vendeur") ||
+      roles?.includes("equipe");
+    
+    // Redirect to the appropriate page
+    navigate(hasDashboardAccess ? "/dashboard" : "/", { replace: true });
   }, [session, roles, rolesLoading, navigate]);
 
   // Login form

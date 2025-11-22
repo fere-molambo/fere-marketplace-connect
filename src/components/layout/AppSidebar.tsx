@@ -58,7 +58,7 @@ export const AppSidebar = () => {
 
   const handleLogout = async () => {
     await signOut();
-    navigate("/auth");
+    navigate("/");
   };
 
   const getInitials = (name: string) => {

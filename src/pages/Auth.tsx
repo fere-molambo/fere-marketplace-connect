@@ -19,6 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { loginSchema, signupSchema, LoginFormData, SignupFormData } from "@/lib/validators";
 import fereLogo from "@/assets/fere-logo.webp";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -28,6 +30,29 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "login");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Récupérer les paramètres de la plateforme
+  const { data: platformSettings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Image selon l'onglet actif
+  const authImage = activeTab === "login" 
+    ? platformSettings?.image_auth_login 
+    : platformSettings?.image_auth_signup;
+
+  const authLogo = platformSettings?.logo_auth_page || fereLogo;
+  const appName = platformSettings?.app_name || "Fere";
+  const appDescription = platformSettings?.app_description || "La plateforme qui connecte fournisseurs, prestataires de services et clients.";
 
   // Redirect if already logged in
   useEffect(() => {
@@ -97,14 +122,16 @@ const Auth = () => {
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left Panel - Decorative Image (Hidden on mobile) */}
       <div className="hidden lg:flex relative bg-gradient-to-br from-primary via-primary/90 to-primary/80 items-center justify-center p-12">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557821552-17105176677c?w=800&h=1200&fit=crop')] bg-cover bg-center opacity-20" />
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ backgroundImage: `url('${authImage}')` }}
+        />
         <div className="relative z-10 text-white text-center max-w-md">
           <h1 className="text-4xl font-bold mb-4 font-['Space_Grotesk']">
-            Bienvenue sur Fere
+            Bienvenue sur {appName}
           </h1>
           <p className="text-lg opacity-90">
-            La plateforme qui connecte fournisseurs, prestataires de services et clients.
-            Rejoignez-nous dès maintenant.
+            {appDescription}
           </p>
         </div>
       </div>
@@ -114,7 +141,7 @@ const Auth = () => {
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           <div className="flex flex-col items-center">
-            <img src={fereLogo} alt="Fere" className="h-16 w-auto mb-6" />
+            <img src={authLogo} alt={appName} className="h-16 w-auto mb-6" />
             <h2 className="text-2xl font-bold text-center font-['Space_Grotesk']">
               {activeTab === "login" ? "Connexion" : "Créer un compte"}
             </h2>

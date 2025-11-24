@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, KeyRound } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
@@ -41,6 +42,8 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [avatarUrl, setAvatarUrl] = useState(user?.photo_profil);
   const [isResetting, setIsResetting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
   const { isSuperAdmin, isAdmin } = useUserRoles();
 
   const {
@@ -64,6 +67,42 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       setAvatarUrl(user.photo_profil);
     }
   }, [user, reset]);
+
+  // Charger les départements disponibles et ceux de l'utilisateur
+  useEffect(() => {
+    const loadDepartments = async () => {
+      if (!user) return;
+
+      // Charger tous les départements actifs
+      const { data: allDepts, error: deptError } = await supabase
+        .from("departments")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+
+      if (deptError) {
+        console.error("Error loading departments:", deptError);
+        return;
+      }
+
+      setDepartments(allDepts || []);
+
+      // Charger les départements assignés à l'utilisateur
+      const { data: userDepts, error: userDeptError } = await supabase
+        .from("user_departments")
+        .select("department_id")
+        .eq("user_id", user.id);
+
+      if (userDeptError) {
+        console.error("Error loading user departments:", userDeptError);
+        return;
+      }
+
+      setSelectedDepartmentIds(userDepts?.map(d => d.department_id) || []);
+    };
+
+    loadDepartments();
+  }, [user]);
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -111,6 +150,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
     try {
       setIsLoading(true);
 
+      // 1. Mettre à jour le profil
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -122,7 +162,48 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
       if (error) throw error;
 
+      // 2. Gérer les départements si l'utilisateur est admin
+      if (isSuperAdmin || isAdmin) {
+        // Récupérer les départements actuels
+        const { data: currentDepts } = await supabase
+          .from("user_departments")
+          .select("department_id")
+          .eq("user_id", user.id);
+
+        const currentIds = currentDepts?.map(d => d.department_id) || [];
+
+        // Départements à ajouter
+        const toAdd = selectedDepartmentIds.filter(id => !currentIds.includes(id));
+
+        // Départements à supprimer
+        const toRemove = currentIds.filter(id => !selectedDepartmentIds.includes(id));
+
+        // Supprimer les départements décochés
+        if (toRemove.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("user_departments")
+            .delete()
+            .eq("user_id", user.id)
+            .in("department_id", toRemove);
+
+          if (deleteError) throw deleteError;
+        }
+
+        // Ajouter les nouveaux départements
+        if (toAdd.length > 0) {
+          const { error: insertError } = await supabase
+            .from("user_departments")
+            .insert(toAdd.map(deptId => ({
+              user_id: user.id,
+              department_id: deptId,
+            })));
+
+          if (insertError) throw insertError;
+        }
+      }
+
       toast.success("Utilisateur mis à jour avec succès !");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
       onUserUpdated?.();
       onOpenChange(false);
     } catch (error: any) {
@@ -234,6 +315,40 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               L'email ne peut pas être modifié
             </p>
           </div>
+
+          {(isSuperAdmin || isAdmin) && departments.length > 0 && (
+            <div className="space-y-3">
+              <Label>Départements</Label>
+              <div className="border rounded-md p-4 space-y-3 max-h-64 overflow-y-auto bg-muted/30">
+                {departments.map((dept) => (
+                  <div key={dept.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`dept-${dept.id}`}
+                      checked={selectedDepartmentIds.includes(dept.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedDepartmentIds([...selectedDepartmentIds, dept.id]);
+                        } else {
+                          setSelectedDepartmentIds(
+                            selectedDepartmentIds.filter((id) => id !== dept.id)
+                          );
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={`dept-${dept.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {dept.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sélectionnez un ou plusieurs départements pour cet utilisateur
+              </p>
+            </div>
+          )}
 
           {(isSuperAdmin || isAdmin) && (
             <div className="border-t pt-4">

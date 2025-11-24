@@ -3,6 +3,8 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -56,6 +58,26 @@ export const AppSidebar = () => {
 
   const navigationItems = getNavigationItems(roles || []);
 
+  // Récupérer les paramètres de la plateforme
+  const { data: platformSettings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("*")
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const logoToDisplay = collapsed 
+    ? (platformSettings?.logo_sidebar_collapsed || "/src/assets/fere-logo.webp")
+    : (platformSettings?.logo_principal || "/src/assets/fere-logo.webp");
+
+  const appName = platformSettings?.app_name || "Fere";
+
   const handleLogout = async () => {
     await signOut();
     navigate("/");
@@ -84,8 +106,8 @@ export const AppSidebar = () => {
       <SidebarContent>
         <div className="p-4 border-b">
           <div className="flex items-center gap-2">
-            <img src="/src/assets/fere-logo.webp" alt="Fere" className="h-8 w-8" />
-            {!collapsed && <span className="font-bold text-lg text-primary">Fere</span>}
+            <img src={logoToDisplay} alt={appName} className="h-8 w-8 object-contain" />
+            {!collapsed && <span className="font-bold text-lg text-primary">{appName}</span>}
           </div>
         </div>
 

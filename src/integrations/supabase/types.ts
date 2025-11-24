@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      platform_settings: {
+        Row: {
+          app_description: string | null
+          app_name: string
+          cgu: string | null
+          cookies: string | null
+          created_at: string | null
+          favicon: string | null
+          id: string
+          image_auth_login: string | null
+          image_auth_signup: string | null
+          logo_auth_page: string | null
+          logo_principal: string | null
+          logo_sidebar_collapsed: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          app_description?: string | null
+          app_name?: string
+          cgu?: string | null
+          cookies?: string | null
+          created_at?: string | null
+          favicon?: string | null
+          id?: string
+          image_auth_login?: string | null
+          image_auth_signup?: string | null
+          logo_auth_page?: string | null
+          logo_principal?: string | null
+          logo_sidebar_collapsed?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          app_description?: string | null
+          app_name?: string
+          cgu?: string | null
+          cookies?: string | null
+          created_at?: string | null
+          favicon?: string | null
+          id?: string
+          image_auth_login?: string | null
+          image_auth_signup?: string | null
+          logo_auth_page?: string | null
+          logo_principal?: string | null
+          logo_sidebar_collapsed?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           contact: string

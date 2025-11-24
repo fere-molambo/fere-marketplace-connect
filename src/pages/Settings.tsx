@@ -1,9 +1,14 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { PasswordSettings } from "@/components/settings/PasswordSettings";
-import { User, KeyRound } from "lucide-react";
+import { PlatformSettings } from "@/components/settings/PlatformSettings";
+import { User, KeyRound, Building2 } from "lucide-react";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
+  const { roles } = useUserRoles();
+  const canManagePlatform = roles?.includes("super_admin") || roles?.includes("admin");
+
   return (
     <div className="space-y-6">
       <div>
@@ -23,6 +28,12 @@ export default function Settings() {
             <KeyRound className="h-4 w-4" />
             Mot de passe
           </TabsTrigger>
+          {canManagePlatform && (
+            <TabsTrigger value="platform" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Plateforme
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />
@@ -30,6 +41,11 @@ export default function Settings() {
         <TabsContent value="password" className="mt-6">
           <PasswordSettings />
         </TabsContent>
+        {canManagePlatform && (
+          <TabsContent value="platform" className="mt-6">
+            <PlatformSettings />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -144,33 +144,72 @@ export type Database = {
       }
       profiles: {
         Row: {
+          adresse: string | null
           contact: string
+          contrat_url: string | null
           created_at: string | null
           department_id: string | null
+          duree_contrat: string | null
           email: string | null
+          geolocalisation_lat: number | null
+          geolocalisation_lng: number | null
           id: string
           nom_complet: string
           photo_profil: string | null
+          piece_identite_type:
+            | Database["public"]["Enums"]["piece_identite_type"]
+            | null
+          piece_identite_url: string | null
+          presence: Database["public"]["Enums"]["presence_type"] | null
+          statut_legal: Database["public"]["Enums"]["statut_legal_type"] | null
+          type_contrat: Database["public"]["Enums"]["type_contrat_type"] | null
+          type_offre: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at: string | null
         }
         Insert: {
+          adresse?: string | null
           contact: string
+          contrat_url?: string | null
           created_at?: string | null
           department_id?: string | null
+          duree_contrat?: string | null
           email?: string | null
+          geolocalisation_lat?: number | null
+          geolocalisation_lng?: number | null
           id: string
           nom_complet: string
           photo_profil?: string | null
+          piece_identite_type?:
+            | Database["public"]["Enums"]["piece_identite_type"]
+            | null
+          piece_identite_url?: string | null
+          presence?: Database["public"]["Enums"]["presence_type"] | null
+          statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
+          type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
+          type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
         }
         Update: {
+          adresse?: string | null
           contact?: string
+          contrat_url?: string | null
           created_at?: string | null
           department_id?: string | null
+          duree_contrat?: string | null
           email?: string | null
+          geolocalisation_lat?: number | null
+          geolocalisation_lng?: number | null
           id?: string
           nom_complet?: string
           photo_profil?: string | null
+          piece_identite_type?:
+            | Database["public"]["Enums"]["piece_identite_type"]
+            | null
+          piece_identite_url?: string | null
+          presence?: Database["public"]["Enums"]["presence_type"] | null
+          statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
+          type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
+          type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -272,6 +311,52 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_admins: {
+        Row: {
+          admin_id: string
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          vendor_id: string
+        }
+        Insert: {
+          admin_id: string
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          vendor_id: string
+        }
+        Update: {
+          admin_id?: string
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_admins_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_admins_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_admins_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -297,6 +382,11 @@ export type Database = {
         | "livreur"
         | "membre"
         | "equipe"
+      piece_identite_type: "cni" | "passeport" | "permis"
+      presence_type: "presentiel" | "distance" | "hybride"
+      statut_legal_type: "particulier" | "entreprise"
+      type_contrat_type: "cdd" | "cdi" | "prestataire"
+      type_offre_type: "produits" | "services" | "les_deux"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -432,6 +522,11 @@ export const Constants = {
         "membre",
         "equipe",
       ],
+      piece_identite_type: ["cni", "passeport", "permis"],
+      presence_type: ["presentiel", "distance", "hybride"],
+      statut_legal_type: ["particulier", "entreprise"],
+      type_contrat_type: ["cdd", "cdi", "prestataire"],
+      type_offre_type: ["produits", "services", "les_deux"],
     },
   },
 } as const

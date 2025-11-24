@@ -25,8 +25,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, KeyRound } from "lucide-react";
+import { Upload, KeyRound, MapPin } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UserEditSheetProps {
   user: any;
@@ -44,6 +51,34 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
+
+  // Récupérer les rôles de l'utilisateur édité
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+
+  // États vendeur
+  const [statutLegal, setStatutLegal] = useState<string>("");
+  const [typeOffre, setTypeOffre] = useState<string>("");
+  const [pieceIdentiteUrl, setPieceIdentiteUrl] = useState<string>("");
+  const [pieceIdentiteType, setPieceIdentiteType] = useState<string>("");
+  const [adresse, setAdresse] = useState<string>("");
+  const [geolocation, setGeolocation] = useState<{ lat: number | null; lng: number | null }>({
+    lat: null,
+    lng: null,
+  });
+
+  // États admin
+  const [typeContrat, setTypeContrat] = useState<string>("");
+  const [dureeContrat, setDureeContrat] = useState<string>("");
+  const [presence, setPresence] = useState<string>("");
+  const [contratUrl, setContratUrl] = useState<string>("");
+
+  // États pour uploads
+  const [uploadingIdentity, setUploadingIdentity] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+
+  // États pour les admins assignés aux vendeurs
+  const [assignableAdmins, setAssignableAdmins] = useState<any[]>([]);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
   const { isSuperAdmin, isAdmin } = useUserRoles();
 
   const {
@@ -69,6 +104,70 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   }, [user, reset]);
 
   // Charger les départements disponibles et ceux de l'utilisateur
+  // Charger les rôles de l'utilisateur édité
+  useEffect(() => {
+    const loadUserRoles = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      
+      if (!error && data) {
+        setUserRoles(data.map(r => r.role));
+      }
+    };
+    
+    loadUserRoles();
+  }, [user]);
+
+  // Charger les données spécifiques au rôle
+  useEffect(() => {
+    if (!user || userRoles.length === 0) return;
+
+    // Charger les données vendeur
+    if (userRoles.includes('vendeur')) {
+      setStatutLegal(user.statut_legal || "");
+      setTypeOffre(user.type_offre || "");
+      setPieceIdentiteUrl(user.piece_identite_url || "");
+      setPieceIdentiteType(user.piece_identite_type || "");
+      setAdresse(user.adresse || "");
+      setGeolocation({
+        lat: user.geolocalisation_lat,
+        lng: user.geolocalisation_lng,
+      });
+
+      // Charger les admins disponibles
+      const loadAdmins = async () => {
+        const { data: admins } = await supabase
+          .from("profiles")
+          .select("id, nom_complet, user_roles!inner(role)")
+          .in("user_roles.role", ["admin", "super_admin"]);
+        
+        setAssignableAdmins(admins || []);
+
+        // Charger les admins déjà assignés
+        const { data: assigned } = await supabase
+          .from("vendor_admins")
+          .select("admin_id")
+          .eq("vendor_id", user.id);
+        
+        setSelectedAdminIds(assigned?.map(a => a.admin_id) || []);
+      };
+      
+      loadAdmins();
+    }
+
+    // Charger les données admin
+    if (userRoles.includes('admin')) {
+      setTypeContrat(user.type_contrat || "");
+      setDureeContrat(user.duree_contrat || "");
+      setPresence(user.presence || "");
+      setContratUrl(user.contrat_url || "");
+    }
+  }, [user, userRoles]);
+
   useEffect(() => {
     const loadDepartments = async () => {
       if (!user) return;
@@ -151,19 +250,40 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       setIsLoading(true);
 
       // 1. Mettre à jour le profil
+      const updateData: any = {
+        nom_complet: data.nom_complet,
+        contact: data.contact,
+        photo_profil: avatarUrl,
+      };
+
+      // Ajouter champs vendeur
+      if (userRoles.includes('vendeur')) {
+        updateData.statut_legal = statutLegal || null;
+        updateData.type_offre = typeOffre || null;
+        updateData.piece_identite_url = pieceIdentiteUrl || null;
+        updateData.piece_identite_type = pieceIdentiteType || null;
+        updateData.adresse = adresse || null;
+        updateData.geolocalisation_lat = geolocation.lat;
+        updateData.geolocalisation_lng = geolocation.lng;
+      }
+
+      // Ajouter champs admin
+      if (userRoles.includes('admin')) {
+        updateData.type_contrat = typeContrat || null;
+        updateData.duree_contrat = dureeContrat || null;
+        updateData.presence = presence || null;
+        updateData.contrat_url = contratUrl || null;
+      }
+
       const { error } = await supabase
         .from("profiles")
-        .update({
-          nom_complet: data.nom_complet,
-          contact: data.contact,
-          photo_profil: avatarUrl,
-        })
+        .update(updateData)
         .eq("id", user.id);
 
       if (error) throw error;
 
-      // 2. Gérer les départements si l'utilisateur est admin
-      if (isSuperAdmin || isAdmin) {
+      // 2. Gérer les départements UNIQUEMENT pour les admins
+      if (userRoles.includes('admin') && (isSuperAdmin || isAdmin)) {
         // Récupérer les départements actuels
         const { data: currentDepts } = await supabase
           .from("user_departments")
@@ -199,10 +319,41 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             })));
 
           if (insertError) throw insertError;
-        }
+      }
+    }
+
+    // Gérer les admins assignés UNIQUEMENT pour les vendeurs
+    if (userRoles.includes('vendeur') && (isSuperAdmin || isAdmin)) {
+      const { data: currentAdmins } = await supabase
+        .from("vendor_admins")
+        .select("admin_id")
+        .eq("vendor_id", user.id);
+
+      const currentIds = currentAdmins?.map(a => a.admin_id) || [];
+      const toAdd = selectedAdminIds.filter(id => !currentIds.includes(id));
+      const toRemove = currentIds.filter(id => !selectedAdminIds.includes(id));
+
+      if (toRemove.length > 0) {
+        await supabase
+          .from("vendor_admins")
+          .delete()
+          .eq("vendor_id", user.id)
+          .in("admin_id", toRemove);
       }
 
-      toast.success("Utilisateur mis à jour avec succès !");
+      if (toAdd.length > 0) {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        await supabase
+          .from("vendor_admins")
+          .insert(toAdd.map(adminId => ({
+            vendor_id: user.id,
+            admin_id: adminId,
+            assigned_by: currentUser?.id,
+          })));
+      }
+    }
+
+    toast.success("Utilisateur mis à jour avec succès !");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onUserUpdated?.();
       onOpenChange(false);
@@ -210,6 +361,99 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       toast.error(error.message || "Erreur lors de la mise à jour");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGetGeolocation = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGeolocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+          toast.success("Localisation capturée !");
+        },
+        (error) => {
+          toast.error("Impossible de récupérer la position");
+          console.error(error);
+        }
+      );
+    } else {
+      toast.error("Géolocalisation non supportée");
+    }
+  };
+
+  const handleIdentityUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploadingIdentity(true);
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const validTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Format non supporté (.jpeg, .png ou .pdf)");
+        return;
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-identity.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("identity-documents")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("identity-documents")
+        .getPublicUrl(filePath);
+
+      setPieceIdentiteUrl(publicUrl);
+      toast.success("Pièce d'identité téléchargée !");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setUploadingIdentity(false);
+    }
+  };
+
+  const handleContractUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploadingContract(true);
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const validTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Format non supporté (.pdf ou .docx)");
+        return;
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-contract.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("contracts")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("contracts")
+        .getPublicUrl(filePath);
+
+      setContratUrl(publicUrl);
+      toast.success("Contrat téléchargé !");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setUploadingContract(false);
     }
   };
 
@@ -316,7 +560,8 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </p>
           </div>
 
-          {(isSuperAdmin || isAdmin) && departments.length > 0 && (
+          {/* Départements - UNIQUEMENT pour les admins */}
+          {userRoles.includes('admin') && (isSuperAdmin || isAdmin) && departments.length > 0 && (
             <div className="space-y-3">
               <Label>Départements</Label>
               <div className="border rounded-md p-4 space-y-3 max-h-64 overflow-y-auto bg-muted/30">
@@ -347,6 +592,201 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               <p className="text-xs text-muted-foreground">
                 Sélectionnez un ou plusieurs départements pour cet utilisateur
               </p>
+            </div>
+          )}
+
+          {/* Section pour les vendeurs : Admins assignés */}
+          {userRoles.includes('vendeur') && (isSuperAdmin || isAdmin) && assignableAdmins.length > 0 && (
+            <div className="space-y-3">
+              <Label>Admins Assignés</Label>
+              <div className="border rounded-md p-4 space-y-3 max-h-64 overflow-y-auto bg-muted/30">
+                {assignableAdmins.map((admin) => (
+                  <div key={admin.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`admin-${admin.id}`}
+                      checked={selectedAdminIds.includes(admin.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedAdminIds([...selectedAdminIds, admin.id]);
+                        } else {
+                          setSelectedAdminIds(selectedAdminIds.filter(id => id !== admin.id));
+                        }
+                      }}
+                    />
+                    <label htmlFor={`admin-${admin.id}`} className="text-sm cursor-pointer">
+                      {admin.nom_complet}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sélectionnez les admins qui géreront ce vendeur
+              </p>
+            </div>
+          )}
+
+          {/* Section Vendeur */}
+          {userRoles.includes('vendeur') && (
+            <div className="border-t pt-4 space-y-4">
+              <h3 className="text-lg font-semibold">Informations Vendeur</h3>
+              
+              <div className="space-y-2">
+                <Label>Statut Légal</Label>
+                <Select value={statutLegal} onValueChange={setStatutLegal}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="particulier">Particulier</SelectItem>
+                    <SelectItem value="entreprise">Entreprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Type d'Offre</Label>
+                <Select value={typeOffre} onValueChange={setTypeOffre}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="produits">Produits</SelectItem>
+                    <SelectItem value="services">Services</SelectItem>
+                    <SelectItem value="les_deux">Les deux</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Type de Pièce d'Identité</Label>
+                <Select value={pieceIdentiteType} onValueChange={setPieceIdentiteType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cni">CNI</SelectItem>
+                    <SelectItem value="passeport">Passeport</SelectItem>
+                    <SelectItem value="permis">Permis de conduire</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Pièce d'Identité</Label>
+                <Input
+                  type="file"
+                  accept=".jpeg,.jpg,.png,.pdf"
+                  onChange={handleIdentityUpload}
+                  disabled={uploadingIdentity}
+                  className="hidden"
+                  id="identity-upload"
+                />
+                <Label htmlFor="identity-upload">
+                  <Button type="button" variant="outline" disabled={uploadingIdentity} asChild>
+                    <span className="cursor-pointer">
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploadingIdentity ? "Upload..." : pieceIdentiteUrl ? "Changer" : "Télécharger"}
+                    </span>
+                  </Button>
+                </Label>
+                {pieceIdentiteUrl && <p className="text-xs text-muted-foreground">Document téléchargé ✓</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adresse">Adresse</Label>
+                <Input
+                  id="adresse"
+                  value={adresse}
+                  onChange={(e) => setAdresse(e.target.value)}
+                  placeholder="123 Rue Example, Bamako"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Géolocalisation</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={
+                      geolocation.lat && geolocation.lng
+                        ? `${geolocation.lat.toFixed(6)}, ${geolocation.lng.toFixed(6)}`
+                        : "Non définie"
+                    }
+                    disabled
+                  />
+                  <Button type="button" onClick={handleGetGeolocation} variant="outline">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Capturer
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section Admin */}
+          {userRoles.includes('admin') && (
+            <div className="border-t pt-4 space-y-4">
+              <h3 className="text-lg font-semibold">Informations Contrat</h3>
+              
+              <div className="space-y-2">
+                <Label>Type de Contrat</Label>
+                <Select value={typeContrat} onValueChange={setTypeContrat}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cdd">CDD</SelectItem>
+                    <SelectItem value="cdi">CDI</SelectItem>
+                    <SelectItem value="prestataire">Prestataire</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {typeContrat === 'cdd' && (
+                <div className="space-y-2">
+                  <Label htmlFor="duree_contrat">Durée de Contrat</Label>
+                  <Input
+                    id="duree_contrat"
+                    value={dureeContrat}
+                    onChange={(e) => setDureeContrat(e.target.value)}
+                    placeholder="Ex: 12 mois"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Présence</Label>
+                <Select value={presence} onValueChange={setPresence}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="presentiel">Présentiel</SelectItem>
+                    <SelectItem value="distance">À distance</SelectItem>
+                    <SelectItem value="hybride">Hybride</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Contrat</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.docx"
+                  onChange={handleContractUpload}
+                  disabled={uploadingContract}
+                  className="hidden"
+                  id="contract-upload"
+                />
+                <Label htmlFor="contract-upload">
+                  <Button type="button" variant="outline" disabled={uploadingContract} asChild>
+                    <span className="cursor-pointer">
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploadingContract ? "Upload..." : contratUrl ? "Changer" : "Télécharger"}
+                    </span>
+                  </Button>
+                </Label>
+                {contratUrl && <p className="text-xs text-muted-foreground">Contrat téléchargé ✓</p>}
+              </div>
             </div>
           )}
 

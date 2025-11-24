@@ -2,7 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { PasswordSettings } from "@/components/settings/PasswordSettings";
 import { PlatformSettings } from "@/components/settings/PlatformSettings";
-import { User, KeyRound, Building2 } from "lucide-react";
+import { DataManagementSettings } from "@/components/settings/DataManagementSettings";
+import { User, KeyRound, Building2, Database } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -34,6 +35,12 @@ export default function Settings() {
               Plateforme
             </TabsTrigger>
           )}
+          {canManagePlatform && (
+            <TabsTrigger value="data" className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Données
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />
@@ -44,6 +51,11 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="platform" className="mt-6">
             <PlatformSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="data" className="mt-6">
+            <DataManagementSettings />
           </TabsContent>
         )}
       </Tabs>

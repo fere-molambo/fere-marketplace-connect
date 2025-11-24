@@ -93,7 +93,7 @@ const ProductCategoriesManager = () => {
   
   const [formData, setFormData] = useState({
     name: "",
-    parent_id: "",
+    parent_id: "none",
     description: "",
     display_order: 0,
     is_active: true,
@@ -181,7 +181,7 @@ const ProductCategoriesManager = () => {
   const resetForm = () => {
     setFormData({
       name: "",
-      parent_id: "",
+      parent_id: "none",
       description: "",
       display_order: 0,
       is_active: true,
@@ -194,7 +194,7 @@ const ProductCategoriesManager = () => {
     
     const dataToSubmit = {
       ...formData,
-      parent_id: formData.parent_id || null,
+      parent_id: formData.parent_id === "none" ? null : formData.parent_id,
     };
 
     if (editingCategory) {
@@ -208,7 +208,7 @@ const ProductCategoriesManager = () => {
     setEditingCategory(category);
     setFormData({
       name: category.name,
-      parent_id: category.parent_id || "",
+      parent_id: category.parent_id || "none",
       description: category.description || "",
       display_order: category.display_order,
       is_active: category.is_active,
@@ -362,7 +362,7 @@ const ProductCategoriesManager = () => {
                   <SelectValue placeholder="Aucune (catégorie principale)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucune (catégorie principale)</SelectItem>
+                  <SelectItem value="none">Aucune (catégorie principale)</SelectItem>
                   {categories?.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}

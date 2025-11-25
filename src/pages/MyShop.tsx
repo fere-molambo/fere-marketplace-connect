@@ -1,0 +1,181 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Store } from "lucide-react";
+import { CreateShopDialog } from "@/components/shops/CreateShopDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
+import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
+import { ClientsTab } from "@/components/shops/tabs/ClientsTab";
+import { ProductsServicesTab } from "@/components/shops/tabs/ProductsServicesTab";
+import { OrdersTab } from "@/components/shops/tabs/OrdersTab";
+import { CalendarTab } from "@/components/shops/tabs/CalendarTab";
+import { MessagesTab } from "@/components/shops/tabs/MessagesTab";
+import { MarketingTab } from "@/components/shops/tabs/MarketingTab";
+import { ReviewsTab } from "@/components/shops/tabs/ReviewsTab";
+import { StatsTab } from "@/components/shops/tabs/StatsTab";
+import { ConfigTab } from "@/components/shops/tabs/ConfigTab";
+import { useState } from "react";
+
+export default function MyShop() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("infos");
+
+  const { data: shop, isLoading, refetch } = useQuery({
+    queryKey: ["my-shop", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      
+      const { data, error } = await supabase
+        .from("shops")
+        .select(`
+          *,
+          owner:profiles!owner_id (nom_complet, contact, email)
+        `)
+        .eq("owner_id", user.id)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") return null; // No shop found
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  // No shop found - show creation screen
+  if (!shop) {
+    return (
+      <div className="flex min-h-[600px] items-center justify-center">
+        <div className="text-center space-y-6 max-w-md">
+          <div className="flex justify-center">
+            <div className="rounded-full bg-primary/10 p-6">
+              <Store className="h-12 w-12 text-primary" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Créez votre boutique</h2>
+            <p className="text-muted-foreground">
+              Vous n'avez pas encore de boutique. Créez-en une maintenant pour commencer à vendre vos produits ou services.
+            </p>
+          </div>
+          <CreateShopDialog onShopCreated={refetch} />
+        </div>
+      </div>
+    );
+  }
+
+  // Shop exists - show shop details
+  return (
+    <div className="space-y-6">
+      {/* Banner and Logo */}
+      <div className="relative">
+        {shop.banner_url ? (
+          <img
+            src={shop.banner_url}
+            alt="Banner"
+            className="w-full h-48 object-cover rounded-lg"
+          />
+        ) : (
+          <div className="w-full h-48 bg-muted rounded-lg" />
+        )}
+        <div className="absolute -bottom-12 left-6">
+          {shop.logo_url ? (
+            <img
+              src={shop.logo_url}
+              alt={shop.name}
+              className="w-24 h-24 rounded-full border-4 border-background object-cover"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded-full border-4 border-background bg-muted flex items-center justify-center">
+              <Store className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Shop Info */}
+      <div className="pt-14 space-y-2">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">{shop.name}</h1>
+        </div>
+        <p className="text-muted-foreground">@{shop.owner?.nom_complet}</p>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-5 lg:grid-cols-11 w-full">
+          <TabsTrigger value="infos">Infos</TabsTrigger>
+          <TabsTrigger value="stories">Stories</TabsTrigger>
+          <TabsTrigger value="clients">Clients</TabsTrigger>
+          <TabsTrigger value="products">Produits</TabsTrigger>
+          <TabsTrigger value="orders">Commandes</TabsTrigger>
+          <TabsTrigger value="calendar">Calendrier</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="marketing">Marketing</TabsTrigger>
+          <TabsTrigger value="reviews">Avis</TabsTrigger>
+          <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsTrigger value="config">Config</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="infos" className="space-y-4">
+          <ShopInfoSection shop={shop} />
+        </TabsContent>
+
+        <TabsContent value="stories" className="space-y-4">
+          <ShopStoriesSection shopId={shop.id} />
+        </TabsContent>
+
+        <TabsContent value="clients" className="space-y-4">
+          <ClientsTab />
+        </TabsContent>
+
+        <TabsContent value="products" className="space-y-4">
+          <ProductsServicesTab />
+        </TabsContent>
+
+        <TabsContent value="orders" className="space-y-4">
+          <OrdersTab />
+        </TabsContent>
+
+        <TabsContent value="calendar" className="space-y-4">
+          <CalendarTab />
+        </TabsContent>
+
+        <TabsContent value="messages" className="space-y-4">
+          <MessagesTab />
+        </TabsContent>
+
+        <TabsContent value="marketing" className="space-y-4">
+          <MarketingTab />
+        </TabsContent>
+
+        <TabsContent value="reviews" className="space-y-4">
+          <ReviewsTab />
+        </TabsContent>
+
+        <TabsContent value="stats" className="space-y-4">
+          <StatsTab />
+        </TabsContent>
+
+        <TabsContent value="config" className="space-y-4">
+          <ConfigTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

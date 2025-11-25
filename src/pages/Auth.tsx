@@ -30,6 +30,7 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "login");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Récupérer les paramètres de la plateforme
   const { data: platformSettings } = useQuery({
@@ -60,24 +61,31 @@ const Auth = () => {
     if (rolesLoading) return;
     
     // If no session, stay on /auth
-    if (!session) return;
+    if (!session) {
+      setIsRedirecting(false);
+      return;
+    }
 
-    // CRITICAL FIX: Wait for roles to be loaded before redirecting
-    // If we have a session but no roles yet, it means the roles haven't
-    // been fetched from the database yet - wait for the next render
+    // Wait for roles to be loaded before redirecting
     if (session && (!roles || roles.length === 0)) {
       return;
     }
 
     // Once we have session AND roles loaded, redirect appropriately
+    setIsRedirecting(true);
+    
     const hasDashboardAccess = 
       roles?.includes("super_admin") || 
       roles?.includes("admin") ||
       roles?.includes("vendeur") ||
       roles?.includes("equipe");
     
-    // Redirect to the appropriate page
-    navigate(hasDashboardAccess ? "/dashboard" : "/", { replace: true });
+    // Small delay to prevent flickering
+    const timer = setTimeout(() => {
+      navigate(hasDashboardAccess ? "/dashboard" : "/", { replace: true });
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, [session, roles, rolesLoading, navigate]);
 
   // Login form
@@ -117,6 +125,18 @@ const Auth = () => {
       // Error is handled in the hook
     }
   };
+
+  // Show loading state while redirecting
+  if (isRedirecting) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Connexion en cours...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">

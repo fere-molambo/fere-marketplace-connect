@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Store } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -24,6 +24,7 @@ const getNavigationItems = (roles: string[]) => {
   const isSuperAdmin = roles.includes("super_admin");
   const isAdmin = roles.includes("admin");
   const isVendeur = roles.includes("vendeur");
+  const isEquipe = roles.includes("equipe");
 
   const gestionItems = [
     { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
@@ -32,6 +33,21 @@ const getNavigationItems = (roles: string[]) => {
   // Super admin, admin et vendeur voient les utilisateurs
   if (isSuperAdmin || isAdmin || isVendeur) {
     gestionItems.push({ title: "Utilisateurs", icon: Users, href: "/dashboard/users" });
+  }
+
+  // Ajouter Boutiques pour super_admin et admin
+  if (isSuperAdmin || isAdmin) {
+    gestionItems.push({ title: "Boutiques", icon: Store, href: "/dashboard/shops" });
+  }
+
+  // Ajouter Ma Boutique pour vendeur
+  if (isVendeur) {
+    gestionItems.push({ title: "Ma Boutique", icon: Store, href: "/dashboard/my-shop" });
+  }
+
+  // Ajouter Mes Boutiques pour équipe
+  if (isEquipe) {
+    gestionItems.push({ title: "Mes Boutiques", icon: Store, href: "/dashboard/my-shops" });
   }
 
   return [

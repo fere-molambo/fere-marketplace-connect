@@ -142,6 +142,80 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          colors: Json | null
+          created_at: string | null
+          description: string | null
+          discount_percent: number | null
+          id: string
+          includes: string | null
+          is_active: boolean | null
+          main_media_url: string | null
+          media_urls: Json | null
+          min_quantity: number | null
+          name: string
+          price: number
+          price_type: string
+          product_type: string | null
+          quantity_available: number | null
+          quantity_intervals: Json | null
+          shop_id: string
+          sizes: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          colors?: Json | null
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          includes?: string | null
+          is_active?: boolean | null
+          main_media_url?: string | null
+          media_urls?: Json | null
+          min_quantity?: number | null
+          name: string
+          price: number
+          price_type: string
+          product_type?: string | null
+          quantity_available?: number | null
+          quantity_intervals?: Json | null
+          shop_id: string
+          sizes?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          colors?: Json | null
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          includes?: string | null
+          is_active?: boolean | null
+          main_media_url?: string | null
+          media_urls?: Json | null
+          min_quantity?: number | null
+          name?: string
+          price?: number
+          price_type?: string
+          product_type?: string | null
+          quantity_available?: number | null
+          quantity_intervals?: Json | null
+          shop_id?: string
+          sizes?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           adresse: string | null
@@ -258,6 +332,383 @@ export type Database = {
         }
         Relationships: []
       }
+      services: {
+        Row: {
+          booking_advance_percent: number | null
+          client_preparation: string | null
+          created_at: string | null
+          description: string | null
+          discount_percent: number | null
+          id: string
+          includes: string | null
+          is_active: boolean | null
+          main_media_url: string | null
+          media_urls: Json | null
+          name: string
+          portfolio_link: string | null
+          price: number
+          price_type: string
+          requires_booking: boolean | null
+          shop_id: string
+          updated_at: string | null
+          weekly_availability: Json | null
+        }
+        Insert: {
+          booking_advance_percent?: number | null
+          client_preparation?: string | null
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          includes?: string | null
+          is_active?: boolean | null
+          main_media_url?: string | null
+          media_urls?: Json | null
+          name: string
+          portfolio_link?: string | null
+          price: number
+          price_type: string
+          requires_booking?: boolean | null
+          shop_id: string
+          updated_at?: string | null
+          weekly_availability?: Json | null
+        }
+        Update: {
+          booking_advance_percent?: number | null
+          client_preparation?: string | null
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          includes?: string | null
+          is_active?: boolean | null
+          main_media_url?: string | null
+          media_urls?: Json | null
+          name?: string
+          portfolio_link?: string | null
+          price?: number
+          price_type?: string
+          requires_booking?: boolean | null
+          shop_id?: string
+          updated_at?: string | null
+          weekly_availability?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_categories: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          id: string
+          shop_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          id?: string
+          shop_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          id?: string
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_categories_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_service_types: {
+        Row: {
+          created_at: string | null
+          id: string
+          service_type_id: string
+          shop_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          service_type_id: string
+          shop_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          service_type_id?: string
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_service_types_service_type_id_fkey"
+            columns: ["service_type_id"]
+            isOneToOne: false
+            referencedRelation: "service_provider_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_service_types_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_social_links: {
+        Row: {
+          created_at: string | null
+          id: string
+          platform: string
+          shop_id: string
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          platform: string
+          shop_id: string
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          platform?: string
+          shop_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_social_links_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_stories: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          media_type: string
+          media_url: string
+          shop_id: string
+          source_type: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          media_type: string
+          media_url: string
+          shop_id: string
+          source_type?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          media_type?: string
+          media_url?: string
+          shop_id?: string
+          source_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_stories_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_team_members: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assignment_type: string
+          id: string
+          member_id: string
+          shop_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assignment_type: string
+          id?: string
+          member_id: string
+          shop_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assignment_type?: string
+          id?: string
+          member_id?: string
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_team_members_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_team_members_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_team_members_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shops: {
+        Row: {
+          address: string | null
+          banner_url: string | null
+          closing_time: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          created_by: string | null
+          creation_reason: string | null
+          description: string | null
+          geolocation_lat: number | null
+          geolocation_lng: number | null
+          id: string
+          is_active: boolean | null
+          is_official: boolean | null
+          logo_url: string | null
+          name: string
+          opening_time: string | null
+          owner_id: string
+          responsible_admin_id: string | null
+          shop_type: string
+          slug: string
+          statut_legal: string | null
+          support_phone: string | null
+          updated_at: string | null
+          verification_status: string | null
+          whatsapp_catalog_link: string | null
+        }
+        Insert: {
+          address?: string | null
+          banner_url?: string | null
+          closing_time?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          creation_reason?: string | null
+          description?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_official?: boolean | null
+          logo_url?: string | null
+          name: string
+          opening_time?: string | null
+          owner_id: string
+          responsible_admin_id?: string | null
+          shop_type: string
+          slug: string
+          statut_legal?: string | null
+          support_phone?: string | null
+          updated_at?: string | null
+          verification_status?: string | null
+          whatsapp_catalog_link?: string | null
+        }
+        Update: {
+          address?: string | null
+          banner_url?: string | null
+          closing_time?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          creation_reason?: string | null
+          description?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_official?: boolean | null
+          logo_url?: string | null
+          name?: string
+          opening_time?: string | null
+          owner_id?: string
+          responsible_admin_id?: string | null
+          shop_type?: string
+          slug?: string
+          statut_legal?: string | null
+          support_phone?: string | null
+          updated_at?: string | null
+          verification_status?: string | null
+          whatsapp_catalog_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shops_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shops_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shops_responsible_admin_id_fkey"
+            columns: ["responsible_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_departments: {
         Row: {
           assigned_at: string | null
@@ -371,6 +822,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_shop_team_member: {
+        Args: { _shop_id: string; _user_id: string }
         Returns: boolean
       }
     }

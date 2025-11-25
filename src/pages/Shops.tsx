@@ -11,6 +11,15 @@ import { ShopCard } from "@/components/shops/ShopCard";
 import { ShopListItem } from "@/components/shops/ShopListItem";
 import { ShopFilters } from "@/components/shops/ShopFilters";
 import { ShopViewToggle } from "@/components/shops/ShopViewToggle";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export default function Shops() {
   const { isSuperAdmin, isAdmin } = useUserRoles();
@@ -19,6 +28,8 @@ export default function Shops() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterServiceTypes, setFilterServiceTypes] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   const { data: shops, isLoading, refetch } = useQuery({
     queryKey: ["shops"],
@@ -61,6 +72,12 @@ export default function Shops() {
     return matchesSearch && matchesType && matchesCategories && matchesServiceTypes;
   });
 
+  // Pagination
+  const totalPages = Math.ceil((filteredShops?.length || 0) / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedShops = filteredShops?.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -102,8 +119,8 @@ export default function Shops() {
       <ShopViewToggle viewMode={viewMode} setViewMode={setViewMode} />
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[...Array(12)].map((_, i) => (
             <Skeleton key={i} className="h-64" />
           ))}
         </div>
@@ -113,18 +130,81 @@ export default function Shops() {
             <p className="text-sm text-muted-foreground">Aucune boutique trouvée</p>
           </div>
         </div>
-      ) : viewMode === "cards" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredShops.map((shop) => (
-            <ShopCard key={shop.id} shop={shop} />
-          ))}
-        </div>
       ) : (
-        <div className="space-y-2">
-          {filteredShops.map((shop) => (
-            <ShopListItem key={shop.id} shop={shop} />
-          ))}
-        </div>
+        <>
+          {viewMode === "cards" ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {paginatedShops?.map((shop) => (
+                <ShopCard key={shop.id} shop={shop} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {paginatedShops?.map((shop) => (
+                <ShopListItem key={shop.id} shop={shop} />
+              ))}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage > 1) setCurrentPage(currentPage - 1);
+                    }}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+                
+                {[...Array(totalPages)].map((_, i) => {
+                  const page = i + 1;
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(page);
+                          }}
+                          isActive={currentPage === page}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  } else if (page === currentPage - 2 || page === currentPage + 2) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    );
+                  }
+                  return null;
+                })}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                    }}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       )}
     </div>
   );

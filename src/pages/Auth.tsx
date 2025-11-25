@@ -57,6 +57,23 @@ const Auth = () => {
   const appName = platformSettings?.app_name || "Fere";
   const appDescription = platformSettings?.app_description || "La plateforme qui connecte fournisseurs, prestataires de services et clients.";
 
+  // Cleanup stale sessions on mount
+  useEffect(() => {
+    const cleanupStaleSession = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!currentSession) {
+          // Clear any stale local storage
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        }
+      } catch (error) {
+        console.error("Cleanup error:", error);
+      }
+    };
+    
+    cleanupStaleSession();
+  }, []);
+
   // Redirect if already logged in
   useEffect(() => {
     // Wait for both auth and roles to finish loading

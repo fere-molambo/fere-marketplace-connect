@@ -151,12 +151,28 @@ export const useAuth = () => {
   const signOut = async () => {
     try {
       setLoading(true);
+      
+      // Clear local state IMMEDIATELY
+      setUser(null);
+      setSession(null);
+      
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      
+      // If error is "session_not_found", that's OK - user is already logged out
+      if (error && !error.message?.includes("Session not found") && !error.message?.includes("session_not_found")) {
+        console.error("Sign out error:", error);
+        // Try to sign out locally only as fallback
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      }
+      
       toast.success("Déconnexion réussie");
     } catch (error: any) {
       console.error("Sign out error:", error);
-      toast.error(error.message || "Erreur lors de la déconnexion");
+      // Even on error, ensure local state is cleared
+      setUser(null);
+      setSession(null);
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      toast.success("Déconnexion réussie");
     } finally {
       setLoading(false);
     }

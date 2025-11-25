@@ -3,7 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
@@ -70,6 +70,7 @@ export const AppSidebar = () => {
   const { roles } = useUserRoles();
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const collapsed = state === "collapsed";
 
   const navigationItems = getNavigationItems(roles || []);
@@ -96,7 +97,9 @@ export const AppSidebar = () => {
 
   const handleLogout = async () => {
     await signOut();
-    navigate("/");
+    // Clear all cached queries
+    queryClient.clear();
+    navigate("/", { replace: true });
   };
 
   const getInitials = (name: string) => {

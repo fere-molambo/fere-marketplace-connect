@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
 import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
 import { ClientsTab } from "@/components/shops/tabs/ClientsTab";
@@ -18,6 +20,7 @@ import { ConfigTab } from "@/components/shops/tabs/ConfigTab";
 
 export default function ShopDetail() {
   const { shopId } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("infos");
 
   const { data: shop, isLoading } = useQuery({
@@ -58,6 +61,15 @@ export default function ShopDetail() {
 
   return (
     <div className="space-y-6">
+      <Button 
+        variant="ghost" 
+        onClick={() => navigate("/dashboard/shops")}
+        className="mb-2"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Boutiques
+      </Button>
+      
       {/* Banner and Logo */}
       <div className="relative">
         {shop.banner_url ? (

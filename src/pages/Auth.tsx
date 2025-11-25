@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -25,12 +26,13 @@ import { supabase } from "@/integrations/supabase/client";
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { session, signIn, signUp } = useAuth();
+  const { session, signIn, signUp, signOut } = useAuth();
   const { roles, isLoading: rolesLoading } = useUserRoles();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "login");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [noDashboardAccess, setNoDashboardAccess] = useState(false);
 
   // Récupérer les paramètres de la plateforme
   const { data: platformSettings } = useQuery({
@@ -60,32 +62,33 @@ const Auth = () => {
     // Wait for both auth and roles to finish loading
     if (rolesLoading) return;
     
-    // If no session, stay on /auth
+    // If no session, stay on auth page
     if (!session) {
       setIsRedirecting(false);
+      setNoDashboardAccess(false);
       return;
     }
 
-    // Wait for roles to be loaded before redirecting
+    // Wait for roles to be loaded
     if (session && (!roles || roles.length === 0)) {
       return;
     }
 
-    // Once we have session AND roles loaded, redirect appropriately
-    setIsRedirecting(true);
-    
+    // Check dashboard access
     const hasDashboardAccess = 
       roles?.includes("super_admin") || 
       roles?.includes("admin") ||
       roles?.includes("vendeur") ||
       roles?.includes("equipe");
     
-    // Small delay to prevent flickering
-    const timer = setTimeout(() => {
-      navigate(hasDashboardAccess ? "/dashboard" : "/", { replace: true });
-    }, 300);
-    
-    return () => clearTimeout(timer);
+    if (hasDashboardAccess) {
+      setIsRedirecting(true);
+      navigate("/dashboard", { replace: true });
+    } else {
+      // User logged in but no dashboard access - show message
+      setNoDashboardAccess(true);
+      setIsRedirecting(false);
+    }
   }, [session, roles, rolesLoading, navigate]);
 
   // Login form
@@ -134,6 +137,35 @@ const Auth = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Connexion en cours...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (noDashboardAccess) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Card className="w-full max-w-md mx-4">
+          <CardHeader>
+            <CardTitle>Accès non autorisé</CardTitle>
+            <CardDescription>
+              Vous êtes connecté mais votre rôle ne vous permet pas d'accéder au dashboard administrateur.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Les rôles <strong>livreur</strong> et <strong>membre</strong> ont des applications dédiées qui seront disponibles prochainement.
+            </p>
+            <Button 
+              onClick={async () => {
+                await signOut();
+                setNoDashboardAccess(false);
+              }} 
+              className="w-full"
+            >
+              Se déconnecter
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

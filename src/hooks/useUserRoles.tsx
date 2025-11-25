@@ -19,6 +19,8 @@ export const useUserRoles = () => {
       return data as AppRole[];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   const hasRole = (role: AppRole) => roles?.includes(role) || false;

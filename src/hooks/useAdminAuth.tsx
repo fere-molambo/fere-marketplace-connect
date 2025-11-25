@@ -13,7 +13,7 @@ export const useAdminAuth = () => {
     if (authLoading || rolesLoading) return;
 
     if (!user) {
-      navigate("/auth");
+      navigate("/");
       return;
     }
 
@@ -26,7 +26,9 @@ export const useAdminAuth = () => {
     if (hasAdminRole) {
       setIsAuthorized(true);
     } else {
-      navigate("/");
+      // Don't navigate, just set as not authorized
+      // The Auth page will handle showing appropriate message
+      setIsAuthorized(false);
     }
   }, [user, roles, authLoading, rolesLoading, navigate]);
 

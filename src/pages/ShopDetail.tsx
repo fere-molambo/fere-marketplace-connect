@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ShopImageUpload } from "@/components/shops/ShopImageUpload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export default function ShopDetail() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("infos");
 
-  const { data: shop, isLoading } = useQuery({
+  const { data: shop, isLoading, refetch } = useQuery({
     queryKey: ["shop", shopId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -72,25 +73,19 @@ export default function ShopDetail() {
       
       {/* Banner and Logo */}
       <div className="relative">
-        {shop.banner_url ? (
-          <img
-            src={shop.banner_url}
-            alt="Banner"
-            className="h-32 w-full rounded-lg object-cover sm:h-48"
-          />
-        ) : (
-          <div className="h-32 w-full rounded-lg bg-muted sm:h-48" />
-        )}
+        <ShopImageUpload
+          shopId={shop.id}
+          currentImageUrl={shop.banner_url}
+          imageType="banner"
+          onUploadComplete={refetch}
+        />
         <div className="absolute bottom-0 left-4 translate-y-1/2">
-          {shop.logo_url ? (
-            <img
-              src={shop.logo_url}
-              alt={shop.name}
-              className="h-16 w-16 rounded-lg border-4 border-background object-cover sm:h-20 sm:w-20"
-            />
-          ) : (
-            <div className="h-16 w-16 rounded-lg border-4 border-background bg-muted sm:h-20 sm:w-20" />
-          )}
+          <ShopImageUpload
+            shopId={shop.id}
+            currentImageUrl={shop.logo_url}
+            imageType="logo"
+            onUploadComplete={refetch}
+          />
         </div>
       </div>
 
@@ -121,7 +116,7 @@ export default function ShopDetail() {
         </div>
 
         <TabsContent value="infos" className="mt-6">
-          <ShopInfoSection shop={shop} />
+          <ShopInfoSection shop={shop} onUpdate={refetch} />
         </TabsContent>
 
         <TabsContent value="stories" className="mt-6">

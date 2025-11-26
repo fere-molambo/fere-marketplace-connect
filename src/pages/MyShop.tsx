@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { ShopImageUpload } from "@/components/shops/ShopImageUpload";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -84,27 +85,19 @@ export default function MyShop() {
     <div className="space-y-6">
       {/* Banner and Logo */}
       <div className="relative">
-        {shop.banner_url ? (
-          <img
-            src={shop.banner_url}
-            alt="Banner"
-            className="w-full h-48 object-cover rounded-lg"
+        <ShopImageUpload
+          shopId={shop.id}
+          currentImageUrl={shop.banner_url}
+          imageType="banner"
+          onUploadComplete={refetch}
+        />
+        <div className="absolute bottom-0 left-4 translate-y-1/2">
+          <ShopImageUpload
+            shopId={shop.id}
+            currentImageUrl={shop.logo_url}
+            imageType="logo"
+            onUploadComplete={refetch}
           />
-        ) : (
-          <div className="w-full h-48 bg-muted rounded-lg" />
-        )}
-        <div className="absolute -bottom-12 left-6">
-          {shop.logo_url ? (
-            <img
-              src={shop.logo_url}
-              alt={shop.name}
-              className="w-24 h-24 rounded-full border-4 border-background object-cover"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-full border-4 border-background bg-muted flex items-center justify-center">
-              <Store className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )}
         </div>
       </div>
 
@@ -133,7 +126,7 @@ export default function MyShop() {
         </TabsList>
 
         <TabsContent value="infos" className="space-y-4">
-          <ShopInfoSection shop={shop} />
+          <ShopInfoSection shop={shop} onUpdate={refetch} />
         </TabsContent>
 
         <TabsContent value="stories" className="space-y-4">

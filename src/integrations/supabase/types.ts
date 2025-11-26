@@ -813,6 +813,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_shop_image: { Args: { _file_path: string }; Returns: boolean }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]

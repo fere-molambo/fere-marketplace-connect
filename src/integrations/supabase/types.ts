@@ -222,6 +222,7 @@ export type Database = {
           contact: string
           contrat_url: string | null
           created_at: string | null
+          created_by: string | null
           department_id: string | null
           duree_contrat: string | null
           email: string | null
@@ -245,6 +246,7 @@ export type Database = {
           contact: string
           contrat_url?: string | null
           created_at?: string | null
+          created_by?: string | null
           department_id?: string | null
           duree_contrat?: string | null
           email?: string | null
@@ -268,6 +270,7 @@ export type Database = {
           contact?: string
           contrat_url?: string | null
           created_at?: string | null
+          created_by?: string | null
           department_id?: string | null
           duree_contrat?: string | null
           email?: string | null
@@ -287,6 +290,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_department_id_fkey"
             columns: ["department_id"]
@@ -511,6 +521,7 @@ export type Database = {
         Row: {
           caption: string | null
           created_at: string | null
+          created_by: string | null
           expires_at: string | null
           id: string
           is_active: boolean | null
@@ -518,10 +529,12 @@ export type Database = {
           media_url: string
           shop_id: string
           source_type: string | null
+          visibility: Database["public"]["Enums"]["story_visibility"] | null
         }
         Insert: {
           caption?: string | null
           created_at?: string | null
+          created_by?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -529,10 +542,12 @@ export type Database = {
           media_url: string
           shop_id: string
           source_type?: string | null
+          visibility?: Database["public"]["Enums"]["story_visibility"] | null
         }
         Update: {
           caption?: string | null
           created_at?: string | null
+          created_by?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
@@ -540,8 +555,16 @@ export type Database = {
           media_url?: string
           shop_id?: string
           source_type?: string | null
+          visibility?: Database["public"]["Enums"]["story_visibility"] | null
         }
         Relationships: [
+          {
+            foreignKeyName: "shop_stories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shop_stories_shop_id_fkey"
             columns: ["shop_id"]
@@ -814,6 +837,7 @@ export type Database = {
     }
     Functions: {
       can_manage_shop_image: { Args: { _file_path: string }; Returns: boolean }
+      cleanup_expired_stories: { Args: never; Returns: undefined }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
@@ -841,6 +865,7 @@ export type Database = {
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
+      story_visibility: "public" | "clients_only" | "private"
       type_contrat_type: "cdd" | "cdi" | "prestataire"
       type_offre_type: "produits" | "services" | "les_deux"
     }
@@ -981,6 +1006,7 @@ export const Constants = {
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],
       statut_legal_type: ["particulier", "entreprise"],
+      story_visibility: ["public", "clients_only", "private"],
       type_contrat_type: ["cdd", "cdi", "prestataire"],
       type_offre_type: ["produits", "services", "les_deux"],
     },

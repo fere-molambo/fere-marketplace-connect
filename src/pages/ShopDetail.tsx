@@ -156,7 +156,7 @@ export default function ShopDetail() {
         </TabsContent>
 
         <TabsContent value="config" className="mt-6">
-          <ConfigTab />
+          <ConfigTab shopId={shopId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -3,7 +3,8 @@ import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { PasswordSettings } from "@/components/settings/PasswordSettings";
 import { PlatformSettings } from "@/components/settings/PlatformSettings";
 import { DataManagementSettings } from "@/components/settings/DataManagementSettings";
-import { User, KeyRound, Building2, Database } from "lucide-react";
+import { TeamTagsSettings } from "@/components/settings/TeamTagsSettings";
+import { User, KeyRound, Building2, Database, Tags } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -41,6 +42,12 @@ export default function Settings() {
               Données
             </TabsTrigger>
           )}
+          {canManagePlatform && (
+            <TabsTrigger value="team-tags" className="flex items-center gap-2">
+              <Tags className="h-4 w-4" />
+              Tags équipe
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />
@@ -56,6 +63,11 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="data" className="mt-6">
             <DataManagementSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="team-tags" className="mt-6">
+            <TeamTagsSettings />
           </TabsContent>
         )}
       </Tabs>

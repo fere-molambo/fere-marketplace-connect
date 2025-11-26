@@ -109,11 +109,13 @@ export default function MyShop() {
         <p className="text-muted-foreground">@{shop.owner?.nom_complet}</p>
       </div>
 
+      {/* Stories Section */}
+      <ShopStoriesSection shopId={shop.id} />
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 lg:grid-cols-11 w-full">
+        <TabsList className="grid grid-cols-5 lg:grid-cols-10 w-full">
           <TabsTrigger value="infos">Infos</TabsTrigger>
-          <TabsTrigger value="stories">Stories</TabsTrigger>
           <TabsTrigger value="clients">Clients</TabsTrigger>
           <TabsTrigger value="products">Produits</TabsTrigger>
           <TabsTrigger value="orders">Commandes</TabsTrigger>
@@ -127,10 +129,6 @@ export default function MyShop() {
 
         <TabsContent value="infos" className="space-y-4">
           <ShopInfoSection shop={shop} onUpdate={refetch} />
-        </TabsContent>
-
-        <TabsContent value="stories" className="space-y-4">
-          <ShopStoriesSection shopId={shop.id} />
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4">

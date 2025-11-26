@@ -84,20 +84,26 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
 
   // Fetch available team members based on role
   const { data: availableMembers } = useQuery({
-    queryKey: ["available-team-members", user?.id, isSuperAdmin, isAdmin],
+    queryKey: ["available-team-members", user?.id, isSuperAdmin, isAdmin, teamMembers?.map(tm => tm.member_id)],
     queryFn: async () => {
       if (!user) return [];
 
+      // Step 1: Fetch all user_ids with 'equipe' role
+      const { data: equipeRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "equipe");
+
+      if (rolesError) throw rolesError;
+      if (!equipeRoles || equipeRoles.length === 0) return [];
+
+      const equipeUserIds = equipeRoles.map(r => r.user_id);
+
+      // Step 2: Fetch corresponding profiles
       let query = supabase
         .from("profiles")
-        .select(`
-          id,
-          nom_complet,
-          email,
-          photo_profil,
-          user_roles!inner(role)
-        `)
-        .eq("user_roles.role", "equipe");
+        .select("id, nom_complet, email, photo_profil")
+        .in("id", equipeUserIds);
 
       // If vendeur, only show team members they created
       if (!isSuperAdmin && !isAdmin) {
@@ -105,14 +111,13 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-      
+
       // Filter out members already in the team
       const currentMemberIds = teamMembers?.map(tm => tm.member_id) || [];
       return (data as AvailableMember[]).filter(m => !currentMemberIds.includes(m.id));
     },
-    enabled: !!user,
+    enabled: !!user && teamMembers !== undefined,
   });
 
   const handleAddMember = async () => {
@@ -132,7 +137,7 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       toast.success("Membre ajouté avec succès");
       setOpen(false);
       setSelectedMember(null);
-      refetchTeam();
+      await refetchTeam();
     } catch (error: any) {
       console.error("Error adding member:", error);
       toast.error(error.message || "Erreur lors de l'ajout du membre");

@@ -166,7 +166,7 @@ export default function MyShop() {
         </TabsContent>
 
         <TabsContent value="config" className="space-y-4">
-          <ConfigTab />
+          <ConfigTab shopId={shop.id} />
         </TabsContent>
       </Tabs>
     </div>

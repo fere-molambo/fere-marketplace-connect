@@ -25,6 +25,7 @@ import {
 import { Loader2 } from "lucide-react";
 
 const editShopSchema = z.object({
+  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(100, "Le nom ne peut pas dépasser 100 caractères"),
   description: z.string().optional(),
   shop_type: z.enum(["fournisseur", "prestataire", "les_deux"]),
   statut_legal: z.string().optional(),
@@ -48,6 +49,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
   const form = useForm<EditShopFormData>({
     resolver: zodResolver(editShopSchema),
     defaultValues: {
+      name: shop.name || "",
       description: shop.description || "",
       shop_type: shop.shop_type || "fournisseur",
       statut_legal: shop.statut_legal || "",
@@ -66,6 +68,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
       const { error } = await supabase
         .from("shops")
         .update({
+          name: data.name,
           description: data.description,
           shop_type: data.shop_type,
           statut_legal: data.statut_legal || null,
@@ -97,6 +100,20 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nom de la boutique</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nom de votre boutique" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <FormField
               control={form.control}
               name="description"

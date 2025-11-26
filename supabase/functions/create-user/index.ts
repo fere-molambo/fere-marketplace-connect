@@ -92,6 +92,17 @@ serve(async (req) => {
     // Wait for the handle_new_user trigger to create the profile
     await new Promise(resolve => setTimeout(resolve, 1000));
 
+    // Update profile with created_by
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .update({ created_by: user.id })
+      .eq('id', newUser.user.id);
+
+    if (profileError) {
+      console.error('Profile update error:', profileError);
+      // Non-blocking error, continue with role creation
+    }
+
     // Create the role
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')

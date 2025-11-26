@@ -98,11 +98,13 @@ export default function ShopDetail() {
         </div>
       </div>
 
+      {/* Stories Section */}
+      <ShopStoriesSection shopId={shop.id} />
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto">
           <TabsList className="inline-flex w-full min-w-max">
             <TabsTrigger value="infos">Infos</TabsTrigger>
-            <TabsTrigger value="stories">Stories</TabsTrigger>
             <TabsTrigger value="clients">Clients</TabsTrigger>
             <TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="orders">Commandes</TabsTrigger>
@@ -117,10 +119,6 @@ export default function ShopDetail() {
 
         <TabsContent value="infos" className="mt-6">
           <ShopInfoSection shop={shop} onUpdate={refetch} />
-        </TabsContent>
-
-        <TabsContent value="stories" className="mt-6">
-          <ShopStoriesSection shopId={shop.id} />
         </TabsContent>
 
         <TabsContent value="clients" className="mt-6">

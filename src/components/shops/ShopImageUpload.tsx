@@ -55,11 +55,14 @@ export const ShopImageUpload = ({
         .from(bucket)
         .getPublicUrl(filePath);
 
+      // Add cache-buster to force browser refresh
+      const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
+
       // Update shop record
       const updateField = imageType === "logo" ? "logo_url" : "banner_url";
       const { error: updateError } = await supabase
         .from("shops")
-        .update({ [updateField]: publicUrl })
+        .update({ [updateField]: urlWithCacheBuster })
         .eq("id", shopId);
 
       if (updateError) throw updateError;

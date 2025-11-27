@@ -136,7 +136,7 @@ export default function MyShop() {
         </TabsContent>
 
         <TabsContent value="products" className="space-y-4">
-          <ProductsServicesTab />
+          <ProductsServicesTab shopId={shop.id} />
         </TabsContent>
 
         <TabsContent value="orders" className="space-y-4">

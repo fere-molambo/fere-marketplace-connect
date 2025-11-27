@@ -145,9 +145,11 @@ export type Database = {
       products: {
         Row: {
           colors: Json | null
+          condition: string | null
           created_at: string | null
           description: string | null
           discount_percent: number | null
+          hover_media_url: string | null
           id: string
           includes: string | null
           is_active: boolean | null
@@ -163,12 +165,15 @@ export type Database = {
           shop_id: string
           sizes: Json | null
           updated_at: string | null
+          video_url: string | null
         }
         Insert: {
           colors?: Json | null
+          condition?: string | null
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          hover_media_url?: string | null
           id?: string
           includes?: string | null
           is_active?: boolean | null
@@ -184,12 +189,15 @@ export type Database = {
           shop_id: string
           sizes?: Json | null
           updated_at?: string | null
+          video_url?: string | null
         }
         Update: {
           colors?: Json | null
+          condition?: string | null
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          hover_media_url?: string | null
           id?: string
           includes?: string | null
           is_active?: boolean | null
@@ -205,6 +213,7 @@ export type Database = {
           shop_id?: string
           sizes?: Json | null
           updated_at?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {
@@ -349,6 +358,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           discount_percent: number | null
+          hover_media_url: string | null
           id: string
           includes: string | null
           is_active: boolean | null
@@ -361,6 +371,7 @@ export type Database = {
           requires_booking: boolean | null
           shop_id: string
           updated_at: string | null
+          video_url: string | null
           weekly_availability: Json | null
         }
         Insert: {
@@ -369,6 +380,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          hover_media_url?: string | null
           id?: string
           includes?: string | null
           is_active?: boolean | null
@@ -381,6 +393,7 @@ export type Database = {
           requires_booking?: boolean | null
           shop_id: string
           updated_at?: string | null
+          video_url?: string | null
           weekly_availability?: Json | null
         }
         Update: {
@@ -389,6 +402,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          hover_media_url?: string | null
           id?: string
           includes?: string | null
           is_active?: boolean | null
@@ -401,6 +415,7 @@ export type Database = {
           requires_booking?: boolean | null
           shop_id?: string
           updated_at?: string | null
+          video_url?: string | null
           weekly_availability?: Json | null
         }
         Relationships: [
@@ -633,6 +648,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           creation_reason: string | null
+          delivery_details: string | null
           description: string | null
           geolocation_lat: number | null
           geolocation_lng: number | null
@@ -644,6 +660,7 @@ export type Database = {
           opening_time: string | null
           owner_id: string
           responsible_admin_id: string | null
+          return_policy: string | null
           shop_type: string
           slug: string
           statut_legal: string | null
@@ -661,6 +678,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           creation_reason?: string | null
+          delivery_details?: string | null
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
@@ -672,6 +690,7 @@ export type Database = {
           opening_time?: string | null
           owner_id: string
           responsible_admin_id?: string | null
+          return_policy?: string | null
           shop_type: string
           slug: string
           statut_legal?: string | null
@@ -689,6 +708,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           creation_reason?: string | null
+          delivery_details?: string | null
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
@@ -700,6 +720,7 @@ export type Database = {
           opening_time?: string | null
           owner_id?: string
           responsible_admin_id?: string | null
+          return_policy?: string | null
           shop_type?: string
           slug?: string
           statut_legal?: string | null

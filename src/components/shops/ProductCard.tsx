@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { EditProductDialog } from "./EditProductDialog";
 
 interface ProductCardProps {
   product: any;
@@ -14,6 +16,7 @@ interface ProductCardProps {
 export const ProductCard = ({ product }: ProductCardProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
 
   const handleToggleActive = async () => {
     try {
@@ -105,7 +108,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <span className="text-sm">{product.is_active ? "Actif" : "Inactif"}</span>
         </div>
         <div className="flex gap-2">
-          <Button size="icon" variant="ghost">
+          <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}>
             <Edit className="h-4 w-4" />
           </Button>
           <Button size="icon" variant="ghost" onClick={handleDelete}>
@@ -113,6 +116,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </Button>
         </div>
       </CardFooter>
+      
+      <EditProductDialog
+        shopId={product.shop_id}
+        product={product}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </Card>
   );
 };

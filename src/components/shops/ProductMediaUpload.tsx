@@ -12,6 +12,10 @@ interface ProductMediaUploadProps {
   onVideoChange: (url: string) => void;
   onOtherMediaChange: (urls: string[]) => void;
   bucketName: "product-media" | "service-media";
+  initialMainMedia?: string;
+  initialHoverMedia?: string;
+  initialVideo?: string;
+  initialOtherMedia?: string[];
 }
 
 export const ProductMediaUpload = ({
@@ -21,12 +25,16 @@ export const ProductMediaUpload = ({
   onVideoChange,
   onOtherMediaChange,
   bucketName,
+  initialMainMedia = "",
+  initialHoverMedia = "",
+  initialVideo = "",
+  initialOtherMedia = [],
 }: ProductMediaUploadProps) => {
   const { toast } = useToast();
-  const [mainMedia, setMainMedia] = useState<string>("");
-  const [hoverMedia, setHoverMedia] = useState<string>("");
-  const [video, setVideo] = useState<string>("");
-  const [otherMedia, setOtherMedia] = useState<string[]>([]);
+  const [mainMedia, setMainMedia] = useState<string>(initialMainMedia);
+  const [hoverMedia, setHoverMedia] = useState<string>(initialHoverMedia);
+  const [video, setVideo] = useState<string>(initialVideo);
+  const [otherMedia, setOtherMedia] = useState<string[]>(initialOtherMedia);
   const [uploading, setUploading] = useState(false);
 
   const uploadFile = async (file: File, type: "main" | "hover" | "video" | "other") => {

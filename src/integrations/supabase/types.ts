@@ -901,6 +901,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_product_media: {
+        Args: { _file_path: string }
+        Returns: boolean
+      }
+      can_manage_service_media: {
+        Args: { _file_path: string }
+        Returns: boolean
+      }
       can_manage_shop_image: { Args: { _file_path: string }; Returns: boolean }
       cleanup_expired_stories: { Args: never; Returns: undefined }
       get_user_roles: {

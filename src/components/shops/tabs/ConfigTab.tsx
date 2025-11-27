@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Trash2, Pencil } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { UserPlus, Trash2, Pencil, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -52,9 +53,32 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
   const [editTagDialogOpen, setEditTagDialogOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [deliveryDetails, setDeliveryDetails] = useState("");
+  const [returnPolicy, setReturnPolicy] = useState("");
+  const [isSavingShopSettings, setIsSavingShopSettings] = useState(false);
 
   const { user } = useAuth();
   const { isSuperAdmin, isAdmin } = useUserRoles();
+  const queryClient = useQueryClient();
+
+  // Fetch shop data for delivery and return policy
+  const { data: shopData } = useQuery({
+    queryKey: ["shop", shopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("shops")
+        .select("delivery_details, return_policy")
+        .eq("id", shopId)
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setDeliveryDetails(data.delivery_details || "");
+        setReturnPolicy(data.return_policy || "");
+      }
+      return data;
+    },
+  });
 
   // Fetch available tags
   const { data: tags } = useQuery({
@@ -215,12 +239,79 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
     }
   };
 
+  const handleSaveShopSettings = async () => {
+    if (!shopId) return;
+    
+    setIsSavingShopSettings(true);
+    try {
+      const { error } = await supabase
+        .from("shops")
+        .update({
+          delivery_details: deliveryDetails,
+          return_policy: returnPolicy,
+        })
+        .eq("id", shopId);
+
+      if (error) throw error;
+
+      toast.success("Paramètres de la boutique mis à jour");
+      queryClient.invalidateQueries({ queryKey: ["shop", shopId] });
+    } catch (error: any) {
+      console.error("Error updating shop settings:", error);
+      toast.error(error.message || "Erreur lors de la mise à jour");
+    } finally {
+      setIsSavingShopSettings(false);
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Membres de l'équipe</CardTitle>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            <CardTitle>Paramètres de la boutique</CardTitle>
+          </div>
+          <CardDescription>
+            Définissez vos conditions de livraison et de retour
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="delivery-details">Détails de livraison</Label>
+            <Textarea
+              id="delivery-details"
+              placeholder="Décrivez vos modalités de livraison..."
+              value={deliveryDetails}
+              onChange={(e) => setDeliveryDetails(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="return-policy">Politique de retour</Label>
+            <Textarea
+              id="return-policy"
+              placeholder="Décrivez votre politique de retour..."
+              value={returnPolicy}
+              onChange={(e) => setReturnPolicy(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <Button 
+            onClick={handleSaveShopSettings}
+            disabled={isSavingShopSettings}
+            className="w-full sm:w-auto"
+          >
+            {isSavingShopSettings ? "Enregistrement..." : "Enregistrer"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Membres de l'équipe</CardTitle>
             <CardDescription>
               Gérez les membres qui ont accès à cette boutique
             </CardDescription>
@@ -365,6 +456,7 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
           </div>
         )}
       </CardContent>
+      </Card>
 
       {/* Remove Member Dialog */}
       <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
@@ -423,6 +515,6 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };

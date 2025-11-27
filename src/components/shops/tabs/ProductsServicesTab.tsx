@@ -1,22 +1,126 @@
-import { Construction } from "lucide-react";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
+import { CreateProductDialog } from "../CreateProductDialog";
+import { CreateServiceDialog } from "../CreateServiceDialog";
+import { ProductCard } from "../ProductCard";
+import { ServiceCard } from "../ServiceCard";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-export const ProductsServicesTab = () => {
-  const navigate = useNavigate();
+interface ProductsServicesTabProps {
+  shopId: string;
+}
+
+export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
+  const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [createServiceOpen, setCreateServiceOpen] = useState(false);
+
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ["shop-products", shopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("shop_id", shopId)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: services = [], isLoading: servicesLoading } = useQuery({
+    queryKey: ["shop-services", shopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("shop_id", shopId)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
 
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4 rounded-lg border border-dashed p-8">
-      <Construction className="h-16 w-16 text-muted-foreground" />
-      <div className="text-center">
-        <h3 className="mb-2 text-lg font-semibold">En construction</h3>
-        <p className="text-sm text-muted-foreground">
-          Cette fonctionnalité sera disponible prochainement.
-        </p>
-      </div>
-      <Button variant="outline" onClick={() => navigate(-1)}>
-        Retour aux infos
-      </Button>
+    <div className="space-y-4">
+      <Tabs defaultValue="products" className="w-full">
+        <div className="flex items-center justify-between mb-4">
+          <TabsList>
+            <TabsTrigger value="products">Produits ({products.length})</TabsTrigger>
+            <TabsTrigger value="services">Prestations ({services.length})</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="products" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setCreateProductOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un produit
+            </Button>
+          </div>
+          
+          {productsLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-lg">
+              <p className="text-muted-foreground mb-4">Aucun produit pour le moment</p>
+              <Button onClick={() => setCreateProductOpen(true)} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Créer votre premier produit
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="services" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setCreateServiceOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter une prestation
+            </Button>
+          </div>
+          
+          {servicesLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-lg">
+              <p className="text-muted-foreground mb-4">Aucune prestation pour le moment</p>
+              <Button onClick={() => setCreateServiceOpen(true)} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Créer votre première prestation
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {services.map((service) => (
+                <ServiceCard key={service.id} service={service} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <CreateProductDialog 
+        shopId={shopId}
+        open={createProductOpen}
+        onOpenChange={setCreateProductOpen}
+      />
+      
+      <CreateServiceDialog 
+        shopId={shopId}
+        open={createServiceOpen}
+        onOpenChange={setCreateServiceOpen}
+      />
     </div>
   );
 };

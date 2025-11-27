@@ -26,7 +26,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [includes, setIncludes] = useState("");
-  const [priceType, setPriceType] = useState<"unitaire" | "gros">("unitaire");
+  const [priceType, setPriceType] = useState<"unitaire" | "en_gros">("unitaire");
   const [price, setPrice] = useState("");
   const [productType, setProductType] = useState("");
   const [condition, setCondition] = useState<"neuf" | "2eme_main">("neuf");
@@ -109,7 +109,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
         media_urls: otherMedia,
         colors,
         sizes,
-        quantity_intervals: priceType === "gros" && quantityIntervals.length > 0 
+        quantity_intervals: priceType === "en_gros" && quantityIntervals.length > 0 
           ? quantityIntervals.map(interval => ({
               min: parseInt(interval.min),
               max: parseInt(interval.max),
@@ -206,13 +206,13 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
 
             <div className="space-y-2">
               <Label htmlFor="price-type">Type de tarif</Label>
-              <Select value={priceType} onValueChange={(v) => setPriceType(v as "unitaire" | "gros")}>
+              <Select value={priceType} onValueChange={(v) => setPriceType(v as "unitaire" | "en_gros")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unitaire">Unitaire</SelectItem>
-                  <SelectItem value="gros">En gros</SelectItem>
+                  <SelectItem value="en_gros">En gros</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -228,7 +228,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
               />
             </div>
 
-            {priceType === "gros" && (
+            {priceType === "en_gros" && (
               <div className="col-span-2 space-y-4 p-4 border border-border rounded-lg bg-muted/50">
                 <div className="flex items-center justify-between">
                   <Label>Intervalles de prix selon la quantité</Label>

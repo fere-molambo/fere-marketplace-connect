@@ -45,8 +45,22 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
   const [sizes, setSizes] = useState<string[]>([]);
   const [sizeInput, setSizeInput] = useState("");
   
-  const [quantityIntervals, setQuantityIntervals] = useState<Array<{min: number, max: number, price: number}>>([]);
+  const [quantityIntervals, setQuantityIntervals] = useState<Array<{min: string, max: string, price: string}>>([]);
   const [saving, setSaving] = useState(false);
+
+  const addInterval = () => {
+    setQuantityIntervals([...quantityIntervals, { min: "", max: "", price: "" }]);
+  };
+
+  const removeInterval = (index: number) => {
+    setQuantityIntervals(quantityIntervals.filter((_, i) => i !== index));
+  };
+
+  const updateInterval = (index: number, field: 'min' | 'max' | 'price', value: string) => {
+    const updated = [...quantityIntervals];
+    updated[index][field] = value;
+    setQuantityIntervals(updated);
+  };
 
   const addColor = () => {
     if (colorInput.trim() && !colors.includes(colorInput.trim())) {
@@ -95,7 +109,13 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
         media_urls: otherMedia,
         colors,
         sizes,
-        quantity_intervals: priceType === "gros" ? quantityIntervals : [],
+        quantity_intervals: priceType === "gros" && quantityIntervals.length > 0 
+          ? quantityIntervals.map(interval => ({
+              min: parseInt(interval.min),
+              max: parseInt(interval.max),
+              price: parseFloat(interval.price)
+            }))
+          : null,
       });
 
       if (error) throw error;
@@ -198,7 +218,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="price">Prix (FCFA) *</Label>
+              <Label htmlFor="price">Prix {priceType === "unitaire" ? "(FCFA)" : "de base (FCFA)"} *</Label>
               <Input
                 id="price"
                 type="number"
@@ -207,6 +227,68 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
                 required
               />
             </div>
+
+            {priceType === "gros" && (
+              <div className="col-span-2 space-y-4 p-4 border border-border rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <Label>Intervalles de prix selon la quantité</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addInterval}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    Ajouter un intervalle
+                  </Button>
+                </div>
+                
+                {quantityIntervals.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Aucun intervalle défini. Ajoutez des intervalles pour définir des prix selon la quantité.
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  {quantityIntervals.map((interval, index) => (
+                    <div key={index} className="flex gap-2 items-center flex-wrap">
+                      <span className="text-sm">De</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Min"
+                        className="w-20"
+                        value={interval.min}
+                        onChange={(e) => updateInterval(index, 'min', e.target.value)}
+                      />
+                      <span className="text-sm">à</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Max"
+                        className="w-20"
+                        value={interval.max}
+                        onChange={(e) => updateInterval(index, 'max', e.target.value)}
+                      />
+                      <span className="text-sm">unités :</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Prix"
+                        className="w-28"
+                        value={interval.price}
+                        onChange={(e) => updateInterval(index, 'price', e.target.value)}
+                      />
+                      <span className="text-sm">FCFA</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeInterval(index)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="product-type">Type de produit</Label>
@@ -237,14 +319,13 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="discount">Réduction (%)</Label>
+              <Label htmlFor="min-quantity">Quantité minimum de commande</Label>
               <Input
-                id="discount"
+                id="min-quantity"
                 type="number"
-                min="0"
-                max="100"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
+                min="1"
+                value={minQuantity}
+                onChange={(e) => setMinQuantity(e.target.value)}
               />
             </div>
 
@@ -256,6 +337,18 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
                 min="0"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="discount">Réduction (%)</Label>
+              <Input
+                id="discount"
+                type="number"
+                min="0"
+                max="100"
+                value={discount}
+                onChange={(e) => setDiscount(e.target.value)}
               />
             </div>
 

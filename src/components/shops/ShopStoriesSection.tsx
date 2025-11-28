@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Share2, Eye, EyeOff, Users } from "lucide-react";
+import { Share2, Eye, EyeOff, Users, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +10,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AddStoryDialog } from "./AddStoryDialog";
 import { toast } from "sonner";
 
@@ -23,6 +25,8 @@ interface Story {
 }
 
 export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
+  const [selectedStory, setSelectedStory] = useState<Story | null>(null);
+  
   const { data: stories, isLoading, refetch } = useQuery({
     queryKey: ["shop-stories", shopId],
     queryFn: async () => {
@@ -83,7 +87,7 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 w-24 animate-pulse rounded-xl bg-muted" />
+            <div key={i} className="h-20 w-20 md:h-24 md:w-24 animate-pulse rounded-full bg-muted" />
           ))}
         </div>
       </div>
@@ -115,44 +119,36 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
             {stories.map((story) => (
               <CarouselItem key={story.id} className="basis-auto pl-2 md:pl-4">
                 <div className="group relative flex flex-col items-center gap-2">
-                  <div className="relative h-32 w-24 overflow-hidden rounded-xl border-2 border-primary bg-muted shadow-lg transition-transform hover:scale-105 md:h-40 md:w-32">
-                    {story.media_type === "video" ? (
-                      <video
-                        src={story.media_url}
-                        className="h-full w-full object-cover"
-                        muted
-                        loop
-                        playsInline
-                      />
-                    ) : (
-                      <img
-                        src={story.media_url}
-                        alt={story.caption || "Story"}
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                    
-                    {/* Overlay with actions */}
-                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-white hover:bg-white/20"
-                        onClick={() => handleShare(story.id)}
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </Button>
+                  <button
+                    onClick={() => setSelectedStory(story)}
+                    className="relative h-20 w-20 md:h-24 md:w-24 overflow-hidden rounded-full bg-gradient-to-tr from-primary via-primary/80 to-primary/60 p-[2px] shadow-lg transition-transform hover:scale-105 cursor-pointer"
+                  >
+                    <div className="h-full w-full overflow-hidden rounded-full bg-background p-[2px]">
+                      {story.media_type === "video" ? (
+                        <video
+                          src={story.media_url}
+                          className="h-full w-full object-cover rounded-full"
+                          muted
+                          loop
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={story.media_url}
+                          alt={story.caption || "Story"}
+                          className="h-full w-full object-cover rounded-full"
+                        />
+                      )}
                     </div>
 
                     {/* Visibility badge */}
-                    <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-xs text-white">
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
                       {getVisibilityIcon(story.visibility)}
-                      <span className="hidden md:inline">{getVisibilityLabel(story.visibility)}</span>
                     </div>
-                  </div>
+                  </button>
 
                   {story.caption && (
-                    <p className="w-24 truncate text-center text-xs text-muted-foreground md:w-32">
+                    <p className="w-20 md:w-24 truncate text-center text-xs text-muted-foreground mt-2">
                       {story.caption}
                     </p>
                   )}
@@ -164,6 +160,70 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
           <CarouselNext className="hidden md:flex" />
         </Carousel>
       )}
+
+      {/* Story Viewer Dialog */}
+      <Dialog open={!!selectedStory} onOpenChange={(open) => !open && setSelectedStory(null)}>
+        <DialogContent className="max-w-4xl h-[90vh] p-0 bg-black/95 border-none backdrop-blur-sm">
+          {selectedStory && (
+            <div className="relative h-full w-full flex flex-col items-center justify-center">
+              {/* Close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+                onClick={() => setSelectedStory(null)}
+              >
+                <X className="h-6 w-6" />
+              </Button>
+
+              {/* Media content */}
+              <div className="flex-1 w-full flex items-center justify-center p-4">
+                {selectedStory.media_type === "video" ? (
+                  <video
+                    src={selectedStory.media_url}
+                    className="max-h-full max-w-full object-contain"
+                    controls
+                    autoPlay
+                    loop
+                  />
+                ) : (
+                  <img
+                    src={selectedStory.media_url}
+                    alt={selectedStory.caption || "Story"}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                )}
+              </div>
+
+              {/* Bottom info */}
+              <div className="w-full bg-gradient-to-t from-black/80 to-transparent p-6 space-y-4">
+                {selectedStory.caption && (
+                  <p className="text-white text-center text-lg">
+                    {selectedStory.caption}
+                  </p>
+                )}
+                
+                <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white">
+                    {getVisibilityIcon(selectedStory.visibility)}
+                    <span>{getVisibilityLabel(selectedStory.visibility)}</span>
+                  </div>
+                  
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleShare(selectedStory.id)}
+                    className="gap-2"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Partager
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -143,24 +143,33 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
             {stories.map((story) => (
               <CarouselItem key={story.id} className="basis-auto pl-2 md:pl-4">
                 <div className="group relative flex flex-col items-center gap-2">
+                  {/* Delete button - outside the main button to avoid clipping */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteStory(story.id, story.media_url);
+                    }}
+                    className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600 z-10"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+
                   <button
                     onClick={() => setSelectedStory(story)}
-                    className="relative h-20 w-20 md:h-24 md:w-24 overflow-hidden rounded-full bg-gradient-to-tr from-primary via-primary/80 to-primary/60 p-[2px] transition-transform hover:scale-105 cursor-pointer"
+                    className="relative h-20 w-20 md:h-24 md:w-24 rounded-full bg-gradient-to-tr from-primary via-primary/80 to-primary/60 p-[2px] transition-transform hover:scale-105 cursor-pointer"
                   >
                     <div className="h-full w-full overflow-hidden rounded-full bg-background p-[2px]">
                       {story.media_type === "video" ? (
                         <video
                           src={story.media_url}
-                          className="h-full w-full object-cover rounded-full"
+                          className="h-full w-full object-cover"
                           muted
-                          loop
-                          playsInline
                         />
                       ) : (
                         <img
                           src={story.media_url}
                           alt={story.caption || "Story"}
-                          className="h-full w-full object-cover rounded-full"
+                          className="h-full w-full object-cover"
                         />
                       )}
                     </div>
@@ -169,17 +178,6 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
                     <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
                       {getVisibilityIcon(story.visibility)}
                     </div>
-
-                    {/* Delete button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteStory(story.id, story.media_url);
-                      }}
-                      className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600 z-10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
                   </button>
 
                   {story.caption && (

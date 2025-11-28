@@ -78,7 +78,7 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
             </div>
           ) : (
             <div className={viewMode === "cards" 
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" 
               : "space-y-2"
             }>
               {products.map((product) => (
@@ -108,7 +108,7 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
             </div>
           ) : (
             <div className={viewMode === "cards" 
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" 
               : "space-y-2"
             }>
               {services.map((service) => (

@@ -13,7 +13,6 @@ import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
 import { ClientsTab } from "@/components/shops/tabs/ClientsTab";
 import { ProductsServicesTab } from "@/components/shops/tabs/ProductsServicesTab";
 import { OrdersTab } from "@/components/shops/tabs/OrdersTab";
-import { CalendarTab } from "@/components/shops/tabs/CalendarTab";
 import { MessagesTab } from "@/components/shops/tabs/MessagesTab";
 import { MarketingTab } from "@/components/shops/tabs/MarketingTab";
 import { ReviewsTab } from "@/components/shops/tabs/ReviewsTab";
@@ -114,12 +113,11 @@ export default function MyShop() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 lg:grid-cols-10 w-full">
+        <TabsList className="grid grid-cols-5 lg:grid-cols-9 w-full">
           <TabsTrigger value="infos">Infos</TabsTrigger>
           <TabsTrigger value="clients">Clients</TabsTrigger>
           <TabsTrigger value="products">Produits</TabsTrigger>
           <TabsTrigger value="orders">Commandes</TabsTrigger>
-          <TabsTrigger value="calendar">Calendrier</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="marketing">Marketing</TabsTrigger>
           <TabsTrigger value="reviews">Avis</TabsTrigger>
@@ -141,10 +139,6 @@ export default function MyShop() {
 
         <TabsContent value="orders" className="space-y-4">
           <OrdersTab />
-        </TabsContent>
-
-        <TabsContent value="calendar" className="space-y-4">
-          <CalendarTab />
         </TabsContent>
 
         <TabsContent value="messages" className="space-y-4">

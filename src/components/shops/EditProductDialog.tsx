@@ -11,7 +11,7 @@ import { X, Plus } from "lucide-react";
 import { ProductMediaUpload } from "./ProductMediaUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 interface EditProductDialogProps {
   shopId: string;
@@ -27,7 +27,7 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [includes, setIncludes] = useState("");
-  const [priceType, setPriceType] = useState<"unitaire" | "en_gros">("unitaire");
+  const [priceType, setPriceType] = useState<"unitaire" | "en_gros" | "negoce">("unitaire");
   const [price, setPrice] = useState("");
   const [productType, setProductType] = useState("");
   const [condition, setCondition] = useState<"neuf" | "2eme_main">("neuf");
@@ -35,6 +35,10 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
   const [stock, setStock] = useState("0");
   const [minQuantity, setMinQuantity] = useState("1");
   const [isActive, setIsActive] = useState(true);
+  const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
+  const [minAutoPrice, setMinAutoPrice] = useState("");
+  const [autoValidation, setAutoValidation] = useState(true);
   
   const [mainMedia, setMainMedia] = useState("");
   const [hoverMedia, setHoverMedia] = useState("");
@@ -48,6 +52,23 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
   
   const [quantityIntervals, setQuantityIntervals] = useState<Array<{min: string, max: string, price: string}>>([]);
   const [saving, setSaving] = useState(false);
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["product-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_categories")
+        .select("*")
+        .order("display_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const parentCategories = categories.filter((cat) => !cat.parent_id);
+  const subcategories = categoryId
+    ? categories.filter((cat) => cat.parent_id === categoryId)
+    : [];
 
   // Initialize form with product data
   useEffect(() => {
@@ -63,6 +84,10 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
       setStock(product.quantity_available?.toString() || "0");
       setMinQuantity(product.min_quantity?.toString() || "1");
       setIsActive(product.is_active ?? true);
+      setCategoryId(product.category_id || "");
+      setSubcategoryId(product.subcategory_id || "");
+      setMinAutoPrice(product.min_auto_price?.toString() || "");
+      setAutoValidation(product.auto_validation ?? true);
       
       setMainMedia(product.main_media_url || "");
       setHoverMedia(product.hover_media_url || "");
@@ -156,6 +181,10 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
                 price: parseFloat(interval.price)
               }))
             : null,
+          category_id: categoryId || null,
+          subcategory_id: subcategoryId || null,
+          min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
+          auto_validation: autoValidation,
         })
         .eq("id", product.id);
 
@@ -233,14 +262,43 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="category">Catégorie</Label>
+              <Select value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubcategoryId(""); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="subcategory">Sous-catégorie</Label>
+              <Select value={subcategoryId} onValueChange={setSubcategoryId} disabled={!categoryId || subcategories.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une sous-catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subcategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="price-type">Type de tarif</Label>
-              <Select value={priceType} onValueChange={(v) => setPriceType(v as "unitaire" | "en_gros")}>
+              <Select value={priceType} onValueChange={(v) => setPriceType(v as "unitaire" | "en_gros" | "negoce")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unitaire">Unitaire</SelectItem>
                   <SelectItem value="en_gros">En gros</SelectItem>
+                  <SelectItem value="negoce">Négoce</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -318,6 +376,29 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
               </div>
             )}
 
+            {priceType === "negoce" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="min-auto-price">Montant minimum auto (FCFA)</Label>
+                  <Input
+                    id="min-auto-price"
+                    type="number"
+                    value={minAutoPrice}
+                    onChange={(e) => setMinAutoPrice(e.target.value)}
+                    placeholder="Prix minimum accepté automatiquement"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="auto-validation">Validation automatique</Label>
+                  <Switch
+                    id="auto-validation"
+                    checked={autoValidation}
+                    onCheckedChange={setAutoValidation}
+                  />
+                </div>
+              </>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="product-type">Type de produit</Label>
               <Select value={productType} onValueChange={setProductType}>
@@ -368,7 +449,7 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="discount">Réduction (%)</Label>
               <Input
                 id="discount"
@@ -378,6 +459,12 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
               />
+              {discount && parseFloat(discount) > 0 && price && (
+                <p className="text-sm text-muted-foreground">
+                  Prix après réduction : {(parseFloat(price) * (1 - parseFloat(discount) / 100)).toLocaleString()} FCFA{" "}
+                  <span className="line-through">(au lieu de {parseFloat(price).toLocaleString()} FCFA)</span>
+                </p>
+              )}
             </div>
 
             <div className="col-span-2 space-y-2">

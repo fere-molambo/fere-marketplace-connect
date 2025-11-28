@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, LayoutGrid, List } from "lucide-react";
+import { ShopViewToggle } from "../ShopViewToggle";
 import { CreateProductDialog } from "../CreateProductDialog";
 import { CreateServiceDialog } from "../CreateServiceDialog";
 import { ProductCard } from "../ProductCard";
@@ -16,6 +17,7 @@ interface ProductsServicesTabProps {
 export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
 
   const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ["shop-products", shopId],
@@ -53,6 +55,7 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
             <TabsTrigger value="products">Produits ({products.length})</TabsTrigger>
             <TabsTrigger value="services">Prestations ({services.length})</TabsTrigger>
           </TabsList>
+          <ShopViewToggle viewMode={viewMode} setViewMode={setViewMode} />
         </div>
 
         <TabsContent value="products" className="space-y-4">
@@ -74,9 +77,12 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={viewMode === "cards" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4" 
+              : "space-y-2"
+            }>
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} viewMode={viewMode} />
               ))}
             </div>
           )}
@@ -101,9 +107,12 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={viewMode === "cards" 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4" 
+              : "space-y-2"
+            }>
               {services.map((service) => (
-                <ServiceCard key={service.id} service={service} />
+                <ServiceCard key={service.id} service={service} viewMode={viewMode} />
               ))}
             </div>
           )}

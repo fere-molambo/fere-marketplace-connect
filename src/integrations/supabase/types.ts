@@ -1047,6 +1047,7 @@ export type Database = {
         Returns: boolean
       }
       can_manage_shop_image: { Args: { _file_path: string }; Returns: boolean }
+      can_manage_story_media: { Args: { _file_path: string }; Returns: boolean }
       cleanup_expired_stories: { Args: never; Returns: undefined }
       get_user_roles: {
         Args: { _user_id: string }

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductMediaUpload } from "./ProductMediaUpload";
+import { WeeklyAvailabilityManager, WeeklyAvailability } from "./WeeklyAvailabilityManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -39,6 +40,15 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
   const [bookingAdvancePercent, setBookingAdvancePercent] = useState("");
   const [discountPercent, setDiscountPercent] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailability>({
+    lundi: [],
+    mardi: [],
+    mercredi: [],
+    jeudi: [],
+    vendredi: [],
+    samedi: [],
+    dimanche: [],
+  });
 
   useEffect(() => {
     if (service) {
@@ -59,6 +69,10 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
       setBookingAdvancePercent(service.booking_advance_percent?.toString() || "");
       setDiscountPercent(service.discount_percent?.toString() || "");
       setIsActive(service.is_active ?? true);
+      
+      if (service.weekly_availability) {
+        setWeeklyAvailability(service.weekly_availability as WeeklyAvailability);
+      }
     }
   }, [service]);
 
@@ -95,6 +109,7 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
           booking_advance_percent: bookingAdvancePercent ? parseFloat(bookingAdvancePercent) : null,
           discount_percent: discountPercent ? parseFloat(discountPercent) : null,
           is_active: isActive,
+          weekly_availability: weeklyAvailability as any,
         })
         .eq("id", service.id);
 
@@ -299,6 +314,11 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
               <Label htmlFor="isActive">Prestation active</Label>
             </div>
           </div>
+
+          <WeeklyAvailabilityManager
+            value={weeklyAvailability}
+            onChange={setWeeklyAvailability}
+          />
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

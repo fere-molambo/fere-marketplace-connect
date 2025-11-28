@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ProductMediaUpload } from "./ProductMediaUpload";
+import { WeeklyAvailabilityManager, WeeklyAvailability } from "./WeeklyAvailabilityManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,16 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [hoverMedia, setHoverMedia] = useState("");
   const [video, setVideo] = useState("");
   const [otherMedia, setOtherMedia] = useState<string[]>([]);
+  
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailability>({
+    lundi: [],
+    mardi: [],
+    mercredi: [],
+    jeudi: [],
+    vendredi: [],
+    samedi: [],
+    dimanche: [],
+  });
   
   const [saving, setSaving] = useState(false);
 
@@ -73,6 +84,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
         hover_media_url: hoverMedia || null,
         video_url: video || null,
         media_urls: otherMedia,
+        weekly_availability: weeklyAvailability as any,
       });
 
       if (error) throw error;
@@ -267,6 +279,11 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               />
             </div>
           </div>
+
+          <WeeklyAvailabilityManager
+            value={weeklyAvailability}
+            onChange={setWeeklyAvailability}
+          />
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -140,7 +140,7 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
           className="w-full"
         >
           <CarouselContent className="py-3 -ml-2 md:-ml-4">
-            {stories.map((story) => (
+            {stories?.map((story) => (
               <CarouselItem key={story.id} className="basis-auto pl-2 md:pl-4 pr-2 pt-2">
                 <div className="group relative flex flex-col items-center gap-2">
                   {/* Delete button - outside the main button to avoid clipping */}

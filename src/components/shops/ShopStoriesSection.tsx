@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Share2, Eye, EyeOff, Users, X } from "lucide-react";
+import { Share2, Eye, EyeOff, Users, X, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,30 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
       toast.success("Lien copié dans le presse-papier");
     } catch (error) {
       toast.error("Erreur lors de la copie du lien");
+    }
+  };
+
+  const handleDeleteStory = async (storyId: string, mediaUrl: string) => {
+    try {
+      const { error } = await supabase
+        .from("shop_stories")
+        .delete()
+        .eq("id", storyId);
+
+      if (error) throw error;
+
+      if (mediaUrl.includes("shop-stories")) {
+        const path = mediaUrl.split("/shop-stories/")[1]?.split("?")[0];
+        if (path) {
+          await supabase.storage.from("shop-stories").remove([path]);
+        }
+      }
+
+      toast.success("Story supprimée");
+      refetch();
+    } catch (error) {
+      console.error("Error deleting story:", error);
+      toast.error("Erreur lors de la suppression");
     }
   };
 
@@ -121,7 +145,7 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
                 <div className="group relative flex flex-col items-center gap-2">
                   <button
                     onClick={() => setSelectedStory(story)}
-                    className="relative h-20 w-20 md:h-24 md:w-24 overflow-hidden rounded-full bg-gradient-to-tr from-primary via-primary/80 to-primary/60 p-[2px] shadow-lg transition-transform hover:scale-105 cursor-pointer"
+                    className="relative h-20 w-20 md:h-24 md:w-24 overflow-hidden rounded-full bg-gradient-to-tr from-primary via-primary/80 to-primary/60 p-[2px] transition-transform hover:scale-105 cursor-pointer"
                   >
                     <div className="h-full w-full overflow-hidden rounded-full bg-background p-[2px]">
                       {story.media_type === "video" ? (
@@ -142,9 +166,20 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
                     </div>
 
                     {/* Visibility badge */}
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
                       {getVisibilityIcon(story.visibility)}
                     </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteStory(story.id, story.media_url);
+                      }}
+                      className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600 z-10"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
                   </button>
 
                   {story.caption && (

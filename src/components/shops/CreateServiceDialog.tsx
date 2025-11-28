@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ProductMediaUpload } from "./ProductMediaUpload";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +25,10 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [description, setDescription] = useState("");
   const [includes, setIncludes] = useState("");
   const [clientPreparation, setClientPreparation] = useState("");
+  const [priceType, setPriceType] = useState<"fixe" | "negoce">("fixe");
   const [price, setPrice] = useState("");
+  const [minAutoPrice, setMinAutoPrice] = useState("");
+  const [autoValidation, setAutoValidation] = useState(true);
   const [requiresBooking, setRequiresBooking] = useState(false);
   const [bookingAdvance, setBookingAdvance] = useState("0");
   const [discount, setDiscount] = useState("0");
@@ -58,7 +62,9 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
         includes,
         client_preparation: clientPreparation || null,
         price: parseFloat(price),
-        price_type: "fixe",
+        price_type: priceType,
+        min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
+        auto_validation: autoValidation,
         requires_booking: requiresBooking,
         booking_advance_percent: requiresBooking ? parseFloat(bookingAdvance) : null,
         discount_percent: parseFloat(discount),
@@ -163,6 +169,19 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="price-type">Type de tarif *</Label>
+              <Select value={priceType} onValueChange={(v) => setPriceType(v as "fixe" | "negoce")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixe">Fixe</SelectItem>
+                  <SelectItem value="negoce">Négoce</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="price">Prix (FCFA) *</Label>
               <Input
                 id="price"
@@ -173,7 +192,30 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               />
             </div>
 
-            <div className="space-y-2">
+            {priceType === "negoce" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="min-auto-price">Montant minimum auto (FCFA)</Label>
+                  <Input
+                    id="min-auto-price"
+                    type="number"
+                    value={minAutoPrice}
+                    onChange={(e) => setMinAutoPrice(e.target.value)}
+                    placeholder="Prix minimum accepté automatiquement"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="auto-validation">Validation automatique</Label>
+                  <Switch
+                    id="auto-validation"
+                    checked={autoValidation}
+                    onCheckedChange={setAutoValidation}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="discount">Réduction (%)</Label>
               <Input
                 id="discount"
@@ -183,6 +225,12 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
               />
+              {discount && parseFloat(discount) > 0 && price && (
+                <p className="text-sm text-muted-foreground">
+                  Prix après réduction : {(parseFloat(price) * (1 - parseFloat(discount) / 100)).toLocaleString()} FCFA{" "}
+                  <span className="line-through">(au lieu de {parseFloat(price).toLocaleString()} FCFA)</span>
+                </p>
+              )}
             </div>
 
             <div className="col-span-2 space-y-4 p-4 border rounded-lg">

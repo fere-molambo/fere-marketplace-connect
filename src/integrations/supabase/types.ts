@@ -144,6 +144,8 @@ export type Database = {
       }
       products: {
         Row: {
+          auto_validation: boolean | null
+          category_id: string | null
           colors: Json | null
           condition: string | null
           created_at: string | null
@@ -155,6 +157,7 @@ export type Database = {
           is_active: boolean | null
           main_media_url: string | null
           media_urls: Json | null
+          min_auto_price: number | null
           min_quantity: number | null
           name: string
           price: number
@@ -164,10 +167,13 @@ export type Database = {
           quantity_intervals: Json | null
           shop_id: string
           sizes: Json | null
+          subcategory_id: string | null
           updated_at: string | null
           video_url: string | null
         }
         Insert: {
+          auto_validation?: boolean | null
+          category_id?: string | null
           colors?: Json | null
           condition?: string | null
           created_at?: string | null
@@ -179,6 +185,7 @@ export type Database = {
           is_active?: boolean | null
           main_media_url?: string | null
           media_urls?: Json | null
+          min_auto_price?: number | null
           min_quantity?: number | null
           name: string
           price: number
@@ -188,10 +195,13 @@ export type Database = {
           quantity_intervals?: Json | null
           shop_id: string
           sizes?: Json | null
+          subcategory_id?: string | null
           updated_at?: string | null
           video_url?: string | null
         }
         Update: {
+          auto_validation?: boolean | null
+          category_id?: string | null
           colors?: Json | null
           condition?: string | null
           created_at?: string | null
@@ -203,6 +213,7 @@ export type Database = {
           is_active?: boolean | null
           main_media_url?: string | null
           media_urls?: Json | null
+          min_auto_price?: number | null
           min_quantity?: number | null
           name?: string
           price?: number
@@ -212,15 +223,30 @@ export type Database = {
           quantity_intervals?: Json | null
           shop_id?: string
           sizes?: Json | null
+          subcategory_id?: string | null
           updated_at?: string | null
           video_url?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "products_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
             referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
             referencedColumns: ["id"]
           },
         ]
@@ -315,6 +341,111 @@ export type Database = {
           },
         ]
       }
+      service_availability_slots: {
+        Row: {
+          created_at: string | null
+          date: string
+          end_time: string
+          id: string
+          is_available: boolean | null
+          service_id: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          end_time: string
+          id?: string
+          is_available?: boolean | null
+          service_id: string
+          start_time: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          end_time?: string
+          id?: string
+          is_available?: boolean | null
+          service_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_availability_slots_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_bookings: {
+        Row: {
+          advance_paid: number | null
+          booking_date: string
+          booking_time: string
+          created_at: string | null
+          customer_id: string | null
+          id: string
+          notes: string | null
+          service_id: string
+          slot_id: string | null
+          status: string | null
+          total_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          advance_paid?: number | null
+          booking_date: string
+          booking_time: string
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          service_id: string
+          slot_id?: string | null
+          status?: string | null
+          total_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          advance_paid?: number | null
+          booking_date?: string
+          booking_time?: string
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          service_id?: string
+          slot_id?: string | null
+          status?: string | null
+          total_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "service_availability_slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_provider_types: {
         Row: {
           created_at: string | null
@@ -353,6 +484,7 @@ export type Database = {
       }
       services: {
         Row: {
+          auto_validation: boolean | null
           booking_advance_percent: number | null
           client_preparation: string | null
           created_at: string | null
@@ -364,6 +496,7 @@ export type Database = {
           is_active: boolean | null
           main_media_url: string | null
           media_urls: Json | null
+          min_auto_price: number | null
           name: string
           portfolio_link: string | null
           price: number
@@ -375,6 +508,7 @@ export type Database = {
           weekly_availability: Json | null
         }
         Insert: {
+          auto_validation?: boolean | null
           booking_advance_percent?: number | null
           client_preparation?: string | null
           created_at?: string | null
@@ -386,6 +520,7 @@ export type Database = {
           is_active?: boolean | null
           main_media_url?: string | null
           media_urls?: Json | null
+          min_auto_price?: number | null
           name: string
           portfolio_link?: string | null
           price: number
@@ -397,6 +532,7 @@ export type Database = {
           weekly_availability?: Json | null
         }
         Update: {
+          auto_validation?: boolean | null
           booking_advance_percent?: number | null
           client_preparation?: string | null
           created_at?: string | null
@@ -408,6 +544,7 @@ export type Database = {
           is_active?: boolean | null
           main_media_url?: string | null
           media_urls?: Json | null
+          min_auto_price?: number | null
           name?: string
           portfolio_link?: string | null
           price?: number

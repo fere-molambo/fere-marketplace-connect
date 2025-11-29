@@ -40,7 +40,8 @@ const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
 }).flat();
 
 export const WeeklyAvailabilityManager = ({ value, onChange }: WeeklyAvailabilityManagerProps) => {
-  const isDayActive = (dayKey: keyof WeeklyAvailability) => value[dayKey].length > 0;
+  const isDayActive = (dayKey: keyof WeeklyAvailability) => 
+    Array.isArray(value[dayKey]) && value[dayKey].length > 0;
 
   const toggleDay = (dayKey: keyof WeeklyAvailability) => {
     if (isDayActive(dayKey)) {
@@ -99,7 +100,7 @@ export const WeeklyAvailabilityManager = ({ value, onChange }: WeeklyAvailabilit
 
           {isDayActive(key) && (
             <div className="ml-6 space-y-2">
-              {value[key].map((slot, index) => (
+              {(value[key] || []).map((slot, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <Select
                     value={slot.start}

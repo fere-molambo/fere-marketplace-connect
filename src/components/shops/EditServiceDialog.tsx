@@ -70,9 +70,24 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
       setDiscountPercent(service.discount_percent?.toString() || "");
       setIsActive(service.is_active ?? true);
       
-      if (service.weekly_availability) {
-        setWeeklyAvailability(service.weekly_availability as WeeklyAvailability);
-      }
+    const defaultAvailability: WeeklyAvailability = {
+      lundi: [],
+      mardi: [],
+      mercredi: [],
+      jeudi: [],
+      vendredi: [],
+      samedi: [],
+      dimanche: [],
+    };
+
+    if (service.weekly_availability && typeof service.weekly_availability === 'object') {
+      setWeeklyAvailability({
+        ...defaultAvailability,
+        ...service.weekly_availability
+      });
+    } else {
+      setWeeklyAvailability(defaultAvailability);
+    }
     }
   }, [service]);
 

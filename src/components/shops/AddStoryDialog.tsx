@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, Link as LinkIcon, Loader2 } from "lucide-react";
+import { Upload, Link as LinkIcon, Loader2, Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -150,7 +150,11 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Ajouter une story</Button>
+        <Button size="sm" className="whitespace-nowrap">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Ajouter une story</span>
+          <span className="sm:hidden">Ajouter</span>
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

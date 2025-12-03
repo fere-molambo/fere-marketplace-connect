@@ -3,17 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ShopImageUpload } from "@/components/shops/ShopImageUpload";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
 import { Store } from "lucide-react";
 import { CreateShopDialog } from "@/components/shops/CreateShopDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
 import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
-import { ClientsTab } from "@/components/shops/tabs/ClientsTab";
 import { ProductsServicesTab } from "@/components/shops/tabs/ProductsServicesTab";
 import { OrdersTab } from "@/components/shops/tabs/OrdersTab";
-import { MessagesTab } from "@/components/shops/tabs/MessagesTab";
 import { MarketingTab } from "@/components/shops/tabs/MarketingTab";
 import { ReviewsTab } from "@/components/shops/tabs/ReviewsTab";
 import { StatsTab } from "@/components/shops/tabs/StatsTab";
@@ -22,7 +18,6 @@ import { useState } from "react";
 
 export default function MyShop() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("infos");
 
   const { data: shop, isLoading, refetch } = useQuery({
@@ -40,7 +35,7 @@ export default function MyShop() {
         .single();
 
       if (error) {
-        if (error.code === "PGRST116") return null; // No shop found
+        if (error.code === "PGRST116") return null;
         throw error;
       }
       return data;
@@ -57,10 +52,9 @@ export default function MyShop() {
     );
   }
 
-  // No shop found - show creation screen
   if (!shop) {
     return (
-      <div className="flex min-h-[600px] items-center justify-center">
+      <div className="flex min-h-[600px] items-center justify-center px-4">
         <div className="text-center space-y-6 max-w-md">
           <div className="flex justify-center">
             <div className="rounded-full bg-primary/10 p-6">
@@ -79,7 +73,6 @@ export default function MyShop() {
     );
   }
 
-  // Shop exists - show shop details
   return (
     <div className="space-y-6">
       {/* Banner and Logo */}
@@ -101,65 +94,61 @@ export default function MyShop() {
       </div>
 
       {/* Shop Info */}
-      <div className="pt-14 space-y-2">
+      <div className="pt-14 space-y-2 px-4 sm:px-0">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{shop.name}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">{shop.name}</h1>
         </div>
-        <p className="text-muted-foreground">@{shop.owner?.nom_complet}</p>
+        <p className="text-muted-foreground text-sm sm:text-base">@{shop.owner?.nom_complet}</p>
       </div>
 
       {/* Stories Section */}
-      <ShopStoriesSection shopId={shop.id} />
+      <div className="px-4 sm:px-0">
+        <ShopStoriesSection shopId={shop.id} />
+      </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 lg:grid-cols-9 w-full">
-          <TabsTrigger value="infos">Infos</TabsTrigger>
-          <TabsTrigger value="clients">Clients</TabsTrigger>
-          <TabsTrigger value="products">Produits</TabsTrigger>
-          <TabsTrigger value="orders">Commandes</TabsTrigger>
-          <TabsTrigger value="messages">Messages</TabsTrigger>
-          <TabsTrigger value="marketing">Marketing</TabsTrigger>
-          <TabsTrigger value="reviews">Avis</TabsTrigger>
-          <TabsTrigger value="stats">Stats</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="overflow-x-auto px-4 sm:px-0">
+          <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
+            <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
+            <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
+            <TabsTrigger value="orders" className="text-xs sm:text-sm">Commandes</TabsTrigger>
+            <TabsTrigger value="marketing" className="text-xs sm:text-sm">Marketing</TabsTrigger>
+            <TabsTrigger value="reviews" className="text-xs sm:text-sm">Avis</TabsTrigger>
+            <TabsTrigger value="stats" className="text-xs sm:text-sm">Stats</TabsTrigger>
+            <TabsTrigger value="config" className="text-xs sm:text-sm">Config</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="infos" className="space-y-4">
-          <ShopInfoSection shop={shop} onUpdate={refetch} />
-        </TabsContent>
+        <div className="px-4 sm:px-0">
+          <TabsContent value="infos" className="space-y-4 mt-4">
+            <ShopInfoSection shop={shop} onUpdate={refetch} />
+          </TabsContent>
 
-        <TabsContent value="clients" className="space-y-4">
-          <ClientsTab />
-        </TabsContent>
+          <TabsContent value="products" className="space-y-4 mt-4">
+            <ProductsServicesTab shopId={shop.id} />
+          </TabsContent>
 
-        <TabsContent value="products" className="space-y-4">
-          <ProductsServicesTab shopId={shop.id} />
-        </TabsContent>
+          <TabsContent value="orders" className="space-y-4 mt-4">
+            <OrdersTab />
+          </TabsContent>
 
-        <TabsContent value="orders" className="space-y-4">
-          <OrdersTab />
-        </TabsContent>
+          <TabsContent value="marketing" className="space-y-4 mt-4">
+            <MarketingTab />
+          </TabsContent>
 
-        <TabsContent value="messages" className="space-y-4">
-          <MessagesTab />
-        </TabsContent>
+          <TabsContent value="reviews" className="space-y-4 mt-4">
+            <ReviewsTab shopId={shop.id} />
+          </TabsContent>
 
-        <TabsContent value="marketing" className="space-y-4">
-          <MarketingTab />
-        </TabsContent>
+          <TabsContent value="stats" className="space-y-4 mt-4">
+            <StatsTab />
+          </TabsContent>
 
-        <TabsContent value="reviews" className="space-y-4">
-          <ReviewsTab />
-        </TabsContent>
-
-        <TabsContent value="stats" className="space-y-4">
-          <StatsTab />
-        </TabsContent>
-
-        <TabsContent value="config" className="space-y-4">
-          <ConfigTab shopId={shop.id} />
-        </TabsContent>
+          <TabsContent value="config" className="space-y-4 mt-4">
+            <ConfigTab shopId={shop.id} />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

@@ -10,7 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Phone, Mail } from "lucide-react";
 import { UserPreviewDialog } from "./UserPreviewDialog";
 import { UserEditSheet } from "./UserEditSheet";
 
@@ -59,12 +59,77 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
 
   return (
     <>
-      <div className="rounded-md border">
+      {/* Mobile Card View */}
+      <div className="block md:hidden space-y-3">
+        {users.map((user) => (
+          <div
+            key={user.id}
+            className="rounded-lg border bg-card p-4 space-y-3"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={user.photo_profil} />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials(user.nom_complet)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{user.nom_complet}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {user.roles?.map((roleItem: any) => (
+                      <Badge key={roleItem.role} variant="secondary" className="text-xs">
+                        {roleLabels[roleItem.role] || roleItem.role}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handlePreview(user)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleEdit(user)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1 text-sm text-muted-foreground">
+              {user.email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="h-3 w-3" />
+                  <span className="truncate">{user.email}</span>
+                </div>
+              )}
+              {user.contact && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-3 w-3" />
+                  <span>{user.contact}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Utilisateur</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Rôle</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -84,7 +149,7 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
                     <span className="font-medium">{user.nom_complet}</span>
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+                <TableCell>{user.email}</TableCell>
                 <TableCell>{user.contact}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">

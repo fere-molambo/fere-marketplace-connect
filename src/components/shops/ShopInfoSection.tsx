@@ -94,8 +94,8 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border bg-card p-4 sm:p-6">
+    <div className="space-y-6 overflow-hidden">
+      <div className="rounded-lg border bg-card p-4 sm:p-6 overflow-hidden">
         <h2 className="mb-6 text-lg font-semibold">Informations de la boutique</h2>
         
         <Form {...form}>

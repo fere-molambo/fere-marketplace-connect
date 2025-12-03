@@ -106,7 +106,7 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h2 className="text-lg font-semibold">Stories</h2>
           <AddStoryDialog shopId={shopId} onSuccess={refetch} />
         </div>
@@ -121,14 +121,14 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h2 className="text-lg font-semibold">Stories</h2>
         <AddStoryDialog shopId={shopId} onSuccess={refetch} />
       </div>
 
       {!stories || stories.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed p-4 sm:p-8 text-center">
+          <p className="text-sm text-muted-foreground break-words">
             Aucune story pour le moment. Ajoutez votre première story!
           </p>
         </div>

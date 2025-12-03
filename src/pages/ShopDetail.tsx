@@ -86,7 +86,7 @@ export default function ShopDetail() {
         </div>
       </div>
 
-      <div className="pt-8 sm:pt-10 px-4 sm:px-0">
+      <div className="pt-8 sm:pt-10">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-foreground">{shop.name}</h1>
@@ -96,12 +96,10 @@ export default function ShopDetail() {
       </div>
 
       {/* Stories Section */}
-      <div className="px-4 sm:px-0">
-        <ShopStoriesSection shopId={shop.id} />
-      </div>
+      <ShopStoriesSection shopId={shop.id} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto px-4 sm:px-0">
+        <div className="overflow-x-auto">
           <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
             <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
             <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
@@ -113,7 +111,7 @@ export default function ShopDetail() {
           </TabsList>
         </div>
 
-        <div className="px-4 sm:px-0">
+        <div>
           <TabsContent value="infos" className="mt-6">
             <ShopInfoSection shop={shop} onUpdate={refetch} />
           </TabsContent>

@@ -95,7 +95,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border bg-card p-6">
+      <div className="rounded-lg border bg-card p-4 sm:p-6">
         <h2 className="mb-6 text-lg font-semibold">Informations de la boutique</h2>
         
         <Form {...form}>
@@ -282,11 +282,11 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
             </div>
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto">
                 {form.formState.isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Enregistrer les modifications
+                Enregistrer
               </Button>
             </div>
           </form>

@@ -94,7 +94,7 @@ export default function MyShop() {
       </div>
 
       {/* Shop Info */}
-      <div className="pt-14 space-y-2 px-4 sm:px-0">
+      <div className="pt-14 space-y-2">
         <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold">{shop.name}</h1>
         </div>
@@ -102,13 +102,11 @@ export default function MyShop() {
       </div>
 
       {/* Stories Section */}
-      <div className="px-4 sm:px-0">
-        <ShopStoriesSection shopId={shop.id} />
-      </div>
+      <ShopStoriesSection shopId={shop.id} />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto px-4 sm:px-0">
+        <div className="overflow-x-auto">
           <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
             <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
             <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
@@ -120,7 +118,7 @@ export default function MyShop() {
           </TabsList>
         </div>
 
-        <div className="px-4 sm:px-0">
+        <div>
           <TabsContent value="infos" className="space-y-4 mt-4">
             <ShopInfoSection shop={shop} onUpdate={refetch} />
           </TabsContent>

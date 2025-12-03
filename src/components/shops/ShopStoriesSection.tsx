@@ -35,6 +35,7 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
         .select("*")
         .eq("shop_id", shopId)
         .eq("is_active", true)
+        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
 
       if (error) throw error;

@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
 import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
-import { ClientsTab } from "@/components/shops/tabs/ClientsTab";
 import { ProductsServicesTab } from "@/components/shops/tabs/ProductsServicesTab";
 import { OrdersTab } from "@/components/shops/tabs/OrdersTab";
-import { MessagesTab } from "@/components/shops/tabs/MessagesTab";
 import { MarketingTab } from "@/components/shops/tabs/MarketingTab";
 import { ReviewsTab } from "@/components/shops/tabs/ReviewsTab";
 import { StatsTab } from "@/components/shops/tabs/StatsTab";
@@ -88,68 +86,62 @@ export default function ShopDetail() {
         </div>
       </div>
 
-      <div className="pt-8 sm:pt-10">
+      <div className="pt-8 sm:pt-10 px-4 sm:px-0">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">{shop.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">{shop.name}</h1>
             <p className="text-sm text-muted-foreground">@{shop.owner?.nom_complet}</p>
           </div>
         </div>
       </div>
 
       {/* Stories Section */}
-      <ShopStoriesSection shopId={shop.id} />
+      <div className="px-4 sm:px-0">
+        <ShopStoriesSection shopId={shop.id} />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto">
-          <TabsList className="inline-flex w-full min-w-max">
-            <TabsTrigger value="infos">Infos</TabsTrigger>
-            <TabsTrigger value="clients">Clients</TabsTrigger>
-            <TabsTrigger value="products">Produits</TabsTrigger>
-            <TabsTrigger value="orders">Commandes</TabsTrigger>
-            <TabsTrigger value="messages">Messages</TabsTrigger>
-            <TabsTrigger value="marketing">Marketing</TabsTrigger>
-            <TabsTrigger value="reviews">Avis</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
-            <TabsTrigger value="config">Config</TabsTrigger>
+        <div className="overflow-x-auto px-4 sm:px-0">
+          <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
+            <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
+            <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
+            <TabsTrigger value="orders" className="text-xs sm:text-sm">Commandes</TabsTrigger>
+            <TabsTrigger value="marketing" className="text-xs sm:text-sm">Marketing</TabsTrigger>
+            <TabsTrigger value="reviews" className="text-xs sm:text-sm">Avis</TabsTrigger>
+            <TabsTrigger value="stats" className="text-xs sm:text-sm">Stats</TabsTrigger>
+            <TabsTrigger value="config" className="text-xs sm:text-sm">Config</TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="infos" className="mt-6">
-          <ShopInfoSection shop={shop} onUpdate={refetch} />
-        </TabsContent>
+        <div className="px-4 sm:px-0">
+          <TabsContent value="infos" className="mt-6">
+            <ShopInfoSection shop={shop} onUpdate={refetch} />
+          </TabsContent>
 
-        <TabsContent value="clients" className="mt-6">
-          <ClientsTab />
-        </TabsContent>
+          <TabsContent value="products" className="mt-6">
+            <ProductsServicesTab shopId={shop.id} />
+          </TabsContent>
 
-        <TabsContent value="products" className="mt-6">
-          <ProductsServicesTab shopId={shop.id} />
-        </TabsContent>
+          <TabsContent value="orders" className="mt-6">
+            <OrdersTab />
+          </TabsContent>
 
-        <TabsContent value="orders" className="mt-6">
-          <OrdersTab />
-        </TabsContent>
+          <TabsContent value="marketing" className="mt-6">
+            <MarketingTab />
+          </TabsContent>
 
-        <TabsContent value="messages" className="mt-6">
-          <MessagesTab />
-        </TabsContent>
+          <TabsContent value="reviews" className="mt-6">
+            <ReviewsTab shopId={shop.id} />
+          </TabsContent>
 
-        <TabsContent value="marketing" className="mt-6">
-          <MarketingTab />
-        </TabsContent>
+          <TabsContent value="stats" className="mt-6">
+            <StatsTab />
+          </TabsContent>
 
-        <TabsContent value="reviews" className="mt-6">
-          <ReviewsTab />
-        </TabsContent>
-
-        <TabsContent value="stats" className="mt-6">
-          <StatsTab />
-        </TabsContent>
-
-        <TabsContent value="config" className="mt-6">
-          <ConfigTab shopId={shopId} />
-        </TabsContent>
+          <TabsContent value="config" className="mt-6">
+            <ConfigTab shopId={shopId} />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

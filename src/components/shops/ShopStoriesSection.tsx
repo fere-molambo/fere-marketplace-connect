@@ -133,14 +133,15 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
           </p>
         </div>
       ) : (
-        <Carousel
-          opts={{
-            align: "start",
-            loop: false,
-          }}
-          className="w-full"
-        >
-          <CarouselContent className="py-3 -ml-2 md:-ml-4">
+        <div className="overflow-hidden -mx-2">
+          <Carousel
+            opts={{
+              align: "start",
+              loop: false,
+            }}
+            className="w-full px-2"
+          >
+            <CarouselContent className="py-3 -ml-2 md:-ml-4">
             {stories?.map((story) => (
               <CarouselItem key={story.id} className="basis-auto pl-2 md:pl-4 pr-2 pt-2">
                 <div className="group relative flex flex-col items-center gap-2">
@@ -190,9 +191,10 @@ export const ShopStoriesSection = ({ shopId }: { shopId: string }) => {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="hidden md:flex" />
-          <CarouselNext className="hidden md:flex" />
-        </Carousel>
+            <CarouselPrevious className="hidden md:flex" />
+            <CarouselNext className="hidden md:flex" />
+          </Carousel>
+        </div>
       )}
 
       {/* Story Viewer Dialog */}

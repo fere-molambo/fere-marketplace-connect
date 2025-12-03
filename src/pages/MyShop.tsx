@@ -74,7 +74,7 @@ export default function MyShop() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden max-w-full">
       {/* Banner and Logo */}
       <div className="relative">
         <ShopImageUpload
@@ -95,10 +95,8 @@ export default function MyShop() {
 
       {/* Shop Info */}
       <div className="pt-14 space-y-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-bold">{shop.name}</h1>
-        </div>
-        <p className="text-muted-foreground text-sm sm:text-base">@{shop.owner?.nom_complet}</p>
+        <h1 className="text-xl sm:text-2xl font-bold truncate">{shop.name}</h1>
+        <p className="text-muted-foreground text-sm sm:text-base truncate">@{shop.owner?.nom_complet}</p>
       </div>
 
       {/* Stories Section */}
@@ -106,8 +104,8 @@ export default function MyShop() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto">
-          <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
+        <div className="overflow-x-auto -mx-4 px-4">
+          <TabsList className="inline-flex w-max h-auto">
             <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
             <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
             <TabsTrigger value="orders" className="text-xs sm:text-sm">Commandes</TabsTrigger>

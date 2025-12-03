@@ -58,7 +58,7 @@ export default function ShopDetail() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden max-w-full">
       <Button 
         variant="ghost" 
         onClick={() => navigate("/dashboard/shops")}
@@ -87,20 +87,16 @@ export default function ShopDetail() {
       </div>
 
       <div className="pt-8 sm:pt-10">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">{shop.name}</h1>
-            <p className="text-sm text-muted-foreground">@{shop.owner?.nom_complet}</p>
-          </div>
-        </div>
+        <h1 className="text-xl sm:text-2xl font-semibold text-foreground truncate">{shop.name}</h1>
+        <p className="text-sm text-muted-foreground truncate">@{shop.owner?.nom_complet}</p>
       </div>
 
       {/* Stories Section */}
       <ShopStoriesSection shopId={shop.id} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto">
-          <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap sm:flex-nowrap">
+        <div className="overflow-x-auto -mx-4 px-4">
+          <TabsList className="inline-flex w-max h-auto">
             <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
             <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
             <TabsTrigger value="orders" className="text-xs sm:text-sm">Commandes</TabsTrigger>

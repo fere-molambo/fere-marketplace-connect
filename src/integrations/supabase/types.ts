@@ -50,6 +50,61 @@ export type Database = {
         }
         Relationships: []
       }
+      flash_sales: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          ends_at: string
+          flash_price: number
+          id: string
+          is_active: boolean | null
+          product_id: string | null
+          service_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          ends_at: string
+          flash_price: number
+          id?: string
+          is_active?: boolean | null
+          product_id?: string | null
+          service_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          ends_at?: string
+          flash_price?: number
+          id?: string
+          is_active?: boolean | null
+          product_id?: string | null
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flash_sales_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flash_sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flash_sales_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           app_description: string | null
@@ -565,6 +620,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           discount_percent: number | null
+          duration: number | null
           hover_media_url: string | null
           id: string
           includes: string | null
@@ -589,6 +645,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          duration?: number | null
           hover_media_url?: string | null
           id?: string
           includes?: string | null
@@ -613,6 +670,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_percent?: number | null
+          duration?: number | null
           hover_media_url?: string | null
           id?: string
           includes?: string | null
@@ -797,6 +855,8 @@ export type Database = {
           expires_at: string | null
           id: string
           is_active: boolean | null
+          linked_product_id: string | null
+          linked_service_id: string | null
           media_type: string
           media_url: string
           shop_id: string
@@ -810,6 +870,8 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          linked_product_id?: string | null
+          linked_service_id?: string | null
           media_type: string
           media_url: string
           shop_id: string
@@ -823,6 +885,8 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          linked_product_id?: string | null
+          linked_service_id?: string | null
           media_type?: string
           media_url?: string
           shop_id?: string
@@ -835,6 +899,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_stories_linked_product_id_fkey"
+            columns: ["linked_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_stories_linked_service_id_fkey"
+            columns: ["linked_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
             referencedColumns: ["id"]
           },
           {
@@ -909,6 +987,8 @@ export type Database = {
           description: string | null
           geolocation_lat: number | null
           geolocation_lng: number | null
+          guide_name: string | null
+          guide_url: string | null
           id: string
           is_active: boolean | null
           is_official: boolean | null
@@ -939,6 +1019,8 @@ export type Database = {
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          guide_name?: string | null
+          guide_url?: string | null
           id?: string
           is_active?: boolean | null
           is_official?: boolean | null
@@ -969,6 +1051,8 @@ export type Database = {
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          guide_name?: string | null
+          guide_url?: string | null
           id?: string
           is_active?: boolean | null
           is_official?: boolean | null

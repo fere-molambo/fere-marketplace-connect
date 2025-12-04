@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { UserPlus, Trash2, Pencil, Package } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { UserPlus, Trash2, Pencil, Package, FileText, Upload, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -56,18 +57,24 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
   const [deliveryDetails, setDeliveryDetails] = useState("");
   const [returnPolicy, setReturnPolicy] = useState("");
   const [isSavingShopSettings, setIsSavingShopSettings] = useState(false);
+  
+  // Guide state
+  const [guideName, setGuideName] = useState("");
+  const [guideUrl, setGuideUrl] = useState("");
+  const [isUploadingGuide, setIsUploadingGuide] = useState(false);
+  const guideInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useAuth();
   const { isSuperAdmin, isAdmin } = useUserRoles();
   const queryClient = useQueryClient();
 
-  // Fetch shop data for delivery and return policy
+  // Fetch shop data - FIXED: use unique query key to avoid cache conflicts
   const { data: shopData } = useQuery({
-    queryKey: ["shop", shopId],
+    queryKey: ["shop-config", shopId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("shops")
-        .select("delivery_details, return_policy")
+        .select("delivery_details, return_policy, guide_url, guide_name")
         .eq("id", shopId)
         .single();
       
@@ -75,6 +82,8 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       if (data) {
         setDeliveryDetails(data.delivery_details || "");
         setReturnPolicy(data.return_policy || "");
+        setGuideUrl(data.guide_url || "");
+        setGuideName(data.guide_name || "");
       }
       return data;
     },
@@ -124,7 +133,6 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
     queryFn: async () => {
       if (!user) return [];
 
-      // Step 1: Fetch all user_ids with 'equipe' role
       const { data: equipeRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id")
@@ -135,13 +143,11 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
 
       const equipeUserIds = equipeRoles.map(r => r.user_id);
 
-      // Step 2: Fetch corresponding profiles
       let query = supabase
         .from("profiles")
         .select("id, nom_complet, email, photo_profil")
         .in("id", equipeUserIds);
 
-      // If vendeur, only show team members they created
       if (!isSuperAdmin && !isAdmin) {
         query = query.eq("created_by", user.id);
       }
@@ -149,7 +155,6 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Filter out members already in the team
       const currentMemberIds = teamMembers?.map(tm => tm.member_id) || [];
       return (data as AvailableMember[]).filter(m => !currentMemberIds.includes(m.id));
     },
@@ -255,12 +260,109 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       if (error) throw error;
 
       toast.success("Paramètres de la boutique mis à jour");
-      queryClient.invalidateQueries({ queryKey: ["shop", shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop-config", shopId] });
     } catch (error: any) {
       console.error("Error updating shop settings:", error);
       toast.error(error.message || "Erreur lors de la mise à jour");
     } finally {
       setIsSavingShopSettings(false);
+    }
+  };
+
+  const handleGuideUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Format non supporté. Utilisez PDF, JPG, PNG ou WEBP");
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("Le fichier est trop volumineux (max 20MB)");
+      return;
+    }
+
+    setIsUploadingGuide(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `guide.${fileExt}`;
+      const filePath = `${shopId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("shop-guides")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("shop-guides")
+        .getPublicUrl(filePath);
+
+      const newGuideUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+      
+      const { error: updateError } = await supabase
+        .from("shops")
+        .update({ 
+          guide_url: newGuideUrl,
+          guide_name: guideName || file.name.replace(/\.[^/.]+$/, "")
+        })
+        .eq("id", shopId);
+
+      if (updateError) throw updateError;
+
+      setGuideUrl(newGuideUrl);
+      if (!guideName) setGuideName(file.name.replace(/\.[^/.]+$/, ""));
+      toast.success("Guide uploadé avec succès");
+      queryClient.invalidateQueries({ queryKey: ["shop-config", shopId] });
+    } catch (error: any) {
+      console.error("Error uploading guide:", error);
+      toast.error(error.message || "Erreur lors de l'upload");
+    } finally {
+      setIsUploadingGuide(false);
+      if (guideInputRef.current) guideInputRef.current.value = "";
+    }
+  };
+
+  const handleSaveGuideName = async () => {
+    if (!shopId || !guideUrl) return;
+
+    try {
+      const { error } = await supabase
+        .from("shops")
+        .update({ guide_name: guideName })
+        .eq("id", shopId);
+
+      if (error) throw error;
+      toast.success("Nom du guide mis à jour");
+      queryClient.invalidateQueries({ queryKey: ["shop-config", shopId] });
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors de la mise à jour");
+    }
+  };
+
+  const handleDeleteGuide = async () => {
+    if (!shopId) return;
+
+    try {
+      const { error: deleteStorageError } = await supabase.storage
+        .from("shop-guides")
+        .remove([`${shopId}/guide.pdf`, `${shopId}/guide.jpg`, `${shopId}/guide.png`, `${shopId}/guide.webp`]);
+
+      const { error } = await supabase
+        .from("shops")
+        .update({ guide_url: null, guide_name: null })
+        .eq("id", shopId);
+
+      if (error) throw error;
+
+      setGuideUrl("");
+      setGuideName("");
+      toast.success("Guide supprimé");
+      queryClient.invalidateQueries({ queryKey: ["shop-config", shopId] });
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors de la suppression");
     }
   };
 
@@ -304,6 +406,83 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
           >
             {isSavingShopSettings ? "Enregistrement..." : "Enregistrer"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Guide / Manuel Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            <CardTitle>Guide / Manuel</CardTitle>
+          </div>
+          <CardDescription>
+            Uploadez un guide ou manuel pour vos clients
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="guide-name">Nom du guide</Label>
+            <div className="flex gap-2">
+              <Input
+                id="guide-name"
+                value={guideName}
+                onChange={(e) => setGuideName(e.target.value)}
+                placeholder="Ex: Guide d'utilisation"
+                className="flex-1"
+              />
+              {guideUrl && (
+                <Button variant="outline" size="sm" onClick={handleSaveGuideName}>
+                  Renommer
+                </Button>
+              )}
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Fichier</Label>
+            {guideUrl ? (
+              <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
+                <FileText className="h-5 w-5 text-primary" />
+                <a 
+                  href={guideUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex-1 text-primary hover:underline truncate"
+                >
+                  {guideName || "Voir le guide"}
+                </a>
+                <Button variant="outline" size="sm" asChild>
+                  <a href={guideUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleDeleteGuide}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Input
+                  ref={guideInputRef}
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={handleGuideUpload}
+                  disabled={isUploadingGuide}
+                  className="cursor-pointer"
+                />
+                {isUploadingGuide && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Upload en cours...
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Formats acceptés : PDF, JPG, PNG, WEBP (max 20MB)
+            </p>
+          </div>
         </CardContent>
       </Card>
 

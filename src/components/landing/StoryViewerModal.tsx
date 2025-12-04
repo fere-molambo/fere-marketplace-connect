@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { X, ChevronLeft, ChevronRight, Eye, Store, BadgeCheck } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Eye, Store, BadgeCheck, ShoppingBag, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 
 interface Story {
   id: string;
@@ -12,6 +12,8 @@ interface Story {
   caption: string | null;
   created_at: string;
   expires_at: string;
+  linked_product_id: string | null;
+  linked_service_id: string | null;
 }
 
 interface ShopWithStories {
@@ -35,7 +37,6 @@ export const StoryViewerModal = ({
 }: StoryViewerModalProps) => {
   const [shopIndex, setShopIndex] = useState(initialShopIndex);
   const [storyIndex, setStoryIndex] = useState(0);
-  const queryClient = useQueryClient();
 
   const currentShop = shops[shopIndex];
   const currentStory = currentShop?.stories[storyIndex];
@@ -44,8 +45,6 @@ export const StoryViewerModal = ({
   const recordViewMutation = useMutation({
     mutationFn: async (storyId: string) => {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      // Try to insert view (will fail silently if duplicate)
       await supabase.from("story_views").insert({
         story_id: storyId,
         viewer_id: user?.id || null,
@@ -53,14 +52,13 @@ export const StoryViewerModal = ({
     },
   });
 
-  // Record view when story changes
   useEffect(() => {
     if (currentStory) {
       recordViewMutation.mutate(currentStory.id);
     }
   }, [currentStory?.id]);
 
-  // Get view count for current story
+  // Get view count
   const { data: viewCount = 0 } = useQuery({
     queryKey: ["story-views", currentStory?.id],
     queryFn: async () => {
@@ -74,28 +72,36 @@ export const StoryViewerModal = ({
     enabled: !!currentStory,
   });
 
-  // Get viewers list (for shop owners)
-  const { data: viewers = [] } = useQuery({
-    queryKey: ["story-viewers", currentStory?.id],
+  // Fetch linked product
+  const { data: linkedProduct } = useQuery({
+    queryKey: ["linked-product", currentStory?.linked_product_id],
     queryFn: async () => {
-      if (!currentStory) return [];
-      const { data } = await supabase
-        .from("story_views")
-        .select(`
-          viewer_id,
-          viewed_at,
-          profiles!story_views_viewer_id_fkey (
-            nom_complet,
-            photo_profil
-          )
-        `)
-        .eq("story_id", currentStory.id)
-        .not("viewer_id", "is", null)
-        .order("viewed_at", { ascending: false })
-        .limit(10);
-      return data || [];
+      if (!currentStory?.linked_product_id) return null;
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, main_media_url, price")
+        .eq("id", currentStory.linked_product_id)
+        .single();
+      if (error) return null;
+      return data;
     },
-    enabled: !!currentStory,
+    enabled: !!currentStory?.linked_product_id,
+  });
+
+  // Fetch linked service
+  const { data: linkedService } = useQuery({
+    queryKey: ["linked-service", currentStory?.linked_service_id],
+    queryFn: async () => {
+      if (!currentStory?.linked_service_id) return null;
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, main_media_url, price")
+        .eq("id", currentStory.linked_service_id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!currentStory?.linked_service_id,
   });
 
   const goToPrevStory = () => {
@@ -134,7 +140,6 @@ export const StoryViewerModal = ({
     }
   };
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -147,6 +152,9 @@ export const StoryViewerModal = ({
   }, [storyIndex, shopIndex]);
 
   if (!currentShop || !currentStory) return null;
+
+  const linkedItem = linkedProduct || linkedService;
+  const isProduct = !!linkedProduct;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center">
@@ -256,10 +264,43 @@ export const StoryViewerModal = ({
           )}
         </div>
 
-        {/* Caption and views */}
-        <div className="absolute bottom-4 left-4 right-4 z-10">
+        {/* Caption, linked item and views */}
+        <div className="absolute bottom-4 left-4 right-4 z-10 space-y-3">
+          {/* Linked product/service card */}
+          {linkedItem && (
+            <Link 
+              to={isProduct ? `/product/${linkedItem.id}` : `/service/${linkedItem.id}`}
+              className="block"
+            >
+              <div className="flex items-center gap-3 bg-white/95 backdrop-blur-sm rounded-lg p-2 hover:bg-white transition-colors">
+                {linkedItem.main_media_url ? (
+                  <img 
+                    src={linkedItem.main_media_url} 
+                    alt={linkedItem.name}
+                    className="w-12 h-12 rounded object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
+                    {isProduct ? <ShoppingBag className="h-5 w-5" /> : <Briefcase className="h-5 w-5" />}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {linkedItem.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {linkedItem.price.toLocaleString()} FCFA
+                  </p>
+                </div>
+                <div className="text-xs text-primary font-medium">
+                  {isProduct ? "Voir produit" : "Voir prestation"}
+                </div>
+              </div>
+            </Link>
+          )}
+
           {currentStory.caption && (
-            <p className="text-white text-sm mb-3 bg-black/30 px-3 py-2 rounded-lg backdrop-blur-sm">
+            <p className="text-white text-sm bg-black/30 px-3 py-2 rounded-lg backdrop-blur-sm">
               {currentStory.caption}
             </p>
           )}

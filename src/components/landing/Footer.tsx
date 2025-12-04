@@ -9,7 +9,7 @@ export const Footer = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("platform_settings")
-        .select("app_name, logo_principal, company_email, support_email, support_phone")
+        .select("app_name, logo_principal, logo_footer, company_email, support_email, support_phone")
         .maybeSingle();
       return data;
     },
@@ -24,11 +24,11 @@ export const Footer = () => {
           {/* About */}
           <div>
             <div className="mb-4">
-              {settings?.logo_principal ? (
+              {(settings?.logo_footer || settings?.logo_principal) ? (
                 <img
-                  src={settings.logo_principal}
+                  src={settings?.logo_footer || settings?.logo_principal}
                   alt={settings?.app_name || "Fere"}
-                  className="h-8 w-auto brightness-0 invert"
+                  className={`h-8 w-auto ${!settings?.logo_footer ? 'brightness-0 invert' : ''}`}
                 />
               ) : (
                 <span className="text-xl font-bold">

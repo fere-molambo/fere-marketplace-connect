@@ -87,9 +87,9 @@ export const StoriesSection = () => {
   }
 
   return (
-    <section id="stories" className="py-12 px-4">
+    <section id="stories" className="py-6 px-4">
       <div className="container mx-auto">
-        <h2 className="text-2xl md:text-3xl font-bold mb-8">
+        <h2 className="text-xl md:text-2xl font-bold mb-4">
           Stories de nos partenaires
         </h2>
 

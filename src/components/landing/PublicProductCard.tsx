@@ -2,6 +2,13 @@ import { useState } from "react";
 import { Heart, Star, BadgeCheck, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FlashSaleBadge } from "@/components/ui/FlashSaleCountdown";
+
+interface FlashSale {
+  id: string;
+  flash_price: number;
+  ends_at: string;
+}
 
 interface PublicProductCardProps {
   product: {
@@ -23,17 +30,19 @@ interface PublicProductCardProps {
       is_official: boolean;
     };
   };
+  flashSale?: FlashSale | null;
 }
 
-export const PublicProductCard = ({ product }: PublicProductCardProps) => {
+export const PublicProductCard = ({ product, flashSale }: PublicProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showOrderUI, setShowOrderUI] = useState(false);
   const [quantity, setQuantity] = useState(product.min_quantity || 1);
 
+  const basePrice = flashSale ? flashSale.flash_price : product.price;
   const discountedPrice = product.discount_percent
-    ? product.price * (1 - product.discount_percent / 100)
-    : product.price;
+    ? basePrice * (1 - product.discount_percent / 100)
+    : basePrice;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("fr-FR").format(price) + " FCFA";
@@ -52,7 +61,7 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
 
   return (
     <div
-      className="bg-background rounded-xl border overflow-hidden group"
+      className="bg-background rounded-xl border overflow-hidden group h-full"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -68,8 +77,11 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
 
+        {/* Flash Sale Badge */}
+        {flashSale && <FlashSaleBadge endsAt={flashSale.ends_at} />}
+
         {/* Discount Badge */}
-        {product.discount_percent && product.discount_percent > 0 && (
+        {!flashSale && product.discount_percent && product.discount_percent > 0 && (
           <Badge className="absolute top-2 left-2 bg-red-500 text-white">
             -{product.discount_percent}%
           </Badge>
@@ -77,7 +89,7 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
 
         {/* Favorite Button */}
         <button
-          onClick={() => setIsFavorite(!isFavorite)}
+          onClick={(e) => { e.preventDefault(); setIsFavorite(!isFavorite); }}
           className="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors"
         >
           <Heart
@@ -89,12 +101,12 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-3">
+      <div className="p-3 space-y-2">
         {/* Title & Description */}
         <div>
           <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
           {product.description && (
-            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
+            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
               {product.description}
             </p>
           )}
@@ -103,28 +115,23 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
         {/* Badges */}
         <div className="flex flex-wrap gap-1">
           {product.condition && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs py-0">
               {product.condition === "neuf" ? "Neuf" : "2ème main"}
             </Badge>
           )}
           {getPriceTypeLabel(product.price_type) && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs py-0">
               {getPriceTypeLabel(product.price_type)}
-            </Badge>
-          )}
-          {product.min_quantity && product.min_quantity > 1 && (
-            <Badge variant="outline" className="text-xs">
-              Min: {product.min_quantity}
             </Badge>
           )}
         </div>
 
         {/* Price */}
-        <div className="flex items-baseline gap-2">
-          <span className="font-bold text-primary">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-bold text-primary text-sm">
             {formatPrice(discountedPrice)}
           </span>
-          {product.discount_percent && product.discount_percent > 0 && (
+          {(flashSale || (product.discount_percent && product.discount_percent > 0)) && (
             <span className="text-xs text-muted-foreground line-through">
               {formatPrice(product.price)}
             </span>
@@ -142,37 +149,37 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
 
         {/* Order UI */}
         {showOrderUI ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <div className="flex items-center border rounded-lg">
               <button
-                onClick={() => setQuantity(Math.max(product.min_quantity || 1, quantity - 1))}
-                className="p-2 hover:bg-muted"
+                onClick={(e) => { e.preventDefault(); setQuantity(Math.max(product.min_quantity || 1, quantity - 1)); }}
+                className="p-1.5 hover:bg-muted"
               >
                 <Minus className="h-3 w-3" />
               </button>
-              <span className="px-3 text-sm">{quantity}</span>
+              <span className="px-2 text-xs">{quantity}</span>
               <button
-                onClick={() => setQuantity(quantity + 1)}
-                className="p-2 hover:bg-muted"
+                onClick={(e) => { e.preventDefault(); setQuantity(quantity + 1); }}
+                className="p-1.5 hover:bg-muted"
               >
                 <Plus className="h-3 w-3" />
               </button>
             </div>
-            <Button size="sm" className="flex-1">
+            <Button size="sm" className="flex-1 text-xs h-7" onClick={(e) => e.preventDefault()}>
               <ShoppingCart className="h-3 w-3 mr-1" />
               Ajouter
             </Button>
             <button
-              onClick={() => setShowOrderUI(false)}
-              className="p-2 hover:bg-muted rounded"
+              onClick={(e) => { e.preventDefault(); setShowOrderUI(false); }}
+              className="p-1.5 hover:bg-muted rounded"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3 w-3" />
             </button>
           </div>
         ) : (
           <Button
-            onClick={() => setShowOrderUI(true)}
-            className="w-full"
+            onClick={(e) => { e.preventDefault(); setShowOrderUI(true); }}
+            className="w-full text-xs h-8"
             size="sm"
             disabled={product.quantity_available === 0}
           >
@@ -181,20 +188,16 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
         )}
 
         {/* Rating & Reviews */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-            <span>0</span>
-          </div>
-          <span>•</span>
-          <span>0 avis</span>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+          <span>0</span>
           <span>•</span>
           <span>0 vendus</span>
         </div>
 
         {/* Vendor Info */}
         <div className="flex items-center gap-2 pt-2 border-t">
-          <div className="w-6 h-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
+          <div className="w-5 h-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
             {product.shops.logo_url ? (
               <img
                 src={product.shops.logo_url}
@@ -209,7 +212,7 @@ export const PublicProductCard = ({ product }: PublicProductCardProps) => {
           </div>
           <span className="text-xs truncate flex-1">{product.shops.name}</span>
           {product.shops.is_official && (
-            <BadgeCheck className="h-4 w-4 text-primary flex-shrink-0" />
+            <BadgeCheck className="h-3 w-3 text-primary flex-shrink-0" />
           )}
         </div>
       </div>

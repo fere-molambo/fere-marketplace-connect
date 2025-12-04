@@ -4,7 +4,8 @@ import { PasswordSettings } from "@/components/settings/PasswordSettings";
 import { PlatformSettings } from "@/components/settings/PlatformSettings";
 import { DataManagementSettings } from "@/components/settings/DataManagementSettings";
 import { TeamTagsSettings } from "@/components/settings/TeamTagsSettings";
-import { User, KeyRound, Building2, Database, Tags } from "lucide-react";
+import { HomepageSettings } from "@/components/settings/HomepageSettings";
+import { User, KeyRound, Building2, Database, Tags, Home } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -21,34 +22,42 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Profil
-          </TabsTrigger>
-          <TabsTrigger value="password" className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4" />
-            Mot de passe
-          </TabsTrigger>
-          {canManagePlatform && (
-            <TabsTrigger value="platform" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Plateforme
+        <div className="overflow-x-auto -mx-4 px-4">
+          <TabsList className="inline-flex w-max">
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">Profil</span>
             </TabsTrigger>
-          )}
-          {canManagePlatform && (
-            <TabsTrigger value="data" className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              Données
+            <TabsTrigger value="password" className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              <span className="hidden sm:inline">Mot de passe</span>
             </TabsTrigger>
-          )}
-          {canManagePlatform && (
-            <TabsTrigger value="team-tags" className="flex items-center gap-2">
-              <Tags className="h-4 w-4" />
-              Tags équipe
-            </TabsTrigger>
-          )}
-        </TabsList>
+            {canManagePlatform && (
+              <TabsTrigger value="platform" className="flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Plateforme</span>
+              </TabsTrigger>
+            )}
+            {canManagePlatform && (
+              <TabsTrigger value="homepage" className="flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Page d'accueil</span>
+              </TabsTrigger>
+            )}
+            {canManagePlatform && (
+              <TabsTrigger value="data" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                <span className="hidden sm:inline">Données</span>
+              </TabsTrigger>
+            )}
+            {canManagePlatform && (
+              <TabsTrigger value="team-tags" className="flex items-center gap-2">
+                <Tags className="h-4 w-4" />
+                <span className="hidden sm:inline">Tags équipe</span>
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
         <TabsContent value="profile" className="mt-6">
           <ProfileSettings />
         </TabsContent>
@@ -58,6 +67,11 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="platform" className="mt-6">
             <PlatformSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="homepage" className="mt-6">
+            <HomepageSettings />
           </TabsContent>
         )}
         {canManagePlatform && (

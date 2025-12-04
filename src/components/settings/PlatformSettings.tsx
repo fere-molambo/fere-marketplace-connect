@@ -262,6 +262,48 @@ export const PlatformSettings = () => {
         </CardContent>
       </Card>
 
+      {/* Contacts entreprise */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Contacts entreprise</CardTitle>
+          <CardDescription>
+            Informations de contact affichées sur le site
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="company_email">Email entreprise</Label>
+            <Input
+              id="company_email"
+              type="email"
+              defaultValue={settings?.company_email || ""}
+              onBlur={(e) => handleTextUpdate("company_email", e.target.value)}
+              placeholder="contact@fere.app"
+            />
+          </div>
+          <div>
+            <Label htmlFor="support_email">Email support</Label>
+            <Input
+              id="support_email"
+              type="email"
+              defaultValue={settings?.support_email || ""}
+              onBlur={(e) => handleTextUpdate("support_email", e.target.value)}
+              placeholder="support@fere.app"
+            />
+          </div>
+          <div>
+            <Label htmlFor="support_phone">Téléphone support</Label>
+            <Input
+              id="support_phone"
+              type="tel"
+              defaultValue={settings?.support_phone || ""}
+              onBlur={(e) => handleTextUpdate("support_phone", e.target.value)}
+              placeholder="+223 70 00 00 00"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Documents légaux */}
       <Card>
         <CardHeader>

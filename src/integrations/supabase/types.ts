@@ -70,6 +70,7 @@ export type Database = {
           image_auth_login: string | null
           image_auth_signup: string | null
           logo_auth_page: string | null
+          logo_footer: string | null
           logo_principal: string | null
           logo_sidebar_collapsed: string | null
           partner_logos: Json | null
@@ -96,6 +97,7 @@ export type Database = {
           image_auth_login?: string | null
           image_auth_signup?: string | null
           logo_auth_page?: string | null
+          logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
           partner_logos?: Json | null
@@ -122,6 +124,7 @@ export type Database = {
           image_auth_login?: string | null
           image_auth_signup?: string | null
           logo_auth_page?: string | null
+          logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
           partner_logos?: Json | null

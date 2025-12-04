@@ -38,7 +38,12 @@ export const PlatformSettings = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalider tous les caches liés aux settings
       queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-public"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-footer"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-homepage"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-hero"] });
       toast.success("Paramètres mis à jour");
     },
     onError: () => {
@@ -206,6 +211,28 @@ export const PlatformSettings = () => {
                 <p className="text-xs text-muted-foreground mt-1">Icône affichée dans l'onglet du navigateur</p>
               </div>
               {uploading === "favicon" && <Loader2 className="h-4 w-4 animate-spin" />}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="logo_footer">Logo footer</Label>
+            <div className="flex items-center gap-4">
+              {settings?.logo_footer && (
+                <div className="bg-primary p-2 rounded">
+                  <img src={settings.logo_footer} alt="Logo footer" className="h-12 w-auto" />
+                </div>
+              )}
+              <div>
+                <Input
+                  id="logo_footer"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(e, "logo_footer")}
+                  disabled={uploading === "logo_footer"}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Version claire du logo pour le footer (fond vert)</p>
+              </div>
+              {uploading === "logo_footer" && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
           </div>
         </CardContent>

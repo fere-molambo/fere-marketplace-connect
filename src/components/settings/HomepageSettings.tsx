@@ -48,7 +48,8 @@ export const HomepageSettings = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-homepage"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-settings-hero"] });
       toast.success("Paramètres mis à jour");
     },
     onError: () => {

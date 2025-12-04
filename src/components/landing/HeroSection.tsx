@@ -59,45 +59,56 @@ export const HeroSection = () => {
     setCurrentSlide((prev) => (prev - 1 + heroCards.length) % heroCards.length);
   };
 
+  const HeroCard = ({ card, className }: { card: HeroCard; className?: string }) => (
+    <div className={`relative rounded-2xl overflow-hidden group ${className}`}>
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+        style={{
+          backgroundImage: card.image_url
+            ? `url(${card.image_url})`
+            : "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)/0.7) 100%)",
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 text-white">
+        <h2 className="text-xl md:text-2xl font-bold mb-2">{card.title}</h2>
+        <p className="text-sm text-white/80 mb-3 line-clamp-2">{card.text}</p>
+        <Link to={card.button_link}>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-white/30"
+          >
+            {card.button_text}
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <section className="relative">
-      {/* Desktop: Grid of 3 cards */}
-      <div className="hidden md:grid md:grid-cols-3 gap-4 p-4">
-        {heroCards.map((card, index) => (
-          <div
-            key={index}
-            className="relative h-[400px] rounded-2xl overflow-hidden group"
-          >
-            <div
-              className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-              style={{
-                backgroundImage: card.image_url
-                  ? `url(${card.image_url})`
-                  : "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)/0.7) 100%)",
-              }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-              <h2 className="text-2xl font-bold mb-2">{card.title}</h2>
-              <p className="text-sm text-white/80 mb-4 line-clamp-2">
-                {card.text}
-              </p>
-              <Link to={card.button_link}>
-                <Button
-                  variant="secondary"
-                  className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-white/30"
-                >
-                  {card.button_text}
-                </Button>
-              </Link>
-            </div>
-          </div>
-        ))}
+      {/* Desktop: Masonry Layout */}
+      <div className="hidden md:grid md:grid-cols-2 gap-4 p-4">
+        {/* First card - tall */}
+        {heroCards[0] && (
+          <HeroCard card={heroCards[0]} className="h-[500px]" />
+        )}
+        
+        {/* Right column - two smaller cards */}
+        <div className="flex flex-col gap-4">
+          {heroCards[1] && (
+            <HeroCard card={heroCards[1]} className="h-[242px]" />
+          )}
+          {heroCards[2] && (
+            <HeroCard card={heroCards[2]} className="h-[242px]" />
+          )}
+        </div>
       </div>
 
       {/* Mobile: Carousel */}
       <div className="md:hidden relative">
-        <div className="relative h-[350px] overflow-hidden">
+        <div className="relative h-[280px] overflow-hidden">
           {heroCards.map((card, index) => (
             <div
               key={index}
@@ -118,12 +129,13 @@ export const HeroSection = () => {
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                <h2 className="text-2xl font-bold mb-2">{card.title}</h2>
-                <p className="text-sm text-white/80 mb-4">{card.text}</p>
+              <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                <h2 className="text-xl font-bold mb-2">{card.title}</h2>
+                <p className="text-sm text-white/80 mb-3 line-clamp-2">{card.text}</p>
                 <Link to={card.button_link}>
                   <Button
                     variant="secondary"
+                    size="sm"
                     className="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white border-white/30"
                   >
                     {card.button_text}

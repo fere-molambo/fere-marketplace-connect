@@ -55,45 +55,78 @@ export type Database = {
           app_description: string | null
           app_name: string
           cgu: string | null
+          company_email: string | null
           cookies: string | null
           created_at: string | null
+          cta_button_link: string | null
+          cta_button_text: string | null
+          cta_images: Json | null
+          cta_pre_title: string | null
+          cta_text: string | null
+          cta_title: string | null
           favicon: string | null
+          hero_cards: Json | null
           id: string
           image_auth_login: string | null
           image_auth_signup: string | null
           logo_auth_page: string | null
           logo_principal: string | null
           logo_sidebar_collapsed: string | null
+          partner_logos: Json | null
+          support_email: string | null
+          support_phone: string | null
           updated_at: string | null
         }
         Insert: {
           app_description?: string | null
           app_name?: string
           cgu?: string | null
+          company_email?: string | null
           cookies?: string | null
           created_at?: string | null
+          cta_button_link?: string | null
+          cta_button_text?: string | null
+          cta_images?: Json | null
+          cta_pre_title?: string | null
+          cta_text?: string | null
+          cta_title?: string | null
           favicon?: string | null
+          hero_cards?: Json | null
           id?: string
           image_auth_login?: string | null
           image_auth_signup?: string | null
           logo_auth_page?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          partner_logos?: Json | null
+          support_email?: string | null
+          support_phone?: string | null
           updated_at?: string | null
         }
         Update: {
           app_description?: string | null
           app_name?: string
           cgu?: string | null
+          company_email?: string | null
           cookies?: string | null
           created_at?: string | null
+          cta_button_link?: string | null
+          cta_button_text?: string | null
+          cta_images?: Json | null
+          cta_pre_title?: string | null
+          cta_text?: string | null
+          cta_title?: string | null
           favicon?: string | null
+          hero_cards?: Json | null
           id?: string
           image_auth_login?: string | null
           image_auth_signup?: string | null
           logo_auth_page?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          partner_logos?: Json | null
+          support_email?: string | null
+          support_phone?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -968,6 +1001,45 @@ export type Database = {
           {
             foreignKeyName: "shops_responsible_admin_id_fkey"
             columns: ["responsible_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_views: {
+        Row: {
+          id: string
+          story_id: string
+          viewed_at: string | null
+          viewer_id: string | null
+          viewer_ip: string | null
+        }
+        Insert: {
+          id?: string
+          story_id: string
+          viewed_at?: string | null
+          viewer_id?: string | null
+          viewer_ip?: string | null
+        }
+        Update: {
+          id?: string
+          story_id?: string
+          viewed_at?: string | null
+          viewer_id?: string | null
+          viewer_ip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_views_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "shop_stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_views_viewer_id_fkey"
+            columns: ["viewer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

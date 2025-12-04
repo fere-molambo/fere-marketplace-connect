@@ -64,7 +64,7 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
       duration: 24,
       visibility: "public",
       mediaUrl: "",
-      linkedItem: "",
+      linkedItem: "none",
     },
   });
 
@@ -154,7 +154,7 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
       let linkedProductId: string | null = null;
       let linkedServiceId: string | null = null;
       
-      if (data.linkedItem) {
+      if (data.linkedItem && data.linkedItem !== "none") {
         const [type, id] = data.linkedItem.split(":");
         if (type === "product") linkedProductId = id;
         if (type === "service") linkedServiceId = id;
@@ -293,7 +293,7 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Aucun</SelectItem>
+                      <SelectItem value="none">Aucun</SelectItem>
                       {products.length > 0 && (
                         <SelectGroup>
                           <SelectLabel>Produits</SelectLabel>

@@ -26,18 +26,22 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 const storySchema = z.object({
   caption: z.string().optional(),
-  duration: z.number().min(24).max(168), // 24h to 7 days in hours
+  duration: z.number().min(24).max(168),
   visibility: z.enum(["public", "clients_only", "private"]),
   mediaUrl: z.string().optional(),
+  linkedItem: z.string().optional(),
 });
 
 type StoryFormData = z.infer<typeof storySchema>;
@@ -60,20 +64,49 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
       duration: 24,
       visibility: "public",
       mediaUrl: "",
+      linkedItem: "",
     },
+  });
+
+  // Fetch shop products
+  const { data: products = [] } = useQuery({
+    queryKey: ["shop-products-for-story", shopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, main_media_url")
+        .eq("shop_id", shopId)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  // Fetch shop services
+  const { data: services = [] } = useQuery({
+    queryKey: ["shop-services-for-story", shopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, main_media_url")
+        .eq("shop_id", shopId)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       const validTypes = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm"];
       if (!validTypes.includes(file.type)) {
         toast.error("Format non supporté. Utilisez JPG, PNG, WEBP, MP4 ou WEBM");
         return;
       }
 
-      // Validate file size (max 50MB)
       if (file.size > 50 * 1024 * 1024) {
         toast.error("Le fichier est trop volumineux (max 50MB)");
         return;
@@ -91,7 +124,6 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
       let mediaType = "image";
       let sourceType = "link";
 
-      // Upload file if present
       if (selectedFile) {
         sourceType = "upload";
         mediaType = selectedFile.type.startsWith("video") ? "video" : "image";
@@ -112,15 +144,22 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
 
         mediaUrl = publicUrlData.publicUrl;
       } else if (data.mediaUrl) {
-        // Determine media type from URL
         mediaType = data.mediaUrl.match(/\.(mp4|webm|mov)$/i) ? "video" : "image";
       }
 
-      // Calculate expiration date
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + data.duration);
 
-      // Insert story
+      // Parse linked item
+      let linkedProductId: string | null = null;
+      let linkedServiceId: string | null = null;
+      
+      if (data.linkedItem) {
+        const [type, id] = data.linkedItem.split(":");
+        if (type === "product") linkedProductId = id;
+        if (type === "service") linkedServiceId = id;
+      }
+
       const { error } = await supabase.from("shop_stories").insert({
         shop_id: shopId,
         media_url: mediaUrl,
@@ -129,6 +168,8 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
         caption: data.caption || null,
         visibility: data.visibility,
         expires_at: expiresAt.toISOString(),
+        linked_product_id: linkedProductId,
+        linked_service_id: linkedServiceId,
       });
 
       if (error) throw error;
@@ -156,7 +197,7 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
           <span className="sm:hidden">Ajouter</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Ajouter une story</DialogTitle>
           <DialogDescription>
@@ -233,6 +274,48 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
                       disabled={isUploading}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Link product/service */}
+            <FormField
+              control={form.control}
+              name="linkedItem"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Lier un produit ou prestation (optionnel)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isUploading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Aucun" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Aucun</SelectItem>
+                      {products.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>Produits</SelectLabel>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={`product:${p.id}`}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {services.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>Prestations</SelectLabel>
+                          {services.map((s) => (
+                            <SelectItem key={s.id} value={`service:${s.id}`}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

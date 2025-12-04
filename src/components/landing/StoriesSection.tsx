@@ -16,6 +16,8 @@ interface ShopWithStories {
     caption: string | null;
     created_at: string;
     expires_at: string;
+    linked_product_id: string | null;
+    linked_service_id: string | null;
   }[];
 }
 
@@ -35,6 +37,8 @@ export const StoriesSection = () => {
           caption,
           created_at,
           expires_at,
+          linked_product_id,
+          linked_service_id,
           shop_id,
           shops!inner (
             id,
@@ -75,6 +79,8 @@ export const StoriesSection = () => {
           caption: story.caption,
           created_at: story.created_at,
           expires_at: story.expires_at,
+          linked_product_id: story.linked_product_id,
+          linked_service_id: story.linked_service_id,
         });
       });
 

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, LayoutGrid, List } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import { ShopViewToggle } from "../ShopViewToggle";
 import { CreateProductDialog } from "../CreateProductDialog";
 import { CreateServiceDialog } from "../CreateServiceDialog";
+import { CreateFlashSaleDialog } from "../CreateFlashSaleDialog";
 import { ProductCard } from "../ProductCard";
 import { ServiceCard } from "../ServiceCard";
 import { useQuery } from "@tanstack/react-query";
@@ -50,12 +51,15 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
   return (
     <div className="space-y-4">
       <Tabs defaultValue="products" className="w-full">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <TabsList>
             <TabsTrigger value="products">Produits ({products.length})</TabsTrigger>
             <TabsTrigger value="services">Prestations ({services.length})</TabsTrigger>
           </TabsList>
-          <ShopViewToggle viewMode={viewMode} setViewMode={setViewMode} />
+          <div className="flex items-center gap-2">
+            <CreateFlashSaleDialog shopId={shopId} />
+            <ShopViewToggle viewMode={viewMode} setViewMode={setViewMode} />
+          </div>
         </div>
 
         <TabsContent value="products" className="space-y-4">

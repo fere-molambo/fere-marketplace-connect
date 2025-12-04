@@ -29,6 +29,7 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
   const [hoverMediaUrl, setHoverMediaUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [priceType, setPriceType] = useState("fixe");
   const [minAutoPrice, setMinAutoPrice] = useState("");
@@ -50,6 +51,34 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
     dimanche: [],
   });
 
+  const durationOptions = [
+    { value: "15", label: "Environ 15 minutes" },
+    { value: "30", label: "Environ 30 minutes" },
+    { value: "45", label: "Environ 45 minutes" },
+    { value: "60", label: "Environ 1 heure" },
+    { value: "90", label: "Environ 1h30" },
+    { value: "120", label: "Environ 2 heures" },
+    { value: "60-120", label: "Entre 1h et 2h" },
+    { value: "120-180", label: "Entre 2h et 3h" },
+    { value: "180-240", label: "Entre 3h et 4h" },
+    { value: "240+", label: "Plus de 4 heures" },
+  ];
+
+  // Convert duration number to select value
+  const getDurationValue = (mins: number | null): string => {
+    if (!mins) return "";
+    if (mins <= 15) return "15";
+    if (mins <= 30) return "30";
+    if (mins <= 45) return "45";
+    if (mins <= 60) return "60";
+    if (mins <= 90) return "90";
+    if (mins <= 120) return "120";
+    if (mins <= 150) return "60-120";
+    if (mins <= 210) return "120-180";
+    if (mins <= 270) return "180-240";
+    return "240+";
+  };
+
   useEffect(() => {
     if (service) {
       setName(service.name || "");
@@ -58,6 +87,7 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
       setHoverMediaUrl(service.hover_media_url || "");
       setVideoUrl(service.video_url || "");
       setMediaUrls(Array.isArray(service.media_urls) ? service.media_urls : []);
+      setDuration(getDurationValue(service.duration));
       setPrice(service.price?.toString() || "");
       setPriceType(service.price_type || "fixe");
       setMinAutoPrice(service.min_auto_price?.toString() || "");
@@ -70,24 +100,24 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
       setDiscountPercent(service.discount_percent?.toString() || "");
       setIsActive(service.is_active ?? true);
       
-    const defaultAvailability: WeeklyAvailability = {
-      lundi: [],
-      mardi: [],
-      mercredi: [],
-      jeudi: [],
-      vendredi: [],
-      samedi: [],
-      dimanche: [],
-    };
+      const defaultAvailability: WeeklyAvailability = {
+        lundi: [],
+        mardi: [],
+        mercredi: [],
+        jeudi: [],
+        vendredi: [],
+        samedi: [],
+        dimanche: [],
+      };
 
-    if (service.weekly_availability && typeof service.weekly_availability === 'object') {
-      setWeeklyAvailability({
-        ...defaultAvailability,
-        ...service.weekly_availability
-      });
-    } else {
-      setWeeklyAvailability(defaultAvailability);
-    }
+      if (service.weekly_availability && typeof service.weekly_availability === 'object') {
+        setWeeklyAvailability({
+          ...defaultAvailability,
+          ...service.weekly_availability
+        });
+      } else {
+        setWeeklyAvailability(defaultAvailability);
+      }
     }
   }, [service]);
 
@@ -104,6 +134,19 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
     }
 
     try {
+      // Parse duration
+      let durationValue: number | null = null;
+      if (duration) {
+        if (duration.includes("-")) {
+          const [min, max] = duration.split("-").map(Number);
+          durationValue = Math.round((min + max) / 2);
+        } else if (duration.includes("+")) {
+          durationValue = parseInt(duration.replace("+", ""));
+        } else {
+          durationValue = parseInt(duration);
+        }
+      }
+
       const { error } = await supabase
         .from("services")
         .update({
@@ -113,6 +156,7 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
           hover_media_url: hoverMediaUrl || null,
           video_url: videoUrl || null,
           media_urls: mediaUrls,
+          duration: durationValue,
           price: parseFloat(price),
           price_type: priceType,
           min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
@@ -215,6 +259,22 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
                 placeholder="Ex: Venir avec les cheveux propres..."
                 rows={2}
               />
+            </div>
+
+            <div>
+              <Label htmlFor="duration">Durée de la prestation</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une durée" />
+                </SelectTrigger>
+                <SelectContent>
+                  {durationOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

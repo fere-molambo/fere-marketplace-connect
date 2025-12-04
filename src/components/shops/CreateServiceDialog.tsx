@@ -26,6 +26,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [description, setDescription] = useState("");
   const [includes, setIncludes] = useState("");
   const [clientPreparation, setClientPreparation] = useState("");
+  const [duration, setDuration] = useState("");
   const [priceType, setPriceType] = useState<"fixe" | "negoce">("fixe");
   const [price, setPrice] = useState("");
   const [minAutoPrice, setMinAutoPrice] = useState("");
@@ -52,6 +53,19 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   
   const [saving, setSaving] = useState(false);
 
+  const durationOptions = [
+    { value: "15", label: "Environ 15 minutes" },
+    { value: "30", label: "Environ 30 minutes" },
+    { value: "45", label: "Environ 45 minutes" },
+    { value: "60", label: "Environ 1 heure" },
+    { value: "90", label: "Environ 1h30" },
+    { value: "120", label: "Environ 2 heures" },
+    { value: "60-120", label: "Entre 1h et 2h" },
+    { value: "120-180", label: "Entre 2h et 3h" },
+    { value: "180-240", label: "Entre 3h et 4h" },
+    { value: "240+", label: "Plus de 4 heures" },
+  ];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -66,12 +80,28 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
 
     setSaving(true);
     try {
+      // Parse duration - store as integer if simple, or use a special format for ranges
+      let durationValue: number | null = null;
+      if (duration) {
+        if (duration.includes("-")) {
+          // For ranges like "60-120", store the average
+          const [min, max] = duration.split("-").map(Number);
+          durationValue = Math.round((min + max) / 2);
+        } else if (duration.includes("+")) {
+          // For "240+", store 240
+          durationValue = parseInt(duration.replace("+", ""));
+        } else {
+          durationValue = parseInt(duration);
+        }
+      }
+
       const { error } = await supabase.from("services").insert({
         shop_id: shopId,
         name,
         description,
         includes,
         client_preparation: clientPreparation || null,
+        duration: durationValue,
         price: parseFloat(price),
         price_type: priceType,
         min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
@@ -114,6 +144,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
     setDescription("");
     setIncludes("");
     setClientPreparation("");
+    setDuration("");
     setPrice("");
     setDiscount("0");
     setMainMedia("");
@@ -178,6 +209,22 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
                 onChange={(e) => setClientPreparation(e.target.value)}
                 rows={2}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="duration">Durée de la prestation</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une durée" />
+                </SelectTrigger>
+                <SelectContent>
+                  {durationOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

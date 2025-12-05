@@ -1,18 +1,36 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { PublicProductCard } from "./PublicProductCard";
 import { PublicServiceCard } from "./PublicServiceCard";
 import { ProductFilters } from "./ProductFilters";
 import { ServiceFilters } from "./ServiceFilters";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+interface ProductFiltersState {
+  condition?: string[];
+  price_type?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  onSale?: boolean;
+}
+
+interface ServiceFiltersState {
+  price_type?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  requires_booking?: boolean;
+  onSale?: boolean;
+}
+
 export const ProductsServicesSection = () => {
-  const [productFilters, setProductFilters] = useState({});
-  const [serviceFilters, setServiceFilters] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [productFilters, setProductFilters] = useState<ProductFiltersState>({});
+  const [serviceFilters, setServiceFilters] = useState<ServiceFiltersState>({});
 
   const { data: products = [] } = useQuery({
     queryKey: ["public-products", productFilters],
@@ -33,6 +51,14 @@ export const ProductsServicesSection = () => {
         .eq("shops.is_active", true)
         .order("created_at", { ascending: false })
         .limit(12);
+
+      // Apply price range filter
+      if (productFilters.minPrice) {
+        query = query.gte("price", productFilters.minPrice);
+      }
+      if (productFilters.maxPrice) {
+        query = query.lte("price", productFilters.maxPrice);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -59,6 +85,14 @@ export const ProductsServicesSection = () => {
         .eq("shops.is_active", true)
         .order("created_at", { ascending: false })
         .limit(12);
+
+      // Apply price range filter
+      if (serviceFilters.minPrice) {
+        query = query.gte("price", serviceFilters.minPrice);
+      }
+      if (serviceFilters.maxPrice) {
+        query = query.lte("price", serviceFilters.maxPrice);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -87,6 +121,26 @@ export const ProductsServicesSection = () => {
     );
   };
 
+  // Filter products by search query
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+    const query = searchQuery.toLowerCase();
+    return products.filter((product: any) => 
+      product.name?.toLowerCase().includes(query) ||
+      product.shops?.name?.toLowerCase().includes(query)
+    );
+  }, [products, searchQuery]);
+
+  // Filter services by search query
+  const filteredServices = useMemo(() => {
+    if (!searchQuery.trim()) return services;
+    const query = searchQuery.toLowerCase();
+    return services.filter((service: any) => 
+      service.name?.toLowerCase().includes(query) ||
+      service.shops?.name?.toLowerCase().includes(query)
+    );
+  }, [services, searchQuery]);
+
   return (
     <section id="products" className="py-6 px-4 bg-muted/20">
       <div className="container mx-auto">
@@ -99,6 +153,27 @@ export const ProductsServicesSection = () => {
           </Button>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Rechercher produits, prestations, vendeurs..."
+            className="pl-10 pr-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <Tabs defaultValue="products" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="products">Produits</TabsTrigger>
@@ -108,15 +183,15 @@ export const ProductsServicesSection = () => {
           <TabsContent value="products" className="space-y-4">
             <ProductFilters onFiltersChange={setProductFilters} />
             
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Aucun produit disponible pour le moment
+                {searchQuery ? "Aucun produit trouvé pour cette recherche" : "Aucun produit disponible pour le moment"}
               </div>
             ) : (
               <>
                 {/* Mobile: 2 columns grid, max 6 items */}
                 <div className="grid grid-cols-2 gap-3 md:hidden">
-                  {products.slice(0, 6).map((product: any) => (
+                  {filteredProducts.slice(0, 6).map((product: any) => (
                     <Link key={product.id} to={`/product/${product.id}`}>
                       <PublicProductCard 
                         product={product} 
@@ -127,7 +202,7 @@ export const ProductsServicesSection = () => {
                 </div>
                 {/* Desktop/Tablet: horizontal scroll */}
                 <div className="hidden md:flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {products.map((product: any) => (
+                  {filteredProducts.map((product: any) => (
                     <Link key={product.id} to={`/product/${product.id}`} className="flex-shrink-0 w-[280px]">
                       <PublicProductCard 
                         product={product}
@@ -143,15 +218,15 @@ export const ProductsServicesSection = () => {
           <TabsContent value="services" id="services" className="space-y-4">
             <ServiceFilters onFiltersChange={setServiceFilters} />
             
-            {services.length === 0 ? (
+            {filteredServices.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Aucune prestation disponible pour le moment
+                {searchQuery ? "Aucune prestation trouvée pour cette recherche" : "Aucune prestation disponible pour le moment"}
               </div>
             ) : (
               <>
                 {/* Mobile: 2 columns grid, max 6 items */}
                 <div className="grid grid-cols-2 gap-3 md:hidden">
-                  {services.slice(0, 6).map((service: any) => (
+                  {filteredServices.slice(0, 6).map((service: any) => (
                     <Link key={service.id} to={`/service/${service.id}`}>
                       <PublicServiceCard 
                         service={service}
@@ -162,7 +237,7 @@ export const ProductsServicesSection = () => {
                 </div>
                 {/* Desktop/Tablet: horizontal scroll */}
                 <div className="hidden md:flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {services.map((service: any) => (
+                  {filteredServices.map((service: any) => (
                     <Link key={service.id} to={`/service/${service.id}`} className="flex-shrink-0 w-[280px]">
                       <PublicServiceCard 
                         service={service}

@@ -94,9 +94,11 @@ export const ProductsServicesSection = () => {
           <h2 className="text-xl md:text-2xl font-bold">
             Produits et prestations
           </h2>
-          <Button variant="ghost" className="hidden md:flex items-center gap-1">
-            Tout voir <ChevronRight className="h-4 w-4" />
-          </Button>
+          <Link to="/produits-services">
+            <Button variant="ghost" className="hidden md:flex items-center gap-1">
+              Tout voir <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
 
         <Tabs defaultValue="products" className="w-full">
@@ -177,9 +179,11 @@ export const ProductsServicesSection = () => {
         </Tabs>
 
         <div className="md:hidden mt-4 text-center">
-          <Button variant="outline" className="w-full">
-            Voir tout <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          <Link to="/produits-services">
+            <Button variant="outline" className="w-full">
+              Voir tout <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

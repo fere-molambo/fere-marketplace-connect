@@ -467,7 +467,15 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
       if (error) throw error;
 
-      toast.success("Mot de passe réinitialisé avec succès ! Nouveau mot de passe : 12345678");
+      // Display the new secure password to the admin
+      if (data?.newPassword) {
+        toast.success(
+          `Mot de passe réinitialisé ! Nouveau mot de passe : ${data.newPassword}`,
+          { duration: 15000 } // Show for 15 seconds so admin can copy it
+        );
+      } else {
+        toast.success("Mot de passe réinitialisé avec succès !");
+      }
       setShowResetDialog(false);
     } catch (error: any) {
       console.error('Error resetting password:', error);

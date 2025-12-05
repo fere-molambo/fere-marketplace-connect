@@ -4,6 +4,14 @@ import { corsHeaders } from '../_shared/cors.ts';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Generate a cryptographically secure random password
+const generateSecurePassword = (): string => {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(x => chars[x % chars.length]).join('');
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -73,10 +81,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Reset the password to the default value
+    // Generate a secure random password
+    const newPassword = generateSecurePassword();
+
+    // Reset the password to the new secure value
     const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
-      { password: '12345678' }
+      { password: newPassword }
     );
 
     if (resetError) {
@@ -87,13 +98,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log the action for audit
+    // Log the action for audit (without logging the password)
     console.log(`Password reset for user: ${userId} by admin: ${user.id}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Password reset successfully to default value (12345678)' 
+        message: 'Password reset successfully',
+        newPassword: newPassword // Return the new password so admin can share it with user
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -1,16 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Copy, Check } from 'lucide-react';
+
+// Generate a cryptographically secure random password
+const generateSecurePassword = (): string => {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(x => chars[x % chars.length]).join('');
+};
 
 export default function Setup() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [superAdminExists, setSuperAdminExists] = useState(false);
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
+
+  // Generate password once and memoize it
+  const generatedPassword = useMemo(() => generateSecurePassword(), []);
 
   useEffect(() => {
     checkSuperAdmin();
@@ -18,7 +30,6 @@ export default function Setup() {
 
   const checkSuperAdmin = async () => {
     try {
-      // Vérifier si un super admin existe déjà
       const { data, error } = await supabase
         .from('user_roles')
         .select('id')
@@ -41,6 +52,17 @@ export default function Setup() {
     }
   };
 
+  const copyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedPassword);
+      setCopied(true);
+      toast.success('Mot de passe copié!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast.error('Impossible de copier');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -49,7 +71,7 @@ export default function Setup() {
       const { data, error } = await supabase.functions.invoke('setup-super-admin', {
         body: {
           email: 'superadmin@fere.app',
-          password: '12345678',
+          password: generatedPassword,
           nom_complet: 'Super Admin',
           contact: '+22312345678'
         }
@@ -61,8 +83,8 @@ export default function Setup() {
         throw new Error(data.error);
       }
 
-      toast.success('Super administrateur créé avec succès!');
-      setTimeout(() => navigate('/'), 1500);
+      toast.success('Super administrateur créé avec succès! Assurez-vous d\'avoir copié le mot de passe.');
+      setTimeout(() => navigate('/'), 3000);
     } catch (error: any) {
       console.error('Erreur:', error);
       toast.error(error.message || 'Erreur lors de la création');
@@ -106,10 +128,31 @@ export default function Setup() {
           <p className="text-sm text-gray-700 mb-2">
             <strong>Création du super administrateur</strong>
           </p>
-          <div className="text-xs text-gray-600 space-y-1">
+          <div className="text-xs text-gray-600 space-y-2">
             <p>📧 Email: superadmin@fere.app</p>
-            <p>🔐 Mot de passe: 12345678</p>
+            <div className="flex items-center gap-2">
+              <p>🔐 Mot de passe:</p>
+              <code className="bg-white px-2 py-1 rounded border text-xs font-mono break-all">
+                {generatedPassword}
+              </code>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={copyPassword}
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-green-600" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
           </div>
+          <p className="text-xs text-amber-600 mt-3 font-medium">
+            ⚠️ Copiez ce mot de passe maintenant. Il ne sera plus affiché.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>

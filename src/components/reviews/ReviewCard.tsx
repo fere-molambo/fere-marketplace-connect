@@ -57,7 +57,8 @@ export const ReviewCard = ({
 }: ReviewCardProps) => {
   const [replyDialogOpen, setReplyDialogOpen] = useState(false);
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string | undefined | null) => {
+    if (!name) return "??";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -65,6 +66,10 @@ export const ReviewCard = ({
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Safe access to user data (may be null due to RLS)
+  const userName = review.user?.nom_complet || "Utilisateur";
+  const userPhoto = review.user?.photo_profil || undefined;
 
   const isOwnReview = currentUserId === review.user_id;
   const canDeleteReview = isOwnReview || canManage;
@@ -75,13 +80,13 @@ export const ReviewCard = ({
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={review.user.photo_profil || undefined} />
+            <AvatarImage src={userPhoto} />
             <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-              {getInitials(review.user.nom_complet)}
+              {getInitials(userName)}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-sm">{review.user.nom_complet}</p>
+            <p className="font-medium text-sm">{userName}</p>
             <div className="flex items-center gap-2">
               <StarRating rating={review.rating} readonly size="sm" />
               <span className="text-xs text-muted-foreground">
@@ -139,13 +144,13 @@ export const ReviewCard = ({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={reply.user.photo_profil || undefined} />
+                    <AvatarImage src={reply.user?.photo_profil || undefined} />
                     <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                      {getInitials(reply.user.nom_complet)}
+                      {getInitials(reply.user?.nom_complet)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium text-xs">{reply.user.nom_complet}</p>
+                    <p className="font-medium text-xs">{reply.user?.nom_complet || "Utilisateur"}</p>
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(reply.created_at), {
                         addSuffix: true,

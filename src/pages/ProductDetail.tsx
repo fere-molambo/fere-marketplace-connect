@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
+import { Navbar } from "@/components/landing/Navbar";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 const ProductDetail = () => {
   const { productId } = useParams();
+  const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -130,13 +132,14 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
-        <Link to="/">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
+      {/* Navbar */}
+      <Navbar />
+      
+      {/* Product Header */}
+      <div className="sticky top-0 z-40 bg-background border-b p-4 flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <h1 className="font-semibold truncate flex-1">{product.name}</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />

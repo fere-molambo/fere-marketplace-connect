@@ -49,7 +49,7 @@ export default function Setup() {
       const { data, error } = await supabase.functions.invoke('setup-super-admin', {
         body: {
           email: 'superadmin@fere.app',
-          password: '12345678',
+          password: 'fere1234',
           nom_complet: 'Super Admin',
           contact: '+22312345678'
         }
@@ -108,7 +108,7 @@ export default function Setup() {
           </p>
           <div className="text-xs text-gray-600 space-y-1">
             <p>📧 Email: superadmin@fere.app</p>
-            <p>🔐 Mot de passe: 12345678</p>
+            <p>🔐 Mot de passe: fere1234</p>
           </div>
         </div>
 

@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     // Reset the password to the default value
     const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
-      { password: '12345678' }
+      { password: 'fere1234' }
     );
 
     if (resetError) {
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Password reset successfully to default value (12345678)' 
+        message: 'Password reset successfully to default value (fere1234)' 
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

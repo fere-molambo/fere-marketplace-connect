@@ -208,7 +208,7 @@ const Vendors = () => {
                     </div>
 
                     {/* Action Button */}
-                    <Link to={`/catalogue?shop=${vendor.id}`}>
+                    <Link to={`/boutique/${vendor.id}`}>
                       <Button className="w-full mt-3" size="sm">
                         <Store className="h-4 w-4 mr-2" />
                         Voir la boutique

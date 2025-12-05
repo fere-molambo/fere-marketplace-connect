@@ -16,6 +16,7 @@ import ProductDetail from "./pages/ProductDetail";
 import ServiceDetail from "./pages/ServiceDetail";
 import Catalogue from "./pages/Catalogue";
 import Vendors from "./pages/Vendors";
+import ShopPublic from "./pages/ShopPublic";
 import Help from "./pages/Help";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/service/:serviceId" element={<ServiceDetail />} />
           <Route path="/catalogue" element={<Catalogue />} />
           <Route path="/vendeurs" element={<Vendors />} />
+          <Route path="/boutique/:shopId" element={<ShopPublic />} />
           <Route path="/aide" element={<Help />} />
           <Route
             path="/dashboard"

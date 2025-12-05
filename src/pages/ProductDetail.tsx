@@ -8,10 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
+import { Navbar } from "@/components/landing/Navbar";
 import { 
-  Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
+  Heart, Share2, ShoppingCart, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
-  Plus, Minus, ChevronLeft, ChevronRight
+  Plus, Minus, ChevronLeft, ChevronRight, ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -130,13 +131,11 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
-        <Link to="/">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
+      {/* Navigation */}
+      <Navbar />
+
+      {/* Secondary Header with Actions */}
+      <div className="bg-background border-b p-4 flex items-center gap-4">
         <h1 className="font-semibold truncate flex-1">{product.name}</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />

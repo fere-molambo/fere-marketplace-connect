@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
 import ServiceDetail from "./pages/ServiceDetail";
+import Help from "./pages/Help";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/setup" element={<Setup />} />
           <Route path="/product/:productId" element={<ProductDetail />} />
           <Route path="/service/:serviceId" element={<ServiceDetail />} />
+          <Route path="/aide" element={<Help />} />
           <Route
             path="/dashboard"
             element={

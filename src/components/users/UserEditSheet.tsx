@@ -25,7 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, KeyRound, MapPin } from "lucide-react";
+import { Upload, KeyRound, MapPin, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import {
   Select,
@@ -49,6 +50,8 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [avatarUrl, setAvatarUrl] = useState(user?.photo_profil);
   const [isResetting, setIsResetting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
 
@@ -80,6 +83,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [assignableAdmins, setAssignableAdmins] = useState<any[]>([]);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
   const { isSuperAdmin, isAdmin } = useUserRoles();
+  const { user: currentUser } = useAuth();
 
   const {
     register,
@@ -477,6 +481,49 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
     }
   };
 
+  const canDeleteUser = () => {
+    if (!user) return false;
+    // Cannot delete yourself
+    if (currentUser?.id === user.id) return false;
+    
+    const targetIsSuperAdmin = userRoles.includes('super_admin');
+    const targetIsAdmin = userRoles.includes('admin');
+
+    // Super admin can delete anyone except themselves
+    if (isSuperAdmin) return true;
+
+    // Admin can delete non-admin and non-super_admin users
+    if (isAdmin) {
+      return !targetIsSuperAdmin && !targetIsAdmin;
+    }
+
+    return false;
+  };
+
+  const handleDeleteUser = async () => {
+    if (!user) return;
+
+    try {
+      setIsDeleting(true);
+
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: user.id }
+      });
+
+      if (error) throw error;
+
+      toast.success(`${user.nom_complet} a été supprimé avec succès`);
+      setShowDeleteDialog(false);
+      onOpenChange(false);
+      onUserUpdated?.();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || "Erreur lors de la suppression de l'utilisateur");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -808,6 +855,21 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
+          {(isSuperAdmin || isAdmin) && canDeleteUser() && (
+            <div className="border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isDeleting || isLoading}
+                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {isDeleting ? "Suppression..." : "Supprimer l'utilisateur"}
+              </Button>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-4">
             <Button
               type="button"
@@ -841,6 +903,31 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             <AlertDialogCancel disabled={isResetting}>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handlePasswordReset} disabled={isResetting}>
               {isResetting ? "Réinitialisation..." : "Confirmer la réinitialisation"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer{" "}
+              <span className="font-semibold">{user?.nom_complet}</span> ?
+              <br />
+              <br />
+              Cette action est irréversible. Toutes les données associées à cet utilisateur seront supprimées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Suppression..." : "Supprimer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

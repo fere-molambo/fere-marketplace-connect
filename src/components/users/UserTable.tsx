@@ -10,9 +10,23 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil, Phone, Mail } from "lucide-react";
+import { Eye, Pencil, Phone, Mail, Trash2 } from "lucide-react";
 import { UserPreviewDialog } from "./UserPreviewDialog";
 import { UserEditSheet } from "./UserEditSheet";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface UserTableProps {
   users: any[];
@@ -23,6 +37,12 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const { isSuperAdmin, isAdmin } = useUserRoles();
+  const { user: currentUser } = useAuth();
 
   const getInitials = (name: string) => {
     return name
@@ -56,6 +76,56 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
     setPreviewOpen(false);
     setEditOpen(true);
   };
+
+  const handleDeleteClick = (user: any) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const canDeleteUser = (user: any) => {
+    // Cannot delete yourself
+    if (currentUser?.id === user.id) return false;
+    
+    const userRolesList = user.roles?.map((r: any) => r.role) || [];
+    const targetIsSuperAdmin = userRolesList.includes('super_admin');
+    const targetIsAdmin = userRolesList.includes('admin');
+
+    // Super admin can delete anyone except themselves
+    if (isSuperAdmin) return true;
+
+    // Admin can delete non-admin and non-super_admin users
+    if (isAdmin) {
+      return !targetIsSuperAdmin && !targetIsAdmin;
+    }
+
+    return false;
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setIsDeleting(true);
+
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: userToDelete.id }
+      });
+
+      if (error) throw error;
+
+      toast.success(`${userToDelete.nom_complet} a été supprimé avec succès`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      onUserUpdated?.();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || "Erreur lors de la suppression de l'utilisateur");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const showDeleteButton = isSuperAdmin || isAdmin;
 
   return (
     <>
@@ -102,6 +172,16 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
+                {showDeleteButton && canDeleteUser(user) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteClick(user)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -176,6 +256,16 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    {showDeleteButton && canDeleteUser(user) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteClick(user)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -197,6 +287,31 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
         onOpenChange={setEditOpen}
         onUserUpdated={onUserUpdated}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer{" "}
+              <span className="font-semibold">{userToDelete?.nom_complet}</span> ?
+              <br />
+              <br />
+              Cette action est irréversible. Toutes les données associées à cet utilisateur seront supprimées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

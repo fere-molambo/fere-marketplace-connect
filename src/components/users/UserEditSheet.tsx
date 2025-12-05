@@ -471,7 +471,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
       if (error) throw error;
 
-      toast.success("Mot de passe réinitialisé avec succès ! Nouveau mot de passe : 12345678");
+      toast.success("Mot de passe réinitialisé avec succès ! Nouveau mot de passe : fere1234");
       setShowResetDialog(false);
     } catch (error: any) {
       console.error('Error resetting password:', error);
@@ -850,7 +850,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
                 {isResetting ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
               </Button>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Le mot de passe sera réinitialisé à : 12345678
+                Le mot de passe sera réinitialisé à : fere1234
               </p>
             </div>
           )}
@@ -896,7 +896,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               <span className="font-semibold">{user?.nom_complet}</span> ?
               <br />
               <br />
-              Le nouveau mot de passe sera : <span className="font-mono font-semibold">12345678</span>
+              Le nouveau mot de passe sera : <span className="font-mono font-semibold">fere1234</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

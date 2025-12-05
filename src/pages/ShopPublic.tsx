@@ -51,7 +51,7 @@ const ShopPublic = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*")
+        .select("*, shops:shop_id(id, name, logo_url, is_official)")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
@@ -68,7 +68,7 @@ const ShopPublic = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("*")
+        .select("*, shops:shop_id(id, name, logo_url, is_official)")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("created_at", { ascending: false });

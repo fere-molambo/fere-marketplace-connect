@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
+import { Navbar } from "@/components/landing/Navbar";
 import { 
   Heart, Share2, Calendar, ArrowLeft, Star, Clock, 
   MessageCircle, Store, BadgeCheck, Phone,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 
 const ServiceDetail = () => {
   const { serviceId } = useParams();
+  const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -122,13 +124,14 @@ const ServiceDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
-        <Link to="/">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
+      {/* Navbar */}
+      <Navbar />
+      
+      {/* Service Header */}
+      <div className="sticky top-0 z-40 bg-background border-b p-4 flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <h1 className="font-semibold truncate flex-1">{service.name}</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />

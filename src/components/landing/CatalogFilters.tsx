@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import type { CatalogFiltersState } from "@/pages/ProductsServices";
 
 interface CatalogFiltersProps {
@@ -164,6 +165,39 @@ export const CatalogFilters = ({
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4 pt-2">
+              {/* Min/Max Input Fields */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Label htmlFor="min-price" className="text-xs text-muted-foreground">Min</Label>
+                  <Input
+                    id="min-price"
+                    type="number"
+                    placeholder="0"
+                    value={filters.priceRange[0] || ""}
+                    onChange={(e) => {
+                      const value = Number(e.target.value) || 0;
+                      onFiltersChange({ ...filters, priceRange: [value, filters.priceRange[1]] });
+                    }}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <span className="mt-5 text-muted-foreground">—</span>
+                <div className="flex-1">
+                  <Label htmlFor="max-price" className="text-xs text-muted-foreground">Max</Label>
+                  <Input
+                    id="max-price"
+                    type="number"
+                    placeholder="1000000"
+                    value={filters.priceRange[1] || ""}
+                    onChange={(e) => {
+                      const value = Number(e.target.value) || 1000000;
+                      onFiltersChange({ ...filters, priceRange: [filters.priceRange[0], value] });
+                    }}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              {/* Slider */}
               <Slider
                 min={0}
                 max={1000000}

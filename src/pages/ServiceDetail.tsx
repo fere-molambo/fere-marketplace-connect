@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
-import { Navbar } from "@/components/landing/Navbar";
-import { Footer } from "@/components/landing/Footer";
 import { 
   Heart, Share2, Calendar, ArrowLeft, Star, Clock, 
   MessageCircle, Store, BadgeCheck, Phone,
@@ -124,10 +122,8 @@ const ServiceDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      {/* Header contextuel */}
-      <div className="sticky top-16 z-40 bg-background border-b p-4 flex items-center gap-4">
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
         <Link to="/">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />

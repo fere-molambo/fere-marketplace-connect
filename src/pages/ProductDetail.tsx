@@ -8,8 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
-import { Navbar } from "@/components/landing/Navbar";
-import { Footer } from "@/components/landing/Footer";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
@@ -132,10 +130,8 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      {/* Header contextuel */}
-      <div className="sticky top-16 z-40 bg-background border-b p-4 flex items-center gap-4">
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
         <Link to="/">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />

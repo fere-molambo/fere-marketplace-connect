@@ -7,12 +7,14 @@ import { PublicProductCard } from "./PublicProductCard";
 import { PublicServiceCard } from "./PublicServiceCard";
 import { ProductFilters } from "./ProductFilters";
 import { ServiceFilters } from "./ServiceFilters";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export const ProductsServicesSection = () => {
   const [productFilters, setProductFilters] = useState({});
   const [serviceFilters, setServiceFilters] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["public-products", productFilters],
@@ -94,9 +96,22 @@ export const ProductsServicesSection = () => {
           <h2 className="text-xl md:text-2xl font-bold">
             Produits et prestations
           </h2>
-          <Button variant="ghost" className="hidden md:flex items-center gap-1">
-            Tout voir <ChevronRight className="h-4 w-4" />
-          </Button>
+          <Link to="/catalogue">
+            <Button variant="ghost" className="hidden md:flex items-center gap-1">
+              Tout voir <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un produit, une prestation ou un vendeur..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
         <Tabs defaultValue="products" className="w-full">
@@ -177,9 +192,11 @@ export const ProductsServicesSection = () => {
         </Tabs>
 
         <div className="md:hidden mt-4 text-center">
-          <Button variant="outline" className="w-full">
-            Voir tout <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          <Link to="/catalogue">
+            <Button variant="outline" className="w-full">
+              Voir tout <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

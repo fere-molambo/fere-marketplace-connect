@@ -7,12 +7,14 @@ import { PublicProductCard } from "./PublicProductCard";
 import { PublicServiceCard } from "./PublicServiceCard";
 import { ProductFilters } from "./ProductFilters";
 import { ServiceFilters } from "./ServiceFilters";
+import { SearchBar } from "./SearchBar";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const ProductsServicesSection = () => {
   const [productFilters, setProductFilters] = useState({});
   const [serviceFilters, setServiceFilters] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["public-products", productFilters],
@@ -87,6 +89,23 @@ export const ProductsServicesSection = () => {
     );
   };
 
+  // Filter by search query
+  const filteredProducts = products.filter((product: any) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return product.name?.toLowerCase().includes(query) ||
+           product.description?.toLowerCase().includes(query) ||
+           product.shops?.name?.toLowerCase().includes(query);
+  });
+
+  const filteredServices = services.filter((service: any) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return service.name?.toLowerCase().includes(query) ||
+           service.description?.toLowerCase().includes(query) ||
+           service.shops?.name?.toLowerCase().includes(query);
+  });
+
   return (
     <section id="products" className="py-6 px-4 bg-muted/20">
       <div className="container mx-auto">
@@ -94,9 +113,16 @@ export const ProductsServicesSection = () => {
           <h2 className="text-xl md:text-2xl font-bold">
             Produits et prestations
           </h2>
-          <Button variant="ghost" className="hidden md:flex items-center gap-1">
-            Tout voir <ChevronRight className="h-4 w-4" />
-          </Button>
+          <Link to="/catalogue">
+            <Button variant="ghost" className="hidden md:flex items-center gap-1">
+              Tout voir <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-4">
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
 
         <Tabs defaultValue="products" className="w-full">
@@ -108,7 +134,7 @@ export const ProductsServicesSection = () => {
           <TabsContent value="products" className="space-y-4">
             <ProductFilters onFiltersChange={setProductFilters} />
             
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 Aucun produit disponible pour le moment
               </div>
@@ -116,7 +142,7 @@ export const ProductsServicesSection = () => {
               <>
                 {/* Mobile: 2 columns grid, max 6 items */}
                 <div className="grid grid-cols-2 gap-3 md:hidden">
-                  {products.slice(0, 6).map((product: any) => (
+                  {filteredProducts.slice(0, 6).map((product: any) => (
                     <Link key={product.id} to={`/product/${product.id}`}>
                       <PublicProductCard 
                         product={product} 
@@ -127,7 +153,7 @@ export const ProductsServicesSection = () => {
                 </div>
                 {/* Desktop/Tablet: horizontal scroll */}
                 <div className="hidden md:flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {products.map((product: any) => (
+                  {filteredProducts.map((product: any) => (
                     <Link key={product.id} to={`/product/${product.id}`} className="flex-shrink-0 w-[280px]">
                       <PublicProductCard 
                         product={product}
@@ -143,7 +169,7 @@ export const ProductsServicesSection = () => {
           <TabsContent value="services" id="services" className="space-y-4">
             <ServiceFilters onFiltersChange={setServiceFilters} />
             
-            {services.length === 0 ? (
+            {filteredServices.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 Aucune prestation disponible pour le moment
               </div>
@@ -151,7 +177,7 @@ export const ProductsServicesSection = () => {
               <>
                 {/* Mobile: 2 columns grid, max 6 items */}
                 <div className="grid grid-cols-2 gap-3 md:hidden">
-                  {services.slice(0, 6).map((service: any) => (
+                  {filteredServices.slice(0, 6).map((service: any) => (
                     <Link key={service.id} to={`/service/${service.id}`}>
                       <PublicServiceCard 
                         service={service}
@@ -162,7 +188,7 @@ export const ProductsServicesSection = () => {
                 </div>
                 {/* Desktop/Tablet: horizontal scroll */}
                 <div className="hidden md:flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {services.map((service: any) => (
+                  {filteredServices.map((service: any) => (
                     <Link key={service.id} to={`/service/${service.id}`} className="flex-shrink-0 w-[280px]">
                       <PublicServiceCard 
                         service={service}
@@ -177,9 +203,11 @@ export const ProductsServicesSection = () => {
         </Tabs>
 
         <div className="md:hidden mt-4 text-center">
-          <Button variant="outline" className="w-full">
-            Voir tout <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          <Link to="/catalogue">
+            <Button variant="outline" className="w-full">
+              Voir tout <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

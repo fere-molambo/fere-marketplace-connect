@@ -7,11 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
-import { Navbar } from "@/components/landing/Navbar";
 import { 
-  Heart, Share2, Calendar, Star, Clock, 
+  Heart, Share2, Calendar, ArrowLeft, Star, Clock, 
   MessageCircle, Store, BadgeCheck, Phone,
-  ChevronLeft, ChevronRight, CheckCircle, AlertCircle, ArrowLeft
+  ChevronLeft, ChevronRight, CheckCircle, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -123,11 +122,13 @@ const ServiceDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <Navbar />
-
-      {/* Secondary Header with Actions */}
-      <div className="bg-background border-b p-4 flex items-center gap-4">
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
+        <Link to="/">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
         <h1 className="font-semibold truncate flex-1">{service.name}</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />

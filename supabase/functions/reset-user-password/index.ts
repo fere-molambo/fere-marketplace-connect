@@ -1,22 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-// Validation schema
-const resetPasswordSchema = z.object({
-  userId: z.string().uuid("ID utilisateur invalide")
-});
-
-// Generate a cryptographically secure random password
-const generateSecurePassword = (): string => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array).map(x => chars[x % chars.length]).join('');
-};
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -77,36 +63,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse and validate the request body
-    const rawData = await req.json();
-    const validationResult = resetPasswordSchema.safeParse(rawData);
-    
-    if (!validationResult.success) {
-      const errors = validationResult.error.errors.map(e => e.message).join(', ');
-      console.error('Validation error:', errors);
+    // Parse the request body
+    const { userId } = await req.json();
+
+    if (!userId) {
       return new Response(
-        JSON.stringify({ error: `Données invalides: ${errors}` }),
+        JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { userId } = validationResult.data;
-
-    // Prevent resetting own password through this endpoint
-    if (userId === user.id) {
-      return new Response(
-        JSON.stringify({ error: 'Vous ne pouvez pas réinitialiser votre propre mot de passe via cet endpoint' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Generate a secure random password
-    const newPassword = generateSecurePassword();
-
-    // Reset the password to the new secure value
+    // Reset the password to the default value
     const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
-      { password: newPassword }
+      { password: '12345678' }
     );
 
     if (resetError) {
@@ -117,14 +87,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log the action for audit (without logging the password)
+    // Log the action for audit
     console.log(`Password reset for user: ${userId} by admin: ${user.id}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Password reset successfully',
-        newPassword: newPassword // Return the new password so admin can share it with user
+        message: 'Password reset successfully to default value (12345678)' 
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

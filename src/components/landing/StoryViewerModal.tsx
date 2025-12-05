@@ -221,7 +221,7 @@ export const StoryViewerModal = ({
               )}
             </div>
           </div>
-          <Link to={`/boutique/${currentShop.id}`}>
+          <Link to={`/shop/${currentShop.id}`}>
             <Button
               size="sm"
               variant="secondary"

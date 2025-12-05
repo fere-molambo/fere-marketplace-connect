@@ -23,12 +23,12 @@ interface PublicServiceCardProps {
     requires_booking: boolean;
     booking_advance_percent: number | null;
     duration?: number | null;
-    shops?: {
+    shops: {
       id: string;
       name: string;
       logo_url: string | null;
       is_official: boolean;
-    } | null;
+    };
   };
   flashSale?: FlashSale | null;
 }
@@ -161,27 +161,25 @@ export const PublicServiceCard = ({ service, flashSale }: PublicServiceCardProps
         </div>
 
         {/* Vendor Info */}
-        {service.shops && (
-          <div className="flex items-center gap-2 pt-2 border-t">
-            <div className="w-5 h-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
-              {service.shops.logo_url ? (
-                <img
-                  src={service.shops.logo_url}
-                  alt={service.shops.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs font-bold">
-                  {service.shops.name.charAt(0)}
-                </div>
-              )}
-            </div>
-            <span className="text-xs truncate flex-1">{service.shops.name}</span>
-            {service.shops.is_official && (
-              <BadgeCheck className="h-3 w-3 text-primary flex-shrink-0" />
+        <div className="flex items-center gap-2 pt-2 border-t">
+          <div className="w-5 h-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
+            {service.shops.logo_url ? (
+              <img
+                src={service.shops.logo_url}
+                alt={service.shops.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-xs font-bold">
+                {service.shops.name.charAt(0)}
+              </div>
             )}
           </div>
-        )}
+          <span className="text-xs truncate flex-1">{service.shops.name}</span>
+          {service.shops.is_official && (
+            <BadgeCheck className="h-3 w-3 text-primary flex-shrink-0" />
+          )}
+        </div>
       </div>
     </div>
   );

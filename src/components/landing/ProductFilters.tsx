@@ -1,20 +1,12 @@
 import { useState } from "react";
 import { Filter, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 interface ProductFiltersProps {
   onFiltersChange: (filters: any) => void;
@@ -22,7 +14,6 @@ interface ProductFiltersProps {
 
 export const ProductFilters = ({ onFiltersChange }: ProductFiltersProps) => {
   const [showFilters, setShowFilters] = useState(false);
-  const [priceRange, setPriceRange] = useState([0, 500000]);
 
   const filterOptions = [
     {
@@ -43,15 +34,6 @@ export const ProductFilters = ({ onFiltersChange }: ProductFiltersProps) => {
       ],
     },
   ];
-
-  const handlePriceChange = (values: number[]) => {
-    setPriceRange(values);
-    onFiltersChange({ priceMin: values[0], priceMax: values[1] });
-  };
-
-  const formatPrice = (value: number) => {
-    return new Intl.NumberFormat("fr-FR").format(value);
-  };
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -85,52 +67,20 @@ export const ProductFilters = ({ onFiltersChange }: ProductFiltersProps) => {
             </DropdownMenu>
           ))}
 
-          {/* Price Range Filter */}
-          <Popover>
-            <PopoverTrigger asChild>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1">
                 Prix
                 <ChevronDown className="h-3 w-3" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80" align="start">
-              <div className="space-y-4">
-                <Label>Fourchette de prix (FCFA)</Label>
-                <Slider
-                  value={priceRange}
-                  onValueChange={handlePriceChange}
-                  max={500000}
-                  min={0}
-                  step={1000}
-                  className="mt-2"
-                />
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <Label className="text-xs text-muted-foreground">Min</Label>
-                    <Input
-                      type="number"
-                      value={priceRange[0]}
-                      onChange={(e) => handlePriceChange([Number(e.target.value), priceRange[1]])}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <span className="mt-5">—</span>
-                  <div className="flex-1">
-                    <Label className="text-xs text-muted-foreground">Max</Label>
-                    <Input
-                      type="number"
-                      value={priceRange[1]}
-                      onChange={(e) => handlePriceChange([priceRange[0], Number(e.target.value)])}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  {formatPrice(priceRange[0])} — {formatPrice(priceRange[1])} FCFA
-                </p>
-              </div>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuCheckboxItem>0 - 5 000 FCFA</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem>5 000 - 20 000 FCFA</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem>20 000 - 50 000 FCFA</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem>50 000+ FCFA</DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

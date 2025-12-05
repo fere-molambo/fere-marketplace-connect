@@ -13,8 +13,6 @@ import {
   ChevronLeft, ChevronRight, CheckCircle, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
-import { Navbar } from "@/components/landing/Navbar";
-import { Footer } from "@/components/landing/Footer";
 
 const ServiceDetail = () => {
   const { serviceId } = useParams();
@@ -124,24 +122,20 @@ const ServiceDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      {/* Breadcrumb Header */}
-      <div className="bg-background border-b p-4">
-        <div className="container mx-auto flex items-center gap-4">
-          <Link to="/catalogue">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <h1 className="font-semibold truncate flex-1">{service.name}</h1>
-          <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
-            <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-background border-b p-4 flex items-center gap-4">
+        <Link to="/">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleShare}>
-            <Share2 className="h-5 w-5" />
-          </Button>
-        </div>
+        </Link>
+        <h1 className="font-semibold truncate flex-1">{service.name}</h1>
+        <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
+          <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={handleShare}>
+          <Share2 className="h-5 w-5" />
+        </Button>
       </div>
 
       <div className="max-w-6xl mx-auto">

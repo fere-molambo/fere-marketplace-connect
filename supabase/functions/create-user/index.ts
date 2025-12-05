@@ -1,10 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validation schema for user creation
+const createUserSchema = z.object({
+  email: z.string().email("Email invalide").max(255, "Email trop long"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères").max(128, "Mot de passe trop long"),
+  nom_complet: z.string().trim().min(2, "Nom trop court").max(100, "Nom trop long"),
+  contact: z.string().regex(/^\+\d{10,15}$/, "Format de contact invalide (ex: +22370123456)"),
+  role: z.enum(['super_admin', 'admin', 'vendeur', 'livreur', 'membre', 'equipe'], {
+    errorMap: () => ({ message: "Rôle invalide" })
+  })
+});
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -66,8 +78,36 @@ serve(async (req) => {
 
     console.log('User has admin permissions');
 
-    // Get new user data from request
-    const { email, password, nom_complet, contact, role } = await req.json();
+    // Parse and validate request body
+    const rawData = await req.json();
+    const validationResult = createUserSchema.safeParse(rawData);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => e.message).join(', ');
+      console.error('Validation error:', errors);
+      return new Response(
+        JSON.stringify({ error: `Données invalides: ${errors}` }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+
+    const { email, password, nom_complet, contact, role } = validationResult.data;
+
+    // Role-based permission check for creating specific roles
+    if (role === 'super_admin' && !roles.includes('super_admin')) {
+      throw new Error('Seul un super admin peut créer un autre super admin');
+    }
+    
+    if (role === 'admin' && !roles.includes('super_admin') && !roles.includes('admin')) {
+      throw new Error('Permissions insuffisantes pour créer un admin');
+    }
+
+    if (roles.includes('vendeur') && role !== 'equipe') {
+      throw new Error('Un vendeur ne peut créer que des membres équipe');
+    }
 
     console.log('Creating user with email:', email);
 

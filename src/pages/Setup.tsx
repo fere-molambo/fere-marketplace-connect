@@ -3,8 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Copy, Check } from 'lucide-react';
+import { Loader2, Copy, Check, Eye, EyeOff, Lock } from 'lucide-react';
 
 // Generate a cryptographically secure random password
 const generateSecurePassword = (): string => {
@@ -19,6 +21,8 @@ export default function Setup() {
   const [checking, setChecking] = useState(true);
   const [superAdminExists, setSuperAdminExists] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [setupSecret, setSetupSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
   const navigate = useNavigate();
 
   // Generate password once and memoize it
@@ -65,19 +69,40 @@ export default function Setup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!setupSecret.trim()) {
+      toast.error('Veuillez entrer le secret de configuration');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('setup-super-admin', {
-        body: {
-          email: 'superadmin@fere.app',
-          password: generatedPassword,
-          nom_complet: 'Super Admin',
-          contact: '+22312345678'
+      const response = await fetch(
+        `https://jajfuajmkjulujnwfqen.supabase.co/functions/v1/setup-super-admin`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Setup-Secret': setupSecret.trim(),
+          },
+          body: JSON.stringify({
+            email: 'superadmin@fere.app',
+            password: generatedPassword,
+            nom_complet: 'Super Admin',
+            contact: '+22312345678'
+          })
         }
-      });
+      );
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Secret de configuration invalide');
+        }
+        throw new Error(data.error || 'Erreur lors de la création');
+      }
 
       if (data?.error) {
         throw new Error(data.error);
@@ -95,8 +120,8 @@ export default function Setup() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex items-center gap-2 text-[#003E2F]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex items-center gap-2 text-primary">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span>Vérification en cours...</span>
         </div>
@@ -106,33 +131,33 @@ export default function Setup() {
 
   if (superAdminExists) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-[#003E2F]">Redirection...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-primary">Redirection...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <Card className="w-full max-w-md p-8 border-2 border-[#003E2F]">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md p-8 border-2 border-primary">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[#003E2F] mb-2">
+          <h1 className="text-3xl font-bold text-primary mb-2">
             Fere
           </h1>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Configuration initiale
           </p>
         </div>
         
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-700 mb-2">
+        <div className="bg-muted rounded-lg p-4 mb-6">
+          <p className="text-sm text-foreground mb-2">
             <strong>Création du super administrateur</strong>
           </p>
-          <div className="text-xs text-gray-600 space-y-2">
+          <div className="text-xs text-muted-foreground space-y-2">
             <p>📧 Email: superadmin@fere.app</p>
             <div className="flex items-center gap-2">
               <p>🔐 Mot de passe:</p>
-              <code className="bg-white px-2 py-1 rounded border text-xs font-mono break-all">
+              <code className="bg-background px-2 py-1 rounded border text-xs font-mono break-all">
                 {generatedPassword}
               </code>
               <Button
@@ -155,11 +180,39 @@ export default function Setup() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="setupSecret" className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Secret de configuration
+            </Label>
+            <div className="relative">
+              <Input
+                id="setupSecret"
+                type={showSecret ? "text" : "password"}
+                value={setupSecret}
+                onChange={(e) => setSetupSecret(e.target.value)}
+                placeholder="Entrez le secret de configuration"
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecret(!showSecret)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ce secret vous a été fourni lors de la configuration du projet.
+            </p>
+          </div>
+
           <Button 
             type="submit" 
-            className="w-full bg-[#003E2F] hover:bg-[#002d23] text-white"
-            disabled={loading}
+            className="w-full"
+            disabled={loading || !setupSecret.trim()}
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -172,7 +225,7 @@ export default function Setup() {
           </Button>
         </form>
 
-        <p className="text-xs text-center text-gray-500 mt-4">
+        <p className="text-xs text-center text-muted-foreground mt-4">
           Cette page sera inaccessible une fois le super admin créé
         </p>
       </Card>

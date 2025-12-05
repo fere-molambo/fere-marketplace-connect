@@ -1,8 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+// Validation schema
+const resetPasswordSchema = z.object({
+  userId: z.string().uuid("ID utilisateur invalide")
+});
 
 // Generate a cryptographically secure random password
 const generateSecurePassword = (): string => {
@@ -71,12 +77,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse the request body
-    const { userId } = await req.json();
-
-    if (!userId) {
+    // Parse and validate the request body
+    const rawData = await req.json();
+    const validationResult = resetPasswordSchema.safeParse(rawData);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => e.message).join(', ');
+      console.error('Validation error:', errors);
       return new Response(
-        JSON.stringify({ error: 'User ID is required' }),
+        JSON.stringify({ error: `Données invalides: ${errors}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { userId } = validationResult.data;
+
+    // Prevent resetting own password through this endpoint
+    if (userId === user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Vous ne pouvez pas réinitialiser votre propre mot de passe via cet endpoint' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

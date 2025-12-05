@@ -1,4 +1,4 @@
-// Force clean rebuild - 2025-12-05 v3
+// Force clean rebuild - 2025-12-05 v4
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";

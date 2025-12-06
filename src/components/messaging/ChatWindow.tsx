@@ -10,7 +10,7 @@ import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { BlockUserDialog } from "./BlockUserDialog";
 import { ExportConversationDialog } from "./ExportConversationDialog";
-import { Loader2, MoreVertical, Ban, Download, Trash2 } from "lucide-react";
+import { Loader2, MoreVertical, Ban, Download, Trash2, CheckSquare, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +31,8 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
   const isAdmin = roles.includes("super_admin") || roles.includes("admin");
 
@@ -81,7 +83,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
         }
       )
       .subscribe();
@@ -89,7 +91,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, user?.id]);
 
   // Mark messages as read
   useEffect(() => {
@@ -109,7 +111,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         )
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
         });
     }
   }, [messages, user?.id, conversationId, queryClient]);
@@ -151,7 +153,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
     },
     onError: () => {
       toast.error("Erreur lors de l'envoi du message");
@@ -185,6 +187,54 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     },
   });
 
+  // Delete selected messages
+  const deleteSelectedMessages = useMutation({
+    mutationFn: async () => {
+      // Only delete own messages
+      const ownMessages = messages?.filter(
+        m => selectedMessages.has(m.id) && m.sender_id === user?.id
+      ).map(m => m.id) || [];
+
+      if (ownMessages.length === 0) {
+        throw new Error("Aucun message à supprimer");
+      }
+
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .in("id", ownMessages);
+      if (error) throw error;
+      
+      return ownMessages.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      setSelectedMessages(new Set());
+      setSelectionMode(false);
+      toast.success(`${count} message(s) supprimé(s)`);
+    },
+    onError: () => {
+      toast.error("Erreur lors de la suppression");
+    },
+  });
+
+  const toggleMessageSelection = (messageId: string) => {
+    setSelectedMessages(prev => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+  };
+
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "?";
     return name
@@ -204,6 +254,11 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   }
 
   const otherUser = conversationData?.otherUser;
+
+  // Count only own messages in selection (for display)
+  const ownSelectedCount = messages?.filter(
+    m => selectedMessages.has(m.id) && m.sender_id === user?.id
+  ).length || 0;
 
   return (
     <div className="h-full flex flex-col">
@@ -227,6 +282,11 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+              <CheckSquare className="h-4 w-4 mr-2" />
+              Sélectionner
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setShowBlockDialog(true)}>
               <Ban className="h-4 w-4 mr-2" />
               Bloquer
@@ -244,6 +304,30 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         </DropdownMenu>
       </div>
 
+      {/* Selection bar */}
+      {selectionMode && (
+        <div className="p-3 bg-muted border-b flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={cancelSelection}>
+              <X className="h-4 w-4 mr-1" />
+              Annuler
+            </Button>
+            <span className="text-sm font-medium">
+              {ownSelectedCount} sélectionné(s)
+            </span>
+          </div>
+          <Button 
+            variant="destructive" 
+            size="sm"
+            disabled={ownSelectedCount === 0 || deleteSelectedMessages.isPending}
+            onClick={() => deleteSelectedMessages.mutate()}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Supprimer
+          </Button>
+        </div>
+      )}
+
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-2">
@@ -254,6 +338,9 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
               isOwn={message.sender_id === user?.id}
               onRetry={() => retryMessage.mutate(message.id)}
               onDelete={() => deleteMessage.mutate(message.id)}
+              selectionMode={selectionMode}
+              isSelected={selectedMessages.has(message.id)}
+              onToggleSelect={() => toggleMessageSelection(message.id)}
             />
           ))}
         </div>

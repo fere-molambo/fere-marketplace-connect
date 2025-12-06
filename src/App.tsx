@@ -17,6 +17,10 @@ import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
 import ServiceDetail from "./pages/ServiceDetail";
 import ProductsServices from "./pages/ProductsServices";
+import Help from "./pages/Help";
+import HelpArticle from "./pages/HelpArticle";
+import Vendors from "./pages/Vendors";
+import PublicShop from "./pages/PublicShop";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -44,6 +48,10 @@ const App = () => (
           <Route path="/product/:productId" element={<ProductDetail />} />
           <Route path="/service/:serviceId" element={<ServiceDetail />} />
           <Route path="/produits-services" element={<ProductsServices />} />
+          <Route path="/aide" element={<Help />} />
+          <Route path="/aide/article/:slug" element={<HelpArticle />} />
+          <Route path="/vendeurs" element={<Vendors />} />
+          <Route path="/boutique/:shopId" element={<PublicShop />} />
           <Route
             path="/dashboard"
             element={

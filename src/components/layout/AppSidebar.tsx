@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, LogOut, Store } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -48,6 +48,11 @@ const getNavigationItems = (roles: string[]) => {
   // Ajouter Mes Boutiques pour équipe
   if (isEquipe) {
     gestionItems.push({ title: "Mes Boutiques", icon: Store, href: "/dashboard/my-shops" });
+  }
+
+  // Messages pour tous les utilisateurs du dashboard
+  if (isSuperAdmin || isAdmin || isVendeur || isEquipe) {
+    gestionItems.push({ title: "Messages", icon: MessageSquare, href: "/dashboard/messages" });
   }
 
   return [

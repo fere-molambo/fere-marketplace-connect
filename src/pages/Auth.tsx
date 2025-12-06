@@ -102,9 +102,9 @@ const Auth = () => {
       setIsRedirecting(true);
       navigate("/dashboard", { replace: true });
     } else {
-      // User logged in but no dashboard access - show message
-      setNoDashboardAccess(true);
-      setIsRedirecting(false);
+      // Clients (membre, livreur) redirect to home page instead of showing error
+      setIsRedirecting(true);
+      navigate("/", { replace: true });
     }
   }, [session, roles, rolesLoading, navigate]);
 

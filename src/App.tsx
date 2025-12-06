@@ -21,6 +21,7 @@ import Help from "./pages/Help";
 import HelpArticle from "./pages/HelpArticle";
 import Vendors from "./pages/Vendors";
 import PublicShop from "./pages/PublicShop";
+import ClientProfile from "./pages/ClientProfile";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/aide/article/:slug" element={<HelpArticle />} />
           <Route path="/vendeurs" element={<Vendors />} />
           <Route path="/boutique/:shopId" element={<PublicShop />} />
+          <Route path="/mon-profil" element={<ClientProfile />} />
           <Route
             path="/dashboard"
             element={

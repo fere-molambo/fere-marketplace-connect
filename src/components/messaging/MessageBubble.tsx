@@ -3,8 +3,9 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MessageStatusIcon } from "./MessageStatusIcon";
-import { AlertCircle, RotateCcw, Trash2, Play, Pause, Loader2 } from "lucide-react";
+import { AlertCircle, RotateCcw, Trash2, Play, Pause, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface MessageBubbleProps {
@@ -19,14 +20,26 @@ interface MessageBubbleProps {
   isOwn: boolean;
   onRetry: () => void;
   onDelete: () => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubbleProps) {
+export function MessageBubble({ 
+  message, 
+  isOwn, 
+  onRetry, 
+  onDelete,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelect
+}: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [audioError, setAudioError] = useState(false);
 
   // Generate static waveform bars based on message id for consistency
   const waveformBars = useMemo(() => {
@@ -49,19 +62,19 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
   }, [currentTime, duration, waveformBars.length]);
 
   const handlePlayAudio = async () => {
-    if (!message.media_url) return;
+    if (!message.media_url || audioError) return;
 
     try {
       if (!audioRef) {
         setIsLoading(true);
         const audio = new Audio(message.media_url);
 
-      audio.onerror = (e) => {
-        console.error("Audio playback error:", e);
-        toast.error("Format audio non supporté par votre navigateur. Essayez un autre navigateur.");
-        setIsLoading(false);
-        setIsPlaying(false);
-      };
+        audio.onerror = (e) => {
+          console.error("Audio playback error:", e);
+          setAudioError(true);
+          setIsLoading(false);
+          setIsPlaying(false);
+        };
 
         audio.onloadedmetadata = () => {
           setDuration(audio.duration);
@@ -91,22 +104,41 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
       }
     } catch (error) {
       console.error('Audio error:', error);
-      toast.error("Erreur de lecture audio");
+      setAudioError(true);
       setIsLoading(false);
     }
   };
 
   const isFailed = message.status === "failed";
 
+  const handleClick = () => {
+    if (selectionMode && isOwn && onToggleSelect) {
+      onToggleSelect();
+    }
+  };
+
   return (
     <div
       className={cn(
         "flex gap-2 group relative",
-        isOwn ? "justify-end" : "justify-start"
+        isOwn ? "justify-end" : "justify-start",
+        selectionMode && isOwn && "cursor-pointer"
       )}
+      onClick={handleClick}
     >
-      {/* Delete button for own messages (visible on hover) */}
-      {isOwn && !isFailed && (
+      {/* Checkbox for selection mode (own messages only) */}
+      {selectionMode && isOwn && (
+        <div className="flex items-center self-center">
+          <Checkbox 
+            checked={isSelected} 
+            onCheckedChange={onToggleSelect}
+            className="h-5 w-5"
+          />
+        </div>
+      )}
+
+      {/* Delete button for own messages (visible on hover, hidden in selection mode) */}
+      {isOwn && !isFailed && !selectionMode && (
         <Button
           variant="ghost"
           size="icon"
@@ -123,7 +155,8 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
           isOwn
             ? "bg-[#003E2F] text-white rounded-br-md"
             : "bg-muted rounded-bl-md",
-          isFailed && "opacity-60"
+          isFailed && "opacity-60",
+          selectionMode && isSelected && "ring-2 ring-primary"
         )}
       >
         {/* Text message */}
@@ -138,7 +171,10 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
               src={message.media_url}
               alt="Image"
               className="rounded-lg max-w-full max-h-60 object-cover cursor-pointer"
-              onClick={() => window.open(message.media_url!, "_blank")}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!selectionMode) window.open(message.media_url!, "_blank");
+              }}
             />
             {message.content && (
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -148,57 +184,83 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
 
         {/* Audio message - WhatsApp style */}
         {message.media_type === "audio" && message.media_url && (
-          <div className="flex items-center gap-3 min-w-[220px] py-1">
-            {/* Play/Pause button */}
-            <button
-              onClick={handlePlayAudio}
-              disabled={isLoading}
-              className={cn(
-                "flex-shrink-0 h-11 w-11 rounded-full flex items-center justify-center transition-all",
-                isOwn
-                  ? "bg-white/20 hover:bg-white/30"
-                  : "bg-[#003E2F] hover:bg-[#003E2F]/90"
-              )}
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-white" />
-              ) : isPlaying ? (
-                <Pause className="h-5 w-5 text-white" />
-              ) : (
-                <Play className="h-5 w-5 ml-0.5 text-white" />
-              )}
-            </button>
-
-            {/* Waveform visualization */}
-            <div className="flex-1 flex items-center gap-[2px] h-8">
-              {waveformBars.map((height, i) => (
-                <div
-                  key={i}
+          <>
+            {audioError ? (
+              // Show download option if audio format not supported
+              <div className="flex items-center gap-3 min-w-[220px] py-1">
+                <span className={cn("text-xs", isOwn ? "text-white/80" : "text-muted-foreground")}>
+                  Format non supporté
+                </span>
+                <a 
+                  href={message.media_url} 
+                  download
+                  onClick={(e) => e.stopPropagation()}
                   className={cn(
-                    "w-[3px] rounded-full transition-all duration-100",
-                    isOwn
-                      ? i <= currentBar && isPlaying
-                        ? "bg-white"
-                        : "bg-white/50"
-                      : i <= currentBar && isPlaying
-                        ? "bg-[#003E2F]"
-                        : "bg-[#003E2F]/40"
+                    "flex items-center gap-1 text-xs underline",
+                    isOwn ? "text-white hover:text-white/80" : "text-primary hover:text-primary/80"
                   )}
-                  style={{ height: `${height}%` }}
-                />
-              ))}
-            </div>
+                >
+                  <Download className="h-3 w-3" />
+                  Télécharger
+                </a>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 min-w-[220px] py-1">
+                {/* Play/Pause button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePlayAudio();
+                  }}
+                  disabled={isLoading}
+                  className={cn(
+                    "flex-shrink-0 h-11 w-11 rounded-full flex items-center justify-center transition-all",
+                    isOwn
+                      ? "bg-white/20 hover:bg-white/30"
+                      : "bg-[#003E2F] hover:bg-[#003E2F]/90"
+                  )}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  ) : isPlaying ? (
+                    <Pause className="h-5 w-5 text-white" />
+                  ) : (
+                    <Play className="h-5 w-5 ml-0.5 text-white" />
+                  )}
+                </button>
 
-            {/* Duration */}
-            <span
-              className={cn(
-                "text-xs font-medium min-w-[36px] text-right tabular-nums",
-                isOwn ? "text-white/80" : "text-muted-foreground"
-              )}
-            >
-              {formatDuration(isPlaying ? currentTime : duration)}
-            </span>
-          </div>
+                {/* Waveform visualization */}
+                <div className="flex-1 flex items-center gap-[2px] h-8">
+                  {waveformBars.map((height, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-[3px] rounded-full transition-all duration-100",
+                        isOwn
+                          ? i <= currentBar && isPlaying
+                            ? "bg-white"
+                            : "bg-white/50"
+                          : i <= currentBar && isPlaying
+                            ? "bg-[#003E2F]"
+                            : "bg-[#003E2F]/40"
+                      )}
+                      style={{ height: `${height}%` }}
+                    />
+                  ))}
+                </div>
+
+                {/* Duration */}
+                <span
+                  className={cn(
+                    "text-xs font-medium min-w-[36px] text-right tabular-nums",
+                    isOwn ? "text-white/80" : "text-muted-foreground"
+                  )}
+                >
+                  {formatDuration(isPlaying ? currentTime : duration)}
+                </span>
+              </div>
+            )}
+          </>
         )}
 
         {/* Timestamp and status */}
@@ -227,7 +289,10 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
               variant="ghost"
               size="icon"
               className="h-6 w-6 hover:bg-white/10"
-              onClick={onRetry}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
             >
               <RotateCcw className="h-3 w-3 text-white" />
             </Button>
@@ -235,7 +300,10 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
               variant="ghost"
               size="icon"
               className="h-6 w-6 hover:bg-white/10"
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
             >
               <Trash2 className="h-3 w-3 text-white" />
             </Button>

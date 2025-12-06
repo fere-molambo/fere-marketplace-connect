@@ -93,25 +93,24 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     };
   }, [conversationId, queryClient, user?.id]);
 
-  // Mark messages as read
+  // Mark messages as read using RPC function
   useEffect(() => {
     if (!messages || !user?.id) return;
 
-    const unreadMessages = messages.filter(
-      (m) => m.sender_id !== user.id && m.status !== "read"
-    );
+    const unreadMessageIds = messages
+      .filter((m) => m.sender_id !== user.id && m.status !== "read")
+      .map((m) => m.id);
 
-    if (unreadMessages.length > 0) {
+    if (unreadMessageIds.length > 0) {
       supabase
-        .from("messages")
-        .update({ status: "read", read_at: new Date().toISOString() })
-        .in(
-          "id",
-          unreadMessages.map((m) => m.id)
-        )
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-          queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
+        .rpc("mark_messages_as_read", { message_ids: unreadMessageIds })
+        .then(({ error }) => {
+          if (error) {
+            console.error("Error marking messages as read:", error);
+          } else {
+            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
+          }
         });
     }
   }, [messages, user?.id, conversationId, queryClient]);

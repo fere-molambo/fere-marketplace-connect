@@ -1671,6 +1671,10 @@ export type Database = {
         Args: { _shop_id: string; _user_id: string }
         Returns: boolean
       }
+      mark_messages_as_read: {
+        Args: { message_ids: string[] }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:

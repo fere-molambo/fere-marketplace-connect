@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      delivery_addresses: {
+        Row: {
+          address: string
+          city: string | null
+          country: string | null
+          created_at: string | null
+          geolocation_lat: number | null
+          geolocation_lng: number | null
+          id: string
+          is_default: boolean | null
+          label: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          address: string
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_default?: boolean | null
+          label: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_default?: boolean | null
+          label?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           color: string | null
@@ -401,12 +451,24 @@ export type Database = {
           id: string
           nom_complet: string
           photo_profil: string | null
+          piece_identite_client_type:
+            | Database["public"]["Enums"]["client_piece_identite_type"]
+            | null
+          piece_identite_client_url: string | null
           piece_identite_type:
             | Database["public"]["Enums"]["piece_identite_type"]
             | null
           piece_identite_url: string | null
           presence: Database["public"]["Enums"]["presence_type"] | null
+          sexe: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal: Database["public"]["Enums"]["statut_legal_type"] | null
+          statut_matrimonial:
+            | Database["public"]["Enums"]["client_statut_matrimonial"]
+            | null
+          statut_professionnel:
+            | Database["public"]["Enums"]["client_statut_professionnel"]
+            | null
+          tranche_age: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at: string | null
@@ -425,12 +487,24 @@ export type Database = {
           id: string
           nom_complet: string
           photo_profil?: string | null
+          piece_identite_client_type?:
+            | Database["public"]["Enums"]["client_piece_identite_type"]
+            | null
+          piece_identite_client_url?: string | null
           piece_identite_type?:
             | Database["public"]["Enums"]["piece_identite_type"]
             | null
           piece_identite_url?: string | null
           presence?: Database["public"]["Enums"]["presence_type"] | null
+          sexe?: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
+          statut_matrimonial?:
+            | Database["public"]["Enums"]["client_statut_matrimonial"]
+            | null
+          statut_professionnel?:
+            | Database["public"]["Enums"]["client_statut_professionnel"]
+            | null
+          tranche_age?: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
@@ -449,12 +523,24 @@ export type Database = {
           id?: string
           nom_complet?: string
           photo_profil?: string | null
+          piece_identite_client_type?:
+            | Database["public"]["Enums"]["client_piece_identite_type"]
+            | null
+          piece_identite_client_url?: string | null
           piece_identite_type?:
             | Database["public"]["Enums"]["piece_identite_type"]
             | null
           piece_identite_url?: string | null
           presence?: Database["public"]["Enums"]["presence_type"] | null
+          sexe?: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
+          statut_matrimonial?:
+            | Database["public"]["Enums"]["client_statut_matrimonial"]
+            | null
+          statut_professionnel?:
+            | Database["public"]["Enums"]["client_statut_professionnel"]
+            | null
+          tranche_age?: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
@@ -1424,6 +1510,20 @@ export type Database = {
         | "livreur"
         | "membre"
         | "equipe"
+      client_piece_identite_type:
+        | "carte_etudiant"
+        | "cni"
+        | "passeport"
+        | "permis_conduire"
+      client_sexe: "homme" | "femme" | "autre"
+      client_statut_matrimonial: "celibataire" | "marie" | "divorce" | "veuf"
+      client_statut_professionnel:
+        | "etudiant"
+        | "salarie"
+        | "entrepreneur"
+        | "sans_emploi"
+        | "retraite"
+      client_tranche_age: "18-25" | "26-35" | "36-45" | "46-55" | "55+"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
@@ -1565,6 +1665,22 @@ export const Constants = {
         "membre",
         "equipe",
       ],
+      client_piece_identite_type: [
+        "carte_etudiant",
+        "cni",
+        "passeport",
+        "permis_conduire",
+      ],
+      client_sexe: ["homme", "femme", "autre"],
+      client_statut_matrimonial: ["celibataire", "marie", "divorce", "veuf"],
+      client_statut_professionnel: [
+        "etudiant",
+        "salarie",
+        "entrepreneur",
+        "sans_emploi",
+        "retraite",
+      ],
+      client_tranche_age: ["18-25", "26-35", "36-45", "46-55", "55+"],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],
       statut_legal_type: ["particulier", "entreprise"],

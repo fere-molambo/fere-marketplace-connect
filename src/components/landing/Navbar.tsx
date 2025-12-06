@@ -1,12 +1,25 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Menu, X, ShoppingCart, User } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const { user, session, signOut } = useAuth();
+  const { roles, isSuperAdmin, isAdmin, isVendeur, isEquipe } = useUserRoles();
 
   const { data: settings } = useQuery({
     queryKey: ["platform-settings-public"],
@@ -19,6 +32,23 @@ export const Navbar = () => {
     },
   });
 
+  // Fetch user profile for avatar
+  const { data: profile } = useQuery({
+    queryKey: ["user-profile-navbar", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("nom_complet, photo_profil")
+        .eq("id", user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const hasDashboardAccess = isSuperAdmin || isAdmin || isVendeur || isEquipe;
+
   const navLinks = [
     { href: "/", label: "Accueil" },
     { href: "/vendeurs", label: "Vendeurs" },
@@ -26,6 +56,22 @@ export const Navbar = () => {
     { href: "/aide", label: "Aide & Tutos" },
     { href: "/#contact", label: "Contact" },
   ];
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+    setIsMenuOpen(false);
+  };
+
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
@@ -64,16 +110,62 @@ export const Navbar = () => {
             <Button variant="ghost" size="icon">
               <ShoppingCart className="h-5 w-5" />
             </Button>
-            <Link to="/auth">
-              <Button variant="outline" size="sm">
-                Se connecter
-              </Button>
-            </Link>
-            <Link to="/auth">
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
-                S'inscrire
-              </Button>
-            </Link>
+
+            {session && user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 px-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={profile?.photo_profil || undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {getInitials(profile?.nom_complet)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium max-w-[100px] truncate hidden lg:inline">
+                      {profile?.nom_complet || "Utilisateur"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {hasDashboardAccess && (
+                    <>
+                      <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem onClick={() => navigate("/mon-profil")}>
+                    <User className="mr-2 h-4 w-4" />
+                    Mon profil
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Paramètres
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Se déconnecter
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="outline" size="sm">
+                    Se connecter
+                  </Button>
+                </Link>
+                <Link to="/auth?tab=signup">
+                  <Button size="sm" className="bg-primary hover:bg-primary/90">
+                    S'inscrire
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -103,18 +195,65 @@ export const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
-              <div className="flex flex-col gap-2 pt-4 border-t">
-                <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
-                  <Button variant="outline" className="w-full">
-                    Se connecter
+
+              {session && user ? (
+                <div className="flex flex-col gap-2 pt-4 border-t">
+                  <div className="flex items-center gap-3 px-2 py-2">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={profile?.photo_profil || undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {getInitials(profile?.nom_complet)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {profile?.nom_complet || "Utilisateur"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {hasDashboardAccess && (
+                    <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full justify-start gap-2">
+                        <LayoutDashboard className="h-4 w-4" />
+                        Dashboard
+                      </Button>
+                    </Link>
+                  )}
+
+                  <Link to="/mon-profil" onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" className="w-full justify-start gap-2">
+                      <User className="h-4 w-4" />
+                      Mon profil
+                    </Button>
+                  </Link>
+
+                  <Button
+                    variant="destructive"
+                    className="w-full justify-start gap-2"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Se déconnecter
                   </Button>
-                </Link>
-                <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    S'inscrire
-                  </Button>
-                </Link>
-              </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 pt-4 border-t">
+                  <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">
+                      Se connecter
+                    </Button>
+                  </Link>
+                  <Link to="/auth?tab=signup" onClick={() => setIsMenuOpen(false)}>
+                    <Button className="w-full bg-primary hover:bg-primary/90">
+                      S'inscrire
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         )}

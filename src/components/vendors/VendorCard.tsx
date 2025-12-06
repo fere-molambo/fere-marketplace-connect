@@ -41,7 +41,7 @@ export function VendorCard({ shop }: VendorCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
           
           {/* Logo */}
-          <div className="absolute -bottom-8 left-4 h-16 w-16 rounded-lg border-2 border-background bg-background overflow-hidden shadow-md">
+          <div className="absolute -bottom-6 left-4 h-12 w-12 rounded-lg border-2 border-background bg-background overflow-hidden shadow-md">
             {shop.logo_url ? (
               <img
                 src={shop.logo_url}
@@ -50,7 +50,7 @@ export function VendorCard({ shop }: VendorCardProps) {
               />
             ) : (
               <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                <span className="text-xl font-bold text-primary">
+                <span className="text-lg font-bold text-primary">
                   {shop.name.charAt(0)}
                 </span>
               </div>
@@ -58,7 +58,7 @@ export function VendorCard({ shop }: VendorCardProps) {
           </div>
         </div>
 
-        <CardContent className="pt-10 pb-4 px-4">
+        <CardContent className="pt-8 pb-4 px-4">
           {/* Name and badges */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <h3 className="font-semibold line-clamp-1">{shop.name}</h3>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Settings, ChevronDown } from "lucide-react";
+import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Settings, ChevronDown, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,10 +141,16 @@ export const Navbar = () => {
                     <User className="mr-2 h-4 w-4" />
                     Mon profil
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Paramètres
+                  <DropdownMenuItem onClick={() => navigate(hasDashboardAccess ? "/dashboard/messages" : "/messages")}>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Messages
                   </DropdownMenuItem>
+                  {hasDashboardAccess && (
+                    <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Paramètres
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
@@ -228,6 +234,13 @@ export const Navbar = () => {
                     <Button variant="outline" className="w-full justify-start gap-2">
                       <User className="h-4 w-4" />
                       Mon profil
+                    </Button>
+                  </Link>
+
+                  <Link to={hasDashboardAccess ? "/dashboard/messages" : "/messages"} onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" className="w-full justify-start gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Messages
                     </Button>
                   </Link>
 

@@ -65,7 +65,7 @@ export const HeroSection = () => {
         className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
         style={{
           backgroundImage: card.image_url
-            ? `url(${card.image_url})`
+            ? `url(${card.image_url}?t=${Date.now()})`
             : "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)/0.7) 100%)",
         }}
       />
@@ -124,7 +124,7 @@ export const HeroSection = () => {
                 className="absolute inset-0 bg-cover bg-center"
                 style={{
                   backgroundImage: card.image_url
-                    ? `url(${card.image_url})`
+                    ? `url(${card.image_url}?t=${Date.now()})`
                     : "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)/0.7) 100%)",
                 }}
               />

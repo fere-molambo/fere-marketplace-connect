@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ArrowLeft, User, MapPin, CreditCard, Trash2, Plus, Loader2, Navigation } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye } from "lucide-react";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
 
 export default function ClientProfile() {
@@ -21,6 +21,10 @@ export default function ClientProfile() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isLocating, setIsLocating] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user profile
   const { data: profile, isLoading } = useQuery({
@@ -57,6 +61,88 @@ export default function ClientProfile() {
       console.error(error);
     },
   });
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    // Validate file
+    if (!file.type.startsWith("image/")) {
+      toast.error("Veuillez sélectionner une image");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("L'image ne doit pas dépasser 5 Mo");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      await updateProfile.mutateAsync({ photo_profil: urlData.publicUrl });
+      toast.success("Photo de profil mise à jour");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Erreur lors du téléversement");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    // Validate file
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Format accepté : JPEG, PNG, WEBP ou PDF");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Le document ne doit pas dépasser 10 Mo");
+      return;
+    }
+
+    setIsUploadingDocument(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${user.id}/identity-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("identity-documents")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get signed URL since bucket is private
+      const { data: signedData, error: signError } = await supabase.storage
+        .from("identity-documents")
+        .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year
+
+      if (signError) throw signError;
+
+      await updateProfile.mutateAsync({ piece_identite_client_url: signedData.signedUrl });
+      toast.success("Pièce d'identité téléversée");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Erreur lors du téléversement");
+    } finally {
+      setIsUploadingDocument(false);
+    }
+  };
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
@@ -143,17 +229,43 @@ export default function ClientProfile() {
           </div>
         </div>
 
-        {/* Profile Avatar */}
+        {/* Profile Avatar with Upload */}
         <div className="flex items-center gap-4 mb-6">
-          <Avatar className="h-20 w-20">
-            <AvatarImage src={profile?.photo_profil || undefined} />
-            <AvatarFallback className="bg-primary/10 text-primary text-xl">
-              {getInitials(profile?.nom_complet)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative group">
+            <Avatar className="h-20 w-20">
+              <AvatarImage src={profile?.photo_profil || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                {getInitials(profile?.nom_complet)}
+              </AvatarFallback>
+            </Avatar>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              {isUploadingAvatar ? (
+                <Loader2 className="h-6 w-6 text-white animate-spin" />
+              ) : (
+                <Camera className="h-6 w-6 text-white" />
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+          </div>
           <div>
             <h2 className="text-xl font-semibold">{profile?.nom_complet}</h2>
             <p className="text-muted-foreground">{user.email}</p>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              className="text-sm text-primary hover:underline mt-1"
+            >
+              Modifier la photo
+            </button>
           </div>
         </div>
 
@@ -336,7 +448,7 @@ export default function ClientProfile() {
                     onValueChange={(value) => updateProfile.mutate({ piece_identite_client_type: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner" />
+                      <SelectValue placeholder="Sélectionner le type de document" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="carte_etudiant">Carte d'étudiant</SelectItem>
@@ -347,22 +459,78 @@ export default function ClientProfile() {
                   </Select>
                 </div>
 
-                {profile?.piece_identite_client_url && (
-                  <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground">Document téléversé</p>
-                    <a
-                      href={profile.piece_identite_client_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm"
+                {/* Document Upload Zone */}
+                <div className="space-y-2">
+                  <Label>Document</Label>
+                  {profile?.piece_identite_client_url ? (
+                    <div className="p-4 bg-muted rounded-lg flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-8 w-8 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Document téléversé</p>
+                          <p className="text-xs text-muted-foreground">
+                            Cliquez pour voir ou télécharger
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(profile.piece_identite_client_url!, "_blank")}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Voir
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => documentInputRef.current?.click()}
+                          disabled={isUploadingDocument}
+                        >
+                          {isUploadingDocument ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-1" />
+                              Remplacer
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => documentInputRef.current?.click()}
+                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors"
                     >
-                      Voir le document
-                    </a>
-                  </div>
-                )}
+                      {isUploadingDocument ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground">Téléversement en cours...</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm font-medium">Cliquez pour téléverser</p>
+                          <p className="text-xs text-muted-foreground">
+                            JPEG, PNG, WEBP ou PDF (max 10 Mo)
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={handleDocumentUpload}
+                    className="hidden"
+                  />
+                </div>
 
                 <p className="text-sm text-muted-foreground">
-                  La fonctionnalité de téléversement de pièces d'identité sera disponible prochainement.
+                  Votre pièce d'identité est stockée de manière sécurisée et confidentielle.
                 </p>
               </CardContent>
             </Card>

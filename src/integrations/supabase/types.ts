@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      blocked_users: {
+        Row: {
+          blocked_at: string | null
+          blocked_by_admin: boolean | null
+          blocked_id: string
+          blocker_id: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_at?: string | null
+          blocked_by_admin?: boolean | null
+          blocked_id: string
+          blocker_id: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_at?: string | null
+          blocked_by_admin?: boolean | null
+          blocked_id?: string
+          blocker_id?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocked_users_blocked_id_fkey"
+            columns: ["blocked_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_users_blocker_id_fkey"
+            columns: ["blocker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_participants: {
+        Row: {
+          conversation_id: string
+          id: string
+          is_muted: boolean | null
+          joined_at: string | null
+          last_read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          is_muted?: boolean | null
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          is_muted?: boolean | null
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_message_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       delivery_addresses: {
         Row: {
           address: string
@@ -195,6 +300,63 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string | null
+          id: string
+          media_type: Database["public"]["Enums"]["message_type"]
+          media_url: string | null
+          read_at: string | null
+          retry_count: number | null
+          sender_id: string
+          status: Database["public"]["Enums"]["message_status"]
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          media_type?: Database["public"]["Enums"]["message_type"]
+          media_url?: string | null
+          read_at?: string | null
+          retry_count?: number | null
+          sender_id: string
+          status?: Database["public"]["Enums"]["message_status"]
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          media_type?: Database["public"]["Enums"]["message_type"]
+          media_url?: string | null
+          read_at?: string | null
+          retry_count?: number | null
+          sender_id?: string
+          status?: Database["public"]["Enums"]["message_status"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1525,6 +1687,8 @@ export type Database = {
         | "sans_emploi"
         | "retraite"
       client_tranche_age: "18-25" | "26-35" | "36-45" | "46-55" | "55+"
+      message_status: "failed" | "pending" | "sent" | "read"
+      message_type: "text" | "image" | "audio"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
@@ -1682,6 +1846,8 @@ export const Constants = {
         "retraite",
       ],
       client_tranche_age: ["18-25", "26-35", "36-45", "46-55", "55+"],
+      message_status: ["failed", "pending", "sent", "read"],
+      message_type: ["text", "image", "audio"],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],
       statut_legal_type: ["particulier", "entreprise"],

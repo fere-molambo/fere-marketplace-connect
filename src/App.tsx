@@ -22,6 +22,7 @@ import HelpArticle from "./pages/HelpArticle";
 import Vendors from "./pages/Vendors";
 import PublicShop from "./pages/PublicShop";
 import ClientProfile from "./pages/ClientProfile";
+import Messages from "./pages/Messages";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -69,6 +70,7 @@ const App = () => (
             <Route path="my-shop" element={<MyShop />} />
             <Route path="my-shops" element={<AssignedShops />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="messages" element={<Messages />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

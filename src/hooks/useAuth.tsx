@@ -118,14 +118,10 @@ export const useAuth = () => {
       
       if (error) throw error;
 
-      // Enregistrer le rôle dans la table user_roles
+      // Enregistrer le rôle via la fonction SECURITY DEFINER
       if (data.user) {
         const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: data.user.id,
-            role: role as any, // Cast temporaire en attendant la mise à jour des types
-          });
+          .rpc("assign_self_role", { role_name: role });
 
         if (roleError) {
           console.error("Erreur lors de l'attribution du rôle:", roleError);

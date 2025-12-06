@@ -50,6 +50,50 @@ export type Database = {
         }
         Relationships: []
       }
+      faq_items: {
+        Row: {
+          answer: string
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          display_order: number | null
+          id: string
+          is_published: boolean | null
+          question: string
+          updated_at: string | null
+        }
+        Insert: {
+          answer: string
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          question: string
+          updated_at?: string | null
+        }
+        Update: {
+          answer?: string
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          question?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faq_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flash_sales: {
         Row: {
           created_at: string | null
@@ -1170,6 +1214,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "team_assignment_tags_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutorials: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_published: boolean | null
+          slug: string
+          tag: string | null
+          thumbnail_url: string | null
+          title: string
+          type: string
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          slug: string
+          tag?: string | null
+          thumbnail_url?: string | null
+          title: string
+          type: string
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          slug?: string
+          tag?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          type?: string
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutorials_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"

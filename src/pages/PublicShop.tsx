@@ -349,7 +349,7 @@ export default function PublicShop() {
                       key={product.id} 
                       product={{
                         ...product,
-                        shops: { id: shop.id, name: shop.name, logo_url: shop.logo_url }
+                        shops: { id: shop.id, name: shop.name, logo_url: shop.logo_url, is_official: shop.is_official || false }
                       }} 
                     />
                   ))}
@@ -369,7 +369,7 @@ export default function PublicShop() {
                       key={service.id} 
                       service={{
                         ...service,
-                        shops: { id: shop.id, name: shop.name, logo_url: shop.logo_url }
+                        shops: { id: shop.id, name: shop.name, logo_url: shop.logo_url, is_official: shop.is_official || false }
                       }} 
                     />
                   ))}
@@ -388,7 +388,12 @@ export default function PublicShop() {
                     <ReviewCard
                       key={review.id}
                       review={review}
+                      canManage={false}
                       canReply={false}
+                      currentUserId={undefined}
+                      onDelete={() => {}}
+                      onDeleteReply={() => {}}
+                      onReplyAdded={() => {}}
                     />
                   ))}
                 </div>

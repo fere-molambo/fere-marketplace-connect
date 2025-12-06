@@ -56,11 +56,12 @@ export function MessageBubble({ message, isOwn, onRetry, onDelete }: MessageBubb
         setIsLoading(true);
         const audio = new Audio(message.media_url);
 
-        audio.onerror = () => {
-          toast.error("Impossible de lire l'audio");
-          setIsLoading(false);
-          setIsPlaying(false);
-        };
+      audio.onerror = (e) => {
+        console.error("Audio playback error:", e);
+        toast.error("Format audio non supporté par votre navigateur. Essayez un autre navigateur.");
+        setIsLoading(false);
+        setIsPlaying(false);
+      };
 
         audio.onloadedmetadata = () => {
           setDuration(audio.duration);

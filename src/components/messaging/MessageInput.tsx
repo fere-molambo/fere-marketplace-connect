@@ -95,7 +95,29 @@ export function MessageInput({ onSend, conversationId, disabled }: MessageInputP
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Detect supported audio format for cross-browser compatibility
+      let mimeType = '';
+      let fileExtension = 'webm';
+      
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+        fileExtension = 'webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+        fileExtension = 'm4a';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+        fileExtension = 'ogg';
+      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/wav';
+        fileExtension = 'wav';
+      }
+      
+      const mediaRecorder = mimeType 
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -104,14 +126,15 @@ export function MessageInput({ onSend, conversationId, disabled }: MessageInputP
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const actualMimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         stream.getTracks().forEach((track) => track.stop());
 
         // Upload audio
         if (audioBlob.size > 0 && user?.id) {
           setIsUploading(true);
           try {
-            const filePath = `${user.id}/${conversationId}/${Date.now()}.webm`;
+            const filePath = `${user.id}/${conversationId}/${Date.now()}.${fileExtension}`;
 
             const { error: uploadError } = await supabase.storage
               .from("chat-media")

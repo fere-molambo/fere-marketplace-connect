@@ -1470,6 +1470,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_self_role: { Args: { role_name: string }; Returns: undefined }
       can_manage_product_media: {
         Args: { _file_path: string }
         Returns: boolean

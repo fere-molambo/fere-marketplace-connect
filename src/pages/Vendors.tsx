@@ -97,16 +97,15 @@ export default function Vendors() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="py-12 md:py-16 bg-gradient-to-b from-primary/5 to-background">
+        <section className="py-6 md:py-8 bg-gradient-to-b from-primary/5 to-background">
           <div className="container mx-auto px-4 text-center">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Store className="h-8 w-8 text-primary" />
-              <h1 className="text-3xl md:text-4xl font-bold">Nos Vendeurs</h1>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <Store className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl md:text-3xl font-bold">Nos Vendeurs</h1>
             </div>
-            <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
+            <p className="text-muted-foreground max-w-2xl mx-auto mb-4 text-sm">
               Découvrez tous les vendeurs et prestataires de services sur notre
-              plateforme. Trouvez les meilleurs produits et services près de chez
-              vous.
+              plateforme.
             </p>
 
             {/* Search */}
@@ -123,7 +122,7 @@ export default function Vendors() {
         </section>
 
         {/* Vendors Grid */}
-        <section className="py-8 md:py-12">
+        <section className="py-4 md:py-6">
           <div className="container mx-auto px-4">
             {isLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

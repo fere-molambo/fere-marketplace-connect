@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
@@ -50,6 +50,7 @@ interface Story {
 
 export default function PublicShop() {
   const { shopId } = useParams<{ shopId: string }>();
+  const navigate = useNavigate();
   const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
 
   // Fetch shop details
@@ -191,6 +192,19 @@ export default function PublicShop() {
       <Navbar />
 
       <main className="flex-1">
+        {/* Back button */}
+        <div className="container mx-auto px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </Button>
+        </div>
+
         {/* Banner */}
         <div className="relative h-48 md:h-64 bg-muted overflow-hidden">
           {shop.banner_url ? (

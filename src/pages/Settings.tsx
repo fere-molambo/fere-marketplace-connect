@@ -6,7 +6,8 @@ import { DataManagementSettings } from "@/components/settings/DataManagementSett
 import { TeamTagsSettings } from "@/components/settings/TeamTagsSettings";
 import { HomepageSettings } from "@/components/settings/HomepageSettings";
 import { HelpSettings } from "@/components/settings/HelpSettings";
-import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle } from "lucide-react";
+import { AIIntegrationsSettings } from "@/components/settings/AIIntegrationsSettings";
+import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle, Sparkles } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -63,6 +64,12 @@ export default function Settings() {
                 <span className="hidden sm:inline">Aide & Tutos</span>
               </TabsTrigger>
             )}
+            {canManagePlatform && (
+              <TabsTrigger value="ai" className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Intégrations IA</span>
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
         <TabsContent value="profile" className="mt-6">
@@ -94,6 +101,11 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="help" className="mt-6">
             <HelpSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="ai" className="mt-6">
+            <AIIntegrationsSettings />
           </TabsContent>
         )}
       </Tabs>

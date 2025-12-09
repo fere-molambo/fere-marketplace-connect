@@ -121,7 +121,7 @@ export default function ShopDetail() {
           </TabsContent>
 
           <TabsContent value="marketing" className="mt-6">
-            <MarketingTab />
+            <MarketingTab shopId={shop.id} />
           </TabsContent>
 
           <TabsContent value="reviews" className="mt-6">

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
 import { Navbar } from "@/components/landing/Navbar";
 import { useFavorite } from "@/hooks/useFavorite";
+import { ContactVendorDialog } from "@/components/contact/ContactVendorDialog";
 import { 
   Heart, Share2, Calendar, ArrowLeft, Star, Clock, 
   MessageCircle, Store, BadgeCheck, Phone,
@@ -20,6 +21,7 @@ const ServiceDetail = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showContactDialog, setShowContactDialog] = useState(false);
   
   const { isFavorite, toggleFavorite, isToggling } = useFavorite({ serviceId });
 
@@ -31,7 +33,7 @@ const ServiceDetail = () => {
         .select(`
           *,
           shops (
-            id, name, logo_url, is_official, contact_email, support_phone
+            id, name, logo_url, is_official, contact_email, support_phone, owner_id
           )
         `)
         .eq("id", serviceId)
@@ -289,7 +291,7 @@ const ServiceDetail = () => {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1">
+              <Button variant="outline" className="flex-1" onClick={() => setShowContactDialog(true)}>
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Message
               </Button>
@@ -302,6 +304,18 @@ const ServiceDetail = () => {
                 </Button>
               )}
             </div>
+
+            {/* Contact Dialog */}
+            {service.shops && (
+              <ContactVendorDialog
+                open={showContactDialog}
+                onOpenChange={setShowContactDialog}
+                vendorId={service.shops.owner_id}
+                vendorName={service.shops.name}
+                shopId={service.shops.id}
+                supportPhone={service.shops.support_phone}
+              />
+            )}
 
             <Separator />
 

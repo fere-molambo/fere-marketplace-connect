@@ -21,6 +21,8 @@ interface DeliveryAddress {
   geolocation_lng: number | null;
   is_default: boolean;
   created_at: string;
+  recipient_name: string | null;
+  recipient_phone: string | null;
 }
 
 interface DeliveryAddressManagerProps {
@@ -40,6 +42,8 @@ export function DeliveryAddressManager({ userId }: DeliveryAddressManagerProps) 
     geolocation_lat: null as number | null,
     geolocation_lng: null as number | null,
     is_default: false,
+    recipient_name: "",
+    recipient_phone: "",
   });
 
   // Fetch addresses
@@ -152,6 +156,8 @@ export function DeliveryAddressManager({ userId }: DeliveryAddressManagerProps) 
       geolocation_lat: null,
       geolocation_lng: null,
       is_default: false,
+      recipient_name: "",
+      recipient_phone: "",
     });
     setEditingAddress(null);
   };
@@ -166,6 +172,8 @@ export function DeliveryAddressManager({ userId }: DeliveryAddressManagerProps) 
       geolocation_lat: address.geolocation_lat,
       geolocation_lng: address.geolocation_lng,
       is_default: address.is_default,
+      recipient_name: address.recipient_name || "",
+      recipient_phone: address.recipient_phone || "",
     });
     setIsDialogOpen(true);
   };
@@ -243,6 +251,27 @@ export function DeliveryAddressManager({ userId }: DeliveryAddressManagerProps) 
                   onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                   placeholder="Ex: Maison, Bureau, Chez maman..."
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recipient_name">Nom du destinataire</Label>
+                  <Input
+                    id="recipient_name"
+                    value={formData.recipient_name}
+                    onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
+                    placeholder="Jean Dupont"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recipient_phone">Contact</Label>
+                  <Input
+                    id="recipient_phone"
+                    value={formData.recipient_phone}
+                    onChange={(e) => setFormData({ ...formData, recipient_phone: e.target.value })}
+                    placeholder="+223 70 00 00 00"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -353,6 +382,13 @@ export function DeliveryAddressManager({ userId }: DeliveryAddressManagerProps) 
                   {(address.city || address.country) && (
                     <p className="text-xs text-muted-foreground">
                       {[address.city, address.country].filter(Boolean).join(", ")}
+                    </p>
+                  )}
+                  {(address.recipient_name || address.recipient_phone) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {address.recipient_name && <span>📍 {address.recipient_name}</span>}
+                      {address.recipient_name && address.recipient_phone && " • "}
+                      {address.recipient_phone && <span>📞 {address.recipient_phone}</span>}
                     </p>
                   )}
                 </div>

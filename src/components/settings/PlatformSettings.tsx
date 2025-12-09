@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 
 export const PlatformSettings = () => {
   const queryClient = useQueryClient();
@@ -362,6 +363,258 @@ export const PlatformSettings = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* TVA et Commissions */}
+      <TaxAndCommissionsSection settings={settings} onUpdate={handleTextUpdate} />
     </div>
   );
 };
+
+// Composant séparé pour TVA et commissions
+function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpdate: (field: string, value: string) => void }) {
+  const queryClient = useQueryClient();
+
+  // Fetch categories
+  const { data: categories = [] } = useQuery({
+    queryKey: ["product-categories-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_categories")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch service types
+  const { data: serviceTypes = [] } = useQuery({
+    queryKey: ["service-provider-types-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("service_provider_types")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch commissions
+  const { data: commissions = [], refetch: refetchCommissions } = useQuery({
+    queryKey: ["category-commissions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("category_commissions")
+        .select("*, product_categories(name), service_provider_types(name)");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const productCommissions = commissions.filter((c: any) => c.category_id);
+  const serviceCommissions = commissions.filter((c: any) => c.service_type_id);
+
+  // Add commission
+  const addCommission = useMutation({
+    mutationFn: async ({ category_id, service_type_id, rate }: { category_id?: string; service_type_id?: string; rate: number }) => {
+      const { error } = await supabase.from("category_commissions").insert({
+        category_id: category_id || null,
+        service_type_id: service_type_id || null,
+        commission_rate: rate,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchCommissions();
+      toast.success("Commission ajoutée");
+    },
+    onError: () => toast.error("Erreur lors de l'ajout"),
+  });
+
+  // Update commission
+  const updateCommission = useMutation({
+    mutationFn: async ({ id, rate }: { id: string; rate: number }) => {
+      const { error } = await supabase
+        .from("category_commissions")
+        .update({ commission_rate: rate })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchCommissions();
+      toast.success("Commission mise à jour");
+    },
+    onError: () => toast.error("Erreur lors de la mise à jour"),
+  });
+
+  // Delete commission
+  const deleteCommission = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("category_commissions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchCommissions();
+      toast.success("Commission supprimée");
+    },
+    onError: () => toast.error("Erreur lors de la suppression"),
+  });
+
+  const [newProductCategoryId, setNewProductCategoryId] = useState("");
+  const [newProductRate, setNewProductRate] = useState("10");
+  const [newServiceTypeId, setNewServiceTypeId] = useState("");
+  const [newServiceRate, setNewServiceRate] = useState("10");
+
+  const usedCategoryIds = productCommissions.map((c: any) => c.category_id);
+  const usedServiceTypeIds = serviceCommissions.map((c: any) => c.service_type_id);
+  const availableCategories = categories.filter((c: any) => !usedCategoryIds.includes(c.id));
+  const availableServiceTypes = serviceTypes.filter((s: any) => !usedServiceTypeIds.includes(s.id));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Taxes et Commissions</CardTitle>
+        <CardDescription>
+          Configurez la TVA et les commissions par catégorie
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* TVA */}
+        <div className="space-y-2">
+          <Label htmlFor="tva_rate">Taux de TVA (%)</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="tva_rate"
+              type="number"
+              min="0"
+              max="100"
+              className="w-32"
+              defaultValue={settings?.tva_rate || 18}
+              onBlur={(e) => onUpdate("tva_rate", e.target.value)}
+            />
+            <span className="text-muted-foreground">%</span>
+          </div>
+        </div>
+
+        {/* Commissions produits */}
+        <div className="space-y-3">
+          <Label>Commissions produits par catégorie</Label>
+          <div className="space-y-2">
+            {productCommissions.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-2 p-2 border rounded-lg">
+                <span className="flex-1 text-sm">{c.product_categories?.name || "Catégorie"}</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="w-20"
+                  defaultValue={c.commission_rate}
+                  onBlur={(e) => updateCommission.mutate({ id: c.id, rate: parseFloat(e.target.value) })}
+                />
+                <span className="text-muted-foreground text-sm">%</span>
+                <Button variant="ghost" size="icon" onClick={() => deleteCommission.mutate(c.id)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          {availableCategories.length > 0 && (
+            <div className="flex items-center gap-2 p-2 border rounded-lg border-dashed">
+              <Select value={newProductCategoryId} onValueChange={setNewProductCategoryId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Sélectionner une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map((cat: any) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                className="w-20"
+                value={newProductRate}
+                onChange={(e) => setNewProductRate(e.target.value)}
+              />
+              <span className="text-muted-foreground text-sm">%</span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={!newProductCategoryId}
+                onClick={() => {
+                  addCommission.mutate({ category_id: newProductCategoryId, rate: parseFloat(newProductRate) });
+                  setNewProductCategoryId("");
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Commissions services */}
+        <div className="space-y-3">
+          <Label>Commissions services par type</Label>
+          <div className="space-y-2">
+            {serviceCommissions.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-2 p-2 border rounded-lg">
+                <span className="flex-1 text-sm">{c.service_provider_types?.name || "Type"}</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="w-20"
+                  defaultValue={c.commission_rate}
+                  onBlur={(e) => updateCommission.mutate({ id: c.id, rate: parseFloat(e.target.value) })}
+                />
+                <span className="text-muted-foreground text-sm">%</span>
+                <Button variant="ghost" size="icon" onClick={() => deleteCommission.mutate(c.id)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          {availableServiceTypes.length > 0 && (
+            <div className="flex items-center gap-2 p-2 border rounded-lg border-dashed">
+              <Select value={newServiceTypeId} onValueChange={setNewServiceTypeId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Sélectionner un type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableServiceTypes.map((st: any) => (
+                    <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                className="w-20"
+                value={newServiceRate}
+                onChange={(e) => setNewServiceRate(e.target.value)}
+              />
+              <span className="text-muted-foreground text-sm">%</span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={!newServiceTypeId}
+                onClick={() => {
+                  addCommission.mutate({ service_type_id: newServiceTypeId, rate: parseFloat(newServiceRate) });
+                  setNewServiceTypeId("");
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

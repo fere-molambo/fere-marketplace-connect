@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Upload, Link as LinkIcon, Loader2, Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,13 +49,27 @@ type StoryFormData = z.infer<typeof storySchema>;
 interface AddStoryDialogProps {
   shopId: string;
   onSuccess: () => void;
+  prefilledImageUrl?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
-  const [open, setOpen] = useState(false);
+export const AddStoryDialog = ({ 
+  shopId, 
+  onSuccess, 
+  prefilledImageUrl,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange 
+}: AddStoryDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  // Use controlled or internal state
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (controlledOnOpenChange || (() => {})) : setInternalOpen;
 
   const form = useForm<StoryFormData>({
     resolver: zodResolver(storySchema),
@@ -63,10 +77,17 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
       caption: "",
       duration: 24,
       visibility: "public",
-      mediaUrl: "",
+      mediaUrl: prefilledImageUrl || "",
       linkedItem: "none",
     },
   });
+
+  // Update form when prefilledImageUrl changes
+  React.useEffect(() => {
+    if (prefilledImageUrl) {
+      form.setValue("mediaUrl", prefilledImageUrl);
+    }
+  }, [prefilledImageUrl, form]);
 
   // Fetch shop products
   const { data: products = [] } = useQuery({
@@ -190,24 +211,28 @@ export const AddStoryDialog = ({ shopId, onSuccess }: AddStoryDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="whitespace-nowrap">
-          <Plus className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Ajouter une story</span>
-          <span className="sm:hidden">Ajouter</span>
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" className="whitespace-nowrap">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Ajouter une story</span>
+            <span className="sm:hidden">Ajouter</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Ajouter une story</DialogTitle>
           <DialogDescription>
-            Partagez un moment avec vos clients
+            {prefilledImageUrl 
+              ? "Créez une story avec cette image" 
+              : "Partagez un moment avec vos clients"}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <Tabs defaultValue="upload" className="w-full">
+            <Tabs defaultValue={prefilledImageUrl ? "link" : "upload"} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="upload">
                   <Upload className="mr-2 h-4 w-4" />

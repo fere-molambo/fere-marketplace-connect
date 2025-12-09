@@ -28,7 +28,9 @@ export const ProductsServicesSection = () => {
             name,
             logo_url,
             is_official,
-            is_active
+            is_active,
+            owner_id,
+            support_phone
           )
         `)
         .eq("is_active", true)
@@ -54,7 +56,9 @@ export const ProductsServicesSection = () => {
             name,
             logo_url,
             is_official,
-            is_active
+            is_active,
+            owner_id,
+            support_phone
           )
         `)
         .eq("is_active", true)

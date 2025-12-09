@@ -10,10 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
 import { Navbar } from "@/components/landing/Navbar";
 import { useFavorite } from "@/hooks/useFavorite";
+import { ContactVendorDialog } from "@/components/contact/ContactVendorDialog";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
-  Plus, Minus, ChevronLeft, ChevronRight
+  Plus, Minus, ChevronLeft, ChevronRight, Phone
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ const ProductDetail = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
+  const [showContactDialog, setShowContactDialog] = useState(false);
   
   const { isFavorite, toggleFavorite, isToggling } = useFavorite({ productId });
 
@@ -37,7 +39,7 @@ const ProductDetail = () => {
           *,
           shops (
             id, name, logo_url, is_official, contact_email, support_phone,
-            delivery_details, return_policy, guide_url, guide_name
+            delivery_details, return_policy, guide_url, guide_name, owner_id
           ),
           product_categories!products_category_id_fkey (name),
           subcategory:product_categories!products_subcategory_id_fkey (name)
@@ -388,16 +390,37 @@ const ProductDetail = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowContactDialog(true)}>
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Message
                 </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  <Store className="h-4 w-4 mr-2" />
-                  Voir boutique
-                </Button>
+                {product.shops?.support_phone && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`tel:${product.shops.support_phone}`}>
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+                <Link to={`/boutique/${product.shops?.id}`}>
+                  <Button variant="outline" size="sm">
+                    <Store className="h-4 w-4 mr-2" />
+                    Boutique
+                  </Button>
+                </Link>
               </div>
             </div>
+
+            {/* Contact Dialog */}
+            {product.shops && (
+              <ContactVendorDialog
+                open={showContactDialog}
+                onOpenChange={setShowContactDialog}
+                vendorId={product.shops.owner_id}
+                vendorName={product.shops.name}
+                shopId={product.shops.id}
+                supportPhone={product.shops.support_phone}
+              />
+            )}
 
             {/* Delivery & Returns */}
             <div className="space-y-3">

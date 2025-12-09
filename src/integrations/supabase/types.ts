@@ -56,6 +56,48 @@ export type Database = {
           },
         ]
       }
+      category_commissions: {
+        Row: {
+          category_id: string | null
+          commission_rate: number
+          created_at: string | null
+          id: string
+          service_type_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          commission_rate?: number
+          created_at?: string | null
+          id?: string
+          service_type_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          commission_rate?: number
+          created_at?: string | null
+          id?: string
+          service_type_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_commissions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_commissions_service_type_id_fkey"
+            columns: ["service_type_id"]
+            isOneToOne: false
+            referencedRelation: "service_provider_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -133,6 +175,8 @@ export type Database = {
           id: string
           is_default: boolean | null
           label: string
+          recipient_name: string | null
+          recipient_phone: string | null
           updated_at: string | null
           user_id: string
         }
@@ -146,6 +190,8 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           label: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -159,6 +205,8 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           label?: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -481,6 +529,7 @@ export type Database = {
           partner_logos: Json | null
           support_email: string | null
           support_phone: string | null
+          tva_rate: number | null
           updated_at: string | null
         }
         Insert: {
@@ -508,6 +557,7 @@ export type Database = {
           partner_logos?: Json | null
           support_email?: string | null
           support_phone?: string | null
+          tva_rate?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -535,6 +585,7 @@ export type Database = {
           partner_logos?: Json | null
           support_email?: string | null
           support_phone?: string | null
+          tva_rate?: number | null
           updated_at?: string | null
         }
         Relationships: []

@@ -24,6 +24,7 @@ import PublicShop from "./pages/PublicShop";
 import ClientProfile from "./pages/ClientProfile";
 import Messages from "./pages/Messages";
 import PublicMessages from "./pages/PublicMessages";
+import Favorites from "./pages/Favorites";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/vendeurs" element={<Vendors />} />
           <Route path="/boutique/:shopId" element={<PublicShop />} />
           <Route path="/mon-profil" element={<ClientProfile />} />
+          <Route path="/mes-favoris" element={<Favorites />} />
           <Route
             path="/messages"
             element={

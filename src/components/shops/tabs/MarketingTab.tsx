@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,12 +22,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Sparkles, Loader2, MoreVertical, BookOpen, Copy, MessageSquare, Trash2, ImageIcon } from "lucide-react";
+import { Sparkles, Loader2, MoreVertical, BookOpen, Copy, MessageSquare, Trash2, ImageIcon, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AddStoryDialog } from "@/components/shops/AddStoryDialog";
 import { SendImageDialog } from "@/components/shops/SendImageDialog";
+import { ImageViewerModal } from "@/components/shops/ImageViewerModal";
 
 interface MarketingTabProps {
   shopId: string;
@@ -50,6 +51,10 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
   const [deleteImageId, setDeleteImageId] = useState<string | null>(null);
   const [storyImageUrl, setStoryImageUrl] = useState<string | null>(null);
   const [sendImageUrl, setSendImageUrl] = useState<string | null>(null);
+  const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch generated images
   const { data: images = [], isLoading: isLoadingImages } = useQuery({
@@ -69,7 +74,7 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
 
   // Generate image mutation
   const generateMutation = useMutation({
-    mutationFn: async (promptText: string) => {
+    mutationFn: async ({ promptText, refImage }: { promptText: string; refImage?: string }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Non authentifié");
 
@@ -81,7 +86,11 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ prompt: promptText, shopId }),
+          body: JSON.stringify({ 
+            prompt: promptText, 
+            shopId,
+            referenceImage: refImage 
+          }),
         }
       );
 
@@ -96,6 +105,8 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
     onSuccess: () => {
       toast.success("Image générée avec succès !");
       setPrompt("");
+      setReferenceImage(null);
+      setReferenceImagePreview(null);
       queryClient.invalidateQueries({ queryKey: ["generated-images", shopId] });
     },
     onError: (error: Error) => {
@@ -116,6 +127,7 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
     onSuccess: () => {
       toast.success("Image supprimée");
       setDeleteImageId(null);
+      setViewingImageIndex(null);
       queryClient.invalidateQueries({ queryKey: ["generated-images", shopId] });
     },
     onError: () => {
@@ -128,7 +140,7 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
       toast.error("Veuillez décrire l'affiche que vous souhaitez créer");
       return;
     }
-    generateMutation.mutate(prompt.trim());
+    generateMutation.mutate({ promptText: prompt.trim(), refImage: referenceImage || undefined });
   };
 
   const handleCopyLink = (url: string) => {
@@ -141,6 +153,39 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
     queryClient.invalidateQueries({ queryKey: ["shop-stories", shopId] });
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Veuillez sélectionner une image");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("L'image ne doit pas dépasser 5 Mo");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setReferenceImage(base64);
+      setReferenceImagePreview(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const viewingImage = viewingImageIndex !== null ? images[viewingImageIndex] : null;
+
   return (
     <div className="space-y-6">
       {/* Generator Section */}
@@ -150,9 +195,56 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
             <Sparkles className="h-5 w-5 text-primary" />
             <h3 className="font-semibold">Générateur d'affiches IA</h3>
           </div>
+
+          {/* Reference Image Upload */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              Image de référence (optionnel)
+            </label>
+            {referenceImagePreview ? (
+              <div className="relative inline-block">
+                <img
+                  src={referenceImagePreview}
+                  alt="Image de référence"
+                  className="h-24 w-24 object-cover rounded-lg border"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6"
+                  onClick={removeReferenceImage}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={generateMutation.isPending}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Ajouter une image
+                </Button>
+              </div>
+            )}
+          </div>
           
           <Textarea
-            placeholder="Décrivez l'affiche que vous souhaitez créer...&#10;Ex: Affiche promotionnelle pour soldes d'été, style moderne, couleurs vives avec texte 'Soldes -50%'"
+            placeholder={
+              referenceImage
+                ? "Décrivez les modifications souhaitées...\nEx: Ajoute un texte 'PROMO -30%' en rouge en haut"
+                : "Décrivez l'affiche que vous souhaitez créer...\nEx: Affiche promotionnelle pour soldes d'été, style moderne, couleurs vives avec texte 'Soldes -50%'"
+            }
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             disabled={generateMutation.isPending}
@@ -167,12 +259,12 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
             {generateMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Génération en cours...
+                {referenceImage ? "Modification en cours..." : "Génération en cours..."}
               </>
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Générer une affiche
+                {referenceImage ? "Modifier l'image" : "Générer une affiche"}
               </>
             )}
           </Button>
@@ -182,7 +274,7 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
               <div className="text-center space-y-2">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
                 <p className="text-sm text-muted-foreground">
-                  Création de votre affiche en cours...
+                  {referenceImage ? "Modification de votre image..." : "Création de votre affiche en cours..."}
                 </p>
               </div>
             </div>
@@ -216,8 +308,8 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {images.map((image) => (
-              <Card key={image.id} className="overflow-hidden group">
+            {images.map((image, index) => (
+              <Card key={image.id} className="overflow-hidden group cursor-pointer" onClick={() => setViewingImageIndex(index)}>
                 <div className="relative aspect-square">
                   <img
                     src={image.image_url}
@@ -225,7 +317,7 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="secondary" size="icon" className="h-8 w-8">
@@ -270,6 +362,39 @@ export const MarketingTab = ({ shopId }: MarketingTabProps) => {
           </div>
         )}
       </div>
+
+      {/* Image Viewer Modal */}
+      <ImageViewerModal
+        imageUrl={viewingImage?.image_url || null}
+        prompt={viewingImage?.prompt}
+        onClose={() => setViewingImageIndex(null)}
+        onCreateStory={() => {
+          if (viewingImage) {
+            setStoryImageUrl(viewingImage.image_url);
+            setViewingImageIndex(null);
+          }
+        }}
+        onCopyLink={() => {
+          if (viewingImage) {
+            handleCopyLink(viewingImage.image_url);
+          }
+        }}
+        onSendMessage={() => {
+          if (viewingImage) {
+            setSendImageUrl(viewingImage.image_url);
+            setViewingImageIndex(null);
+          }
+        }}
+        onDelete={() => {
+          if (viewingImage) {
+            setDeleteImageId(viewingImage.id);
+          }
+        }}
+        onPrevious={() => setViewingImageIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))}
+        onNext={() => setViewingImageIndex((prev) => (prev !== null && prev < images.length - 1 ? prev + 1 : prev))}
+        hasPrevious={viewingImageIndex !== null && viewingImageIndex > 0}
+        hasNext={viewingImageIndex !== null && viewingImageIndex < images.length - 1}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteImageId} onOpenChange={() => setDeleteImageId(null)}>

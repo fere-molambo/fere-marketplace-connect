@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
 import { Navbar } from "@/components/landing/Navbar";
+import { useFavorite } from "@/hooks/useFavorite";
 import { 
   Heart, Share2, Calendar, ArrowLeft, Star, Clock, 
   MessageCircle, Store, BadgeCheck, Phone,
@@ -19,7 +20,8 @@ const ServiceDetail = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
+  
+  const { isFavorite, toggleFavorite, isToggling } = useFavorite({ serviceId });
 
   const { data: service, isLoading } = useQuery({
     queryKey: ["service-detail", serviceId],
@@ -133,7 +135,7 @@ const ServiceDetail = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="font-semibold truncate flex-1">{service.name}</h1>
-        <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
+        <Button variant="ghost" size="icon" onClick={toggleFavorite} disabled={isToggling}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
         </Button>
         <Button variant="ghost" size="icon" onClick={handleShare}>

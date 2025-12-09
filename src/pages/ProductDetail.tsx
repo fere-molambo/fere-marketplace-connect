@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
 import { Navbar } from "@/components/landing/Navbar";
+import { useFavorite } from "@/hooks/useFavorite";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
@@ -24,7 +25,8 @@ const ProductDetail = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
+  
+  const { isFavorite, toggleFavorite, isToggling } = useFavorite({ productId });
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
@@ -141,7 +143,7 @@ const ProductDetail = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="font-semibold truncate flex-1">{product.name}</h1>
-        <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}>
+        <Button variant="ghost" size="icon" onClick={toggleFavorite} disabled={isToggling}>
           <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
         </Button>
         <Button variant="ghost" size="icon" onClick={handleShare}>

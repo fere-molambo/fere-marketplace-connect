@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, shopId } = await req.json();
+    const { prompt, shopId, referenceImage } = await req.json();
 
     if (!prompt || !shopId) {
       return new Response(
@@ -61,6 +61,28 @@ serve(async (req) => {
 
     console.log(`Generating image for shop ${shopId} by user ${user.id}`);
     console.log(`Prompt: ${prompt}`);
+    console.log(`Has reference image: ${!!referenceImage}`);
+
+    // Build message content based on whether we have a reference image
+    let messageContent: any;
+    if (referenceImage) {
+      // Image editing mode
+      messageContent = [
+        {
+          type: "text",
+          text: `Edit this image based on the following instructions: ${prompt}. Make it visually appealing and suitable for marketing.`,
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: referenceImage,
+          },
+        },
+      ];
+    } else {
+      // Generation mode
+      messageContent = `Create a professional marketing poster/flyer with the following description: ${prompt}. Make it visually appealing, modern, and suitable for social media or print marketing.`;
+    }
 
     // Call Lovable AI Gateway for image generation
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -74,7 +96,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `Create a professional marketing poster/flyer with the following description: ${prompt}. Make it visually appealing, modern, and suitable for social media or print marketing.`,
+            content: messageContent,
           },
         ],
         modalities: ["image", "text"],

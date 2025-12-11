@@ -277,12 +277,13 @@ const ProductsServices = () => {
                     ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                     : "flex flex-col gap-4"
                 }>
-                  {activeTab === "products" ? (
+                {activeTab === "products" ? (
                     filteredProducts.map((product: any) => (
                       <Link key={product.id} to={`/product/${product.id}`}>
                         <PublicProductCard 
                           product={product}
                           flashSale={getFlashSale(product.id, "product")}
+                          viewMode={viewMode}
                         />
                       </Link>
                     ))
@@ -292,6 +293,7 @@ const ProductsServices = () => {
                         <PublicServiceCard 
                           service={service}
                           flashSale={getFlashSale(service.id, "service")}
+                          viewMode={viewMode}
                         />
                       </Link>
                     ))

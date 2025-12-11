@@ -34,9 +34,10 @@ interface PublicProductCardProps {
     };
   };
   flashSale?: FlashSale | null;
+  viewMode?: "grid" | "list";
 }
 
-export const PublicProductCard = ({ product, flashSale }: PublicProductCardProps) => {
+export const PublicProductCard = ({ product, flashSale, viewMode = "grid" }: PublicProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showOrderUI, setShowOrderUI] = useState(false);
@@ -63,6 +64,12 @@ export const PublicProductCard = ({ product, flashSale }: PublicProductCardProps
     }
   };
 
+  const getConditionLabel = (condition: string | null) => {
+    if (condition === "neuf") return "Neuf";
+    if (condition === "occasion") return "Occasion";
+    return condition;
+  };
+
   const handleCall = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -77,6 +84,104 @@ export const PublicProductCard = ({ product, flashSale }: PublicProductCardProps
     setShowContactDialog(true);
   };
 
+  // List view layout
+  if (viewMode === "list") {
+    return (
+      <>
+        <div className="bg-background rounded-lg border p-3 flex gap-3 hover:shadow-md transition-shadow">
+          {/* Image */}
+          <div className="relative w-20 h-20 md:w-24 md:h-24 flex-shrink-0 rounded-md overflow-hidden">
+            <img
+              src={product.main_media_url || "/placeholder.svg"}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
+            {flashSale && (
+              <div className="absolute top-1 left-1">
+                <Badge className="bg-red-500 text-white text-[10px] px-1 py-0">Flash</Badge>
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between">
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
+                <button
+                  onClick={(e) => { e.preventDefault(); setIsFavorite(!isFavorite); }}
+                  className="p-1 rounded-full hover:bg-muted transition-colors flex-shrink-0"
+                >
+                  <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`} />
+                </button>
+              </div>
+              {product.description && (
+                <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
+              )}
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {product.condition && (
+                  <Badge variant="outline" className="text-[10px] py-0 h-5">{getConditionLabel(product.condition)}</Badge>
+                )}
+                {product.quantity_available !== null && product.quantity_available > 0 && (
+                  <span className="text-[10px] text-muted-foreground">{product.quantity_available} en stock</span>
+                )}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                  <span>0</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                  {product.shops.logo_url ? (
+                    <img src={product.shops.logo_url} alt={product.shops.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold">
+                      {product.shops.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground truncate max-w-[80px]">{product.shops.name}</span>
+                {product.shops.is_official && <BadgeCheck className="h-3 w-3 text-primary flex-shrink-0" />}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-primary text-sm whitespace-nowrap">
+                  {formatPrice(discountedPrice)}
+                </span>
+                <div className="flex gap-1">
+                  <Button size="sm" className="h-7 text-xs px-2" onClick={(e) => e.preventDefault()}>
+                    <ShoppingCart className="h-3 w-3" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={handleMessage}>
+                    <MessageCircle className="h-3 w-3" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2" onClick={handleCall} disabled={!product.shops.support_phone}>
+                    <Phone className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {product.shops.owner_id && (
+          <ContactVendorDialog
+            open={showContactDialog}
+            onOpenChange={setShowContactDialog}
+            vendorId={product.shops.owner_id}
+            vendorName={product.shops.name}
+            shopId={product.shops.id}
+            supportPhone={product.shops.support_phone}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Grid view layout (default)
   return (
     <>
       <div

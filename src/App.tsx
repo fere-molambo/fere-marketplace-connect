@@ -25,6 +25,7 @@ import ClientProfile from "./pages/ClientProfile";
 import Messages from "./pages/Messages";
 import PublicMessages from "./pages/PublicMessages";
 import Favorites from "./pages/Favorites";
+import PaymentCallback from "./pages/PaymentCallback";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -58,6 +59,7 @@ const App = () => (
           <Route path="/boutique/:shopId" element={<PublicShop />} />
           <Route path="/mon-profil" element={<ClientProfile />} />
           <Route path="/mes-favoris" element={<Favorites />} />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route
             path="/messages"
             element={

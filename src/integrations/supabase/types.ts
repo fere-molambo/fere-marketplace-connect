@@ -503,6 +503,59 @@ export type Database = {
           },
         ]
       }
+      payment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          payment_type: Database["public"]["Enums"]["payment_type"]
+          paystack_response: Json | null
+          reference: string
+          related_id: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_type: Database["public"]["Enums"]["payment_type"]
+          paystack_response?: Json | null
+          reference: string
+          related_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_type?: Database["public"]["Enums"]["payment_type"]
+          paystack_response?: Json | null
+          reference?: string
+          related_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           app_description: string | null
@@ -1842,6 +1895,12 @@ export type Database = {
       client_tranche_age: "18-25" | "26-35" | "36-45" | "46-55" | "55+"
       message_status: "failed" | "pending" | "sent" | "read"
       message_type: "text" | "image" | "audio"
+      payment_status: "pending" | "success" | "failed" | "abandoned"
+      payment_type:
+        | "order"
+        | "service_booking"
+        | "subscription"
+        | "commission_payout"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
@@ -2001,6 +2060,13 @@ export const Constants = {
       client_tranche_age: ["18-25", "26-35", "36-45", "46-55", "55+"],
       message_status: ["failed", "pending", "sent", "read"],
       message_type: ["text", "image", "audio"],
+      payment_status: ["pending", "success", "failed", "abandoned"],
+      payment_type: [
+        "order",
+        "service_booking",
+        "subscription",
+        "commission_payout",
+      ],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],
       statut_legal_type: ["particulier", "entreprise"],

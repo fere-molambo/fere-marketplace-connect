@@ -48,8 +48,8 @@ const App = () => (
       <CartProvider>
         <Toaster />
         <Sonner />
-        <CartModal />
         <BrowserRouter>
+          <CartModal />
           <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/auth" element={<Auth />} />

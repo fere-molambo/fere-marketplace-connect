@@ -2,20 +2,22 @@ import { useState } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Warehouse } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { EditProductDialog } from "./EditProductDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProductCardProps {
   product: any;
   viewMode?: "cards" | "list";
+  warehouseStock?: { total: number; warehouses: string[] };
 }
 
-export const ProductCard = ({ product, viewMode = "cards" }: ProductCardProps) => {
+export const ProductCard = ({ product, viewMode = "cards", warehouseStock }: ProductCardProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
@@ -125,6 +127,21 @@ export const ProductCard = ({ product, viewMode = "cards" }: ProductCardProps) =
                 {product.quantity_available !== null && (
                   <span className="text-muted-foreground">Stock: {product.quantity_available}</span>
                 )}
+                {warehouseStock && warehouseStock.total > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                          <Warehouse className="h-3 w-3" />
+                          Fere: {warehouseStock.total}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Entrepôts: {warehouseStock.warehouses.join(", ")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </div>
             </div>
           </div>
@@ -179,11 +196,28 @@ export const ProductCard = ({ product, viewMode = "cards" }: ProductCardProps) =
               {product.condition === "neuf" ? "Neuf" : "2ème main"}
             </Badge>
           </div>
-          {product.quantity_available !== null && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Stock: {product.quantity_available}
-            </p>
-          )}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {product.quantity_available !== null && (
+              <span className="text-sm text-muted-foreground">
+                Stock: {product.quantity_available}
+              </span>
+            )}
+            {warehouseStock && warehouseStock.total > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1 text-xs">
+                      <Warehouse className="h-3 w-3" />
+                      Fere: {warehouseStock.total}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Entrepôts: {warehouseStock.warehouses.join(", ")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </CardContent>
         <CardFooter className="p-4 pt-0 flex justify-between items-center">
           <div className="flex items-center gap-2">

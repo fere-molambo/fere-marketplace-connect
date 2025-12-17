@@ -34,6 +34,35 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
     },
   });
 
+  // Fetch warehouse stock for this shop's products
+  const { data: warehouseStockMap = {} } = useQuery({
+    queryKey: ["warehouse-stock-for-shop", shopId, products],
+    queryFn: async () => {
+      if (products.length === 0) return {};
+      const productIds = products.map((p: any) => p.id);
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("product_id, quantity, warehouses(name)")
+        .eq("is_active", true)
+        .in("product_id", productIds);
+      if (error) throw error;
+
+      // Build map: product_id -> total warehouse quantity
+      const map: Record<string, { total: number; warehouses: string[] }> = {};
+      data.forEach((s: any) => {
+        if (!map[s.product_id]) {
+          map[s.product_id] = { total: 0, warehouses: [] };
+        }
+        map[s.product_id].total += s.quantity || 0;
+        if (s.warehouses?.name && !map[s.product_id].warehouses.includes(s.warehouses.name)) {
+          map[s.product_id].warehouses.push(s.warehouses.name);
+        }
+      });
+      return map;
+    },
+    enabled: products.length > 0,
+  });
+
   const { data: services = [], isLoading: servicesLoading } = useQuery({
     queryKey: ["shop-services", shopId],
     queryFn: async () => {
@@ -86,7 +115,12 @@ export const ProductsServicesTab = ({ shopId }: ProductsServicesTabProps) => {
               : "space-y-2"
             }>
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} viewMode={viewMode} />
+                <ProductCard 
+                  key={product.id} 
+                  product={product} 
+                  viewMode={viewMode}
+                  warehouseStock={warehouseStockMap[product.id]}
+                />
               ))}
             </div>
           )}

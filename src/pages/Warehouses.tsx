@@ -47,16 +47,27 @@ export default function Warehouses() {
     },
   });
 
-  // Fetch admins for assignment
+  // Fetch admins for assignment (2-step to avoid join issues)
   const { data: admins = [] } = useQuery({
     queryKey: ["admins-for-warehouses"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Step 1: Get user IDs with admin/super_admin role
+      const { data: roleData, error: roleError } = await supabase
         .from("user_roles")
-        .select("user_id, profiles!user_roles_user_id_fkey(id, nom_complet)")
+        .select("user_id")
         .in("role", ["admin", "super_admin"]);
-      if (error) throw error;
-      return data;
+      if (roleError) throw roleError;
+      if (!roleData || roleData.length === 0) return [];
+
+      const adminIds = roleData.map((r) => r.user_id);
+
+      // Step 2: Get their profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, nom_complet")
+        .in("id", adminIds);
+      if (profilesError) throw profilesError;
+      return profiles || [];
     },
   });
 
@@ -198,8 +209,8 @@ export default function Warehouses() {
                     </SelectTrigger>
                     <SelectContent>
                       {admins.map((admin: any) => (
-                        <SelectItem key={admin.user_id} value={admin.user_id}>
-                          {admin.profiles?.nom_complet}
+                        <SelectItem key={admin.id} value={admin.id}>
+                          {admin.nom_complet}
                         </SelectItem>
                       ))}
                     </SelectContent>

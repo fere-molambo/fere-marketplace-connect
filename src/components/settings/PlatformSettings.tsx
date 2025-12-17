@@ -414,15 +414,25 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
     },
   });
 
-  const productCommissions = commissions.filter((c: any) => c.category_id);
-  const serviceCommissions = commissions.filter((c: any) => c.service_type_id);
+  // Separate commissions: global (null id) vs specific
+  const globalProductCommission = commissions.find((c: any) => c.category_id === null && c.service_type_id === null && !c.service_type_id);
+  const globalServiceCommission = commissions.find((c: any) => c.service_type_id === null && c.category_id === null && !c.category_id);
+  
+  // Filter for commissions that have either category_id OR are global product commissions
+  const productCommissions = commissions.filter((c: any) => c.category_id !== null || (c.category_id === null && c.service_type_id === null));
+  const serviceCommissions = commissions.filter((c: any) => c.service_type_id !== null);
+  
+  // Check if global commissions exist
+  const hasGlobalProductCommission = commissions.some((c: any) => c.category_id === null && c.service_type_id === null);
+  const hasGlobalServiceCommission = commissions.some((c: any) => c.service_type_id === null && c.category_id === null && commissions.filter((cc: any) => cc.service_type_id === null && cc.category_id === null).length > 1) || 
+    commissions.some((c: any) => c.service_type_id === null && c.category_id !== null);
 
   // Add commission
   const addCommission = useMutation({
-    mutationFn: async ({ category_id, service_type_id, rate }: { category_id?: string; service_type_id?: string; rate: number }) => {
+    mutationFn: async ({ category_id, service_type_id, rate, isGlobal }: { category_id?: string | null; service_type_id?: string | null; rate: number; isGlobal?: boolean }) => {
       const { error } = await supabase.from("category_commissions").insert({
-        category_id: category_id || null,
-        service_type_id: service_type_id || null,
+        category_id: isGlobal && !service_type_id ? null : (category_id || null),
+        service_type_id: isGlobal && !category_id ? null : (service_type_id || null),
         commission_rate: rate,
       });
       if (error) throw error;
@@ -468,9 +478,15 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
   const [newServiceTypeId, setNewServiceTypeId] = useState("");
   const [newServiceRate, setNewServiceRate] = useState("10");
 
-  const usedCategoryIds = productCommissions.map((c: any) => c.category_id);
-  const usedServiceTypeIds = serviceCommissions.map((c: any) => c.service_type_id);
+  const usedCategoryIds = commissions.filter((c: any) => c.category_id).map((c: any) => c.category_id);
+  const usedServiceTypeIds = commissions.filter((c: any) => c.service_type_id).map((c: any) => c.service_type_id);
+  
+  // Available categories: exclude used ones, and check if "all" is already used
+  const allCategoriesUsed = commissions.some((c: any) => c.category_id === null && c.service_type_id === null);
   const availableCategories = categories.filter((c: any) => !usedCategoryIds.includes(c.id));
+  
+  // Available service types: exclude used ones, check if "all" is already used  
+  const allServiceTypesUsed = commissions.some((c: any) => c.service_type_id === null && c.category_id === null);
   const availableServiceTypes = serviceTypes.filter((s: any) => !usedServiceTypeIds.includes(s.id));
 
   return (
@@ -503,9 +519,11 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
         <div className="space-y-3">
           <Label>Commissions produits par catégorie</Label>
           <div className="space-y-2">
-            {productCommissions.map((c: any) => (
-              <div key={c.id} className="flex items-center gap-2 p-2 border rounded-lg">
-                <span className="flex-1 text-sm">{c.product_categories?.name || "Catégorie"}</span>
+            {commissions.filter((c: any) => c.category_id !== null || (c.category_id === null && c.service_type_id === null)).map((c: any) => (
+              <div key={c.id} className={`flex items-center gap-2 p-2 border rounded-lg ${c.category_id === null ? 'bg-primary/10 border-primary/30' : ''}`}>
+                <span className="flex-1 text-sm font-medium">
+                  {c.category_id === null ? "✨ Toutes les catégories" : (c.product_categories?.name || "Catégorie")}
+                </span>
                 <Input
                   type="number"
                   min="0"
@@ -521,13 +539,18 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
               </div>
             ))}
           </div>
-          {availableCategories.length > 0 && (
+          {(availableCategories.length > 0 || !allCategoriesUsed) && (
             <div className="flex items-center gap-2 p-2 border rounded-lg border-dashed">
               <Select value={newProductCategoryId} onValueChange={setNewProductCategoryId}>
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Sélectionner une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
+                  {!allCategoriesUsed && (
+                    <SelectItem value="all" className="font-medium text-primary">
+                      ✨ Toutes les catégories
+                    </SelectItem>
+                  )}
                   {availableCategories.map((cat: any) => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
@@ -547,7 +570,11 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
                 size="icon"
                 disabled={!newProductCategoryId}
                 onClick={() => {
-                  addCommission.mutate({ category_id: newProductCategoryId, rate: parseFloat(newProductRate) });
+                  if (newProductCategoryId === "all") {
+                    addCommission.mutate({ category_id: null, service_type_id: null, rate: parseFloat(newProductRate), isGlobal: true });
+                  } else {
+                    addCommission.mutate({ category_id: newProductCategoryId, rate: parseFloat(newProductRate) });
+                  }
                   setNewProductCategoryId("");
                 }}
               >
@@ -561,9 +588,11 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
         <div className="space-y-3">
           <Label>Commissions services par type</Label>
           <div className="space-y-2">
-            {serviceCommissions.map((c: any) => (
-              <div key={c.id} className="flex items-center gap-2 p-2 border rounded-lg">
-                <span className="flex-1 text-sm">{c.service_provider_types?.name || "Type"}</span>
+            {commissions.filter((c: any) => c.service_type_id !== null).map((c: any) => (
+              <div key={c.id} className={`flex items-center gap-2 p-2 border rounded-lg ${c.service_type_id === null ? 'bg-primary/10 border-primary/30' : ''}`}>
+                <span className="flex-1 text-sm font-medium">
+                  {c.service_type_id === null ? "✨ Toutes les prestations" : (c.service_provider_types?.name || "Type")}
+                </span>
                 <Input
                   type="number"
                   min="0"
@@ -579,13 +608,18 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
               </div>
             ))}
           </div>
-          {availableServiceTypes.length > 0 && (
+          {(availableServiceTypes.length > 0 || !allServiceTypesUsed) && (
             <div className="flex items-center gap-2 p-2 border rounded-lg border-dashed">
               <Select value={newServiceTypeId} onValueChange={setNewServiceTypeId}>
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Sélectionner un type" />
                 </SelectTrigger>
                 <SelectContent>
+                  {!allServiceTypesUsed && (
+                    <SelectItem value="all" className="font-medium text-primary">
+                      ✨ Toutes les prestations
+                    </SelectItem>
+                  )}
                   {availableServiceTypes.map((st: any) => (
                     <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
                   ))}
@@ -605,7 +639,11 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
                 size="icon"
                 disabled={!newServiceTypeId}
                 onClick={() => {
-                  addCommission.mutate({ service_type_id: newServiceTypeId, rate: parseFloat(newServiceRate) });
+                  if (newServiceTypeId === "all") {
+                    addCommission.mutate({ category_id: null, service_type_id: null, rate: parseFloat(newServiceRate), isGlobal: true });
+                  } else {
+                    addCommission.mutate({ service_type_id: newServiceTypeId, rate: parseFloat(newServiceRate) });
+                  }
                   setNewServiceTypeId("");
                 }}
               >

@@ -30,7 +30,7 @@ export interface CatalogFiltersState {
   onPromo: boolean | null;
 }
 
-const ITEMS_PER_PAGE = 24;
+const ITEMS_PER_PAGE = 12;
 
 const ProductsServices = () => {
   const [activeTab, setActiveTab] = useState<"products" | "services">("products");

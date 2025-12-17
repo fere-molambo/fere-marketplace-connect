@@ -7,14 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { FlashSaleCountdown } from "@/components/ui/FlashSaleCountdown";
 import { Navbar } from "@/components/landing/Navbar";
 import { useFavorite } from "@/hooks/useFavorite";
 import { ContactVendorDialog } from "@/components/contact/ContactVendorDialog";
+import { useCart, CartProduct } from "@/contexts/CartContext";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
-  Plus, Minus, ChevronLeft, ChevronRight, Phone
+  Plus, Minus, ChevronLeft, ChevronRight, Phone, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,8 +29,10 @@ const ProductDetail = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
+  const [proposedPrice, setProposedPrice] = useState<number | undefined>(undefined);
   
   const { isFavorite, toggleFavorite, isToggling } = useFavorite({ productId });
+  const { addToCart, setIsCartOpen } = useCart();
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
@@ -131,7 +135,39 @@ const ProductDetail = () => {
   };
 
   const handleAddToCart = () => {
-    toast.success(`${quantity} ${product.name} ajouté(s) au panier`);
+    if (!product) return;
+    
+    const cartProduct: CartProduct = {
+      id: product.id,
+      name: product.name,
+      main_media_url: product.main_media_url,
+      price: product.price,
+      price_type: product.price_type,
+      discount_percent: product.discount_percent,
+      min_quantity: product.min_quantity,
+      min_auto_price: product.min_auto_price,
+      auto_validation: product.auto_validation,
+      quantity_intervals: product.quantity_intervals as any[] | null,
+      quantity_available: product.quantity_available,
+      shops: {
+        id: product.shops?.id || "",
+        name: product.shops?.name || "",
+        logo_url: product.shops?.logo_url || null,
+      },
+    };
+
+    const error = addToCart(cartProduct, quantity, {
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+      proposedPrice: product.price_type === "negoce" ? proposedPrice : undefined,
+    });
+
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success(`${quantity} ${product.name} ajouté(s) au panier`);
+      setIsCartOpen(true);
+    }
   };
 
   return (
@@ -338,6 +374,27 @@ const ProductDetail = () => {
                 )}
               </div>
             </div>
+
+            {/* Proposed Price for Negotiable Products */}
+            {product.price_type === "negoce" && (
+              <div className="space-y-2">
+                <p className="font-medium text-sm">Prix proposé (FCFA) :</p>
+                <Input
+                  type="number"
+                  value={proposedPrice || ""}
+                  onChange={(e) => setProposedPrice(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder={`Minimum: ${product.min_auto_price?.toLocaleString() || product.price.toLocaleString()} FCFA`}
+                />
+                {proposedPrice !== undefined && product.min_auto_price && proposedPrice < product.min_auto_price && (
+                  <div className="flex items-start gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-destructive">
+                      Le prix est en-dessous du prix minimum du vendeur : veuillez mettre au minimum {product.min_auto_price.toLocaleString()} FCFA
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">

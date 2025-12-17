@@ -1,0 +1,221 @@
+import { useCart, CartItem as CartItemType } from "@/contexts/CartContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { ShoppingCart, Trash2, Plus, Minus, AlertCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+const CartItemRow = ({ item }: { item: CartItemType }) => {
+  const { updateQuantity, updateProposedPrice, removeFromCart, getValidationError } = useCart();
+  const error = getValidationError(item);
+
+  const handleQuantityChange = (delta: number) => {
+    const newQuantity = Math.max(1, item.quantity + delta);
+    if (item.product.quantity_available && newQuantity > item.product.quantity_available) {
+      return;
+    }
+    updateQuantity(item.productId, newQuantity);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-3">
+        {/* Image */}
+        <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-muted">
+          {item.product.main_media_url ? (
+            <img 
+              src={item.product.main_media_url} 
+              alt={item.product.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+
+        {/* Details */}
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium text-sm truncate">{item.product.name}</h4>
+          <p className="text-xs text-muted-foreground">{item.product.shops?.name}</p>
+          
+          {/* Color/Size */}
+          {(item.selectedColor || item.selectedSize) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {item.selectedColor && `Couleur: ${item.selectedColor}`}
+              {item.selectedColor && item.selectedSize && " • "}
+              {item.selectedSize && `Taille: ${item.selectedSize}`}
+            </p>
+          )}
+
+          {/* Unit price info */}
+          <p className="text-xs text-muted-foreground mt-1">
+            {item.unitPrice.toLocaleString()} FCFA / unité
+          </p>
+        </div>
+
+        {/* Price & Actions */}
+        <div className="flex flex-col items-end justify-between">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => removeFromCart(item.productId)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <p className="font-semibold text-sm">
+            {item.totalPrice.toLocaleString()} FCFA
+          </p>
+        </div>
+      </div>
+
+      {/* Quantity Selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center border rounded-md">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleQuantityChange(-1)}
+            disabled={item.quantity <= 1}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          <span className="w-10 text-center text-sm font-medium">{item.quantity}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleQuantityChange(1)}
+            disabled={item.product.quantity_available !== null && item.quantity >= item.product.quantity_available}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+
+        {/* Min quantity reminder for bulk */}
+        {item.product.price_type === "en_gros" && item.product.min_quantity && (
+          <span className="text-xs text-muted-foreground">
+            Min: {item.product.min_quantity}
+          </span>
+        )}
+      </div>
+
+      {/* Negotiated price input */}
+      {item.product.price_type === "negoce" && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Prix proposé (FCFA)</label>
+          <Input
+            type="number"
+            value={item.proposedPrice || ""}
+            onChange={(e) => updateProposedPrice(item.productId, Number(e.target.value))}
+            placeholder={`Min: ${item.product.min_auto_price?.toLocaleString()} FCFA`}
+            className="h-8 text-sm"
+          />
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <div className="flex items-start gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
+          <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-destructive">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const CartModal = () => {
+  const { items, isCartOpen, setIsCartOpen, totalAmount, clearCart, getValidationError } = useCart();
+  const navigate = useNavigate();
+
+  // Check if there are any validation errors
+  const hasErrors = items.some(item => getValidationError(item) !== null);
+
+  const handleContinue = () => {
+    setIsCartOpen(false);
+    navigate("/checkout"); // TODO: Implement checkout page
+  };
+
+  return (
+    <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Mon Panier ({items.length} article{items.length > 1 ? "s" : ""})
+          </DialogTitle>
+        </DialogHeader>
+
+        {items.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <ShoppingCart className="h-12 w-12 mb-4" />
+            <p>Votre panier est vide</p>
+          </div>
+        ) : (
+          <>
+            <ScrollArea className="flex-1 -mx-6 px-6">
+              <div className="space-y-4">
+                {items.map((item, index) => (
+                  <div key={`${item.productId}-${item.selectedColor}-${item.selectedSize}`}>
+                    <CartItemRow item={item} />
+                    {index < items.length - 1 && <Separator className="mt-4" />}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+
+            <Separator />
+
+            {/* Total */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Sous-total</span>
+                <span className="font-bold text-lg">{totalAmount.toLocaleString()} FCFA</span>
+              </div>
+              {hasErrors && (
+                <p className="text-xs text-destructive">
+                  Corrigez les erreurs avant de continuer
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          {items.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearCart}
+              className="text-destructive hover:text-destructive"
+            >
+              Vider le panier
+            </Button>
+          )}
+          <div className="flex-1" />
+          <Button variant="outline" onClick={() => setIsCartOpen(false)}>
+            Annuler
+          </Button>
+          <Button 
+            onClick={handleContinue}
+            disabled={items.length === 0 || hasErrors}
+          >
+            Continuer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, Star, BadgeCheck, Minus, Plus, ShoppingCart, X, MessageCircle, Phone } from "lucide-react";
+import { Heart, Star, BadgeCheck, Minus, Plus, ShoppingCart, X, MessageCircle, Phone, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FlashSaleBadge } from "@/components/ui/FlashSaleCountdown";
@@ -35,9 +35,10 @@ interface PublicProductCardProps {
   };
   flashSale?: FlashSale | null;
   viewMode?: "grid" | "list";
+  isInWarehouse?: boolean;
 }
 
-export const PublicProductCard = ({ product, flashSale, viewMode = "grid" }: PublicProductCardProps) => {
+export const PublicProductCard = ({ product, flashSale, viewMode = "grid", isInWarehouse = false }: PublicProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showOrderUI, setShowOrderUI] = useState(false);
@@ -96,7 +97,13 @@ export const PublicProductCard = ({ product, flashSale, viewMode = "grid" }: Pub
               alt={product.name}
               className="w-full h-full object-cover"
             />
-            {flashSale && (
+            {isInWarehouse && (
+              <Badge className="absolute top-1 left-1 bg-green-600 text-white text-[10px] px-1.5 py-0.5 flex items-center gap-0.5">
+                <CheckCircle className="h-2.5 w-2.5" />
+                24h
+              </Badge>
+            )}
+            {flashSale && !isInWarehouse && (
               <div className="absolute top-1 left-1">
                 <Badge className="bg-red-500 text-white text-[10px] px-1 py-0">Flash</Badge>
               </div>
@@ -201,11 +208,19 @@ export const PublicProductCard = ({ product, flashSale, viewMode = "grid" }: Pub
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
 
+          {/* Warehouse 24h Badge */}
+          {isInWarehouse && (
+            <Badge className="absolute top-2 left-2 bg-green-600 text-white flex items-center gap-1 z-10">
+              <CheckCircle className="h-3 w-3" />
+              24h
+            </Badge>
+          )}
+
           {/* Flash Sale Badge */}
-          {flashSale && <FlashSaleBadge endsAt={flashSale.ends_at} />}
+          {flashSale && !isInWarehouse && <FlashSaleBadge endsAt={flashSale.ends_at} />}
 
           {/* Discount Badge */}
-          {!flashSale && product.discount_percent && product.discount_percent > 0 && (
+          {!flashSale && !isInWarehouse && product.discount_percent && product.discount_percent > 0 && (
             <Badge className="absolute top-2 left-2 bg-red-500 text-white">
               -{product.discount_percent}%
             </Badge>

@@ -78,6 +78,22 @@ const ProductsServices = () => {
     },
   });
 
+  // Fetch warehouse product IDs for 24h badge
+  const { data: warehouseProductIds = [] } = useQuery({
+    queryKey: ["warehouse-product-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("product_id")
+        .eq("is_active", true)
+        .gt("quantity", 0);
+      if (error) throw error;
+      return data.map((s) => s.product_id);
+    },
+  });
+
+  const isInWarehouse = (productId: string) => warehouseProductIds.includes(productId);
+
   // Fetch products with server-side pagination and filtering
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ["catalog-products", currentPage, filters, flashSales],
@@ -332,6 +348,7 @@ const ProductsServices = () => {
                             product={product}
                             flashSale={getFlashSale(product.id, "product")}
                             viewMode={viewMode}
+                            isInWarehouse={isInWarehouse(product.id)}
                           />
                         </Link>
                       ))

@@ -60,6 +60,7 @@ export type Database = {
         Row: {
           category_id: string | null
           commission_rate: number
+          commission_type: string | null
           created_at: string | null
           id: string
           service_type_id: string | null
@@ -68,6 +69,7 @@ export type Database = {
         Insert: {
           category_id?: string | null
           commission_rate?: number
+          commission_type?: string | null
           created_at?: string | null
           id?: string
           service_type_id?: string | null
@@ -76,6 +78,7 @@ export type Database = {
         Update: {
           category_id?: string | null
           commission_rate?: number
+          commission_type?: string | null
           created_at?: string | null
           id?: string
           service_type_id?: string | null
@@ -503,6 +506,179 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          commission_amount: number
+          commission_rate: number
+          created_at: string | null
+          id: string
+          order_id: string
+          product_id: string
+          proposed_price: number | null
+          quantity: number
+          selected_color: string | null
+          selected_size: string | null
+          shop_id: string
+          total_price: number
+          unit_price: number
+          vendor_status: string | null
+        }
+        Insert: {
+          commission_amount: number
+          commission_rate: number
+          created_at?: string | null
+          id?: string
+          order_id: string
+          product_id: string
+          proposed_price?: number | null
+          quantity: number
+          selected_color?: string | null
+          selected_size?: string | null
+          shop_id: string
+          total_price: number
+          unit_price: number
+          vendor_status?: string | null
+        }
+        Update: {
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string | null
+          id?: string
+          order_id?: string
+          product_id?: string
+          proposed_price?: number | null
+          quantity?: number
+          selected_color?: string | null
+          selected_size?: string | null
+          shop_id?: string
+          total_price?: number
+          unit_price?: number
+          vendor_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          advance_paid: number | null
+          advance_percent: number | null
+          commission_amount: number
+          created_at: string | null
+          delivery_address_id: string | null
+          delivery_distance_meters: number | null
+          delivery_fee: number | null
+          delivery_type: string
+          id: string
+          is_multi_vendor: boolean | null
+          notes: string | null
+          order_number: string
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string | null
+          remaining_amount: number | null
+          source_warehouse_id: string | null
+          status: string | null
+          subtotal: number
+          total_amount: number
+          tva_amount: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          advance_paid?: number | null
+          advance_percent?: number | null
+          commission_amount: number
+          created_at?: string | null
+          delivery_address_id?: string | null
+          delivery_distance_meters?: number | null
+          delivery_fee?: number | null
+          delivery_type: string
+          id?: string
+          is_multi_vendor?: boolean | null
+          notes?: string | null
+          order_number: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
+          remaining_amount?: number | null
+          source_warehouse_id?: string | null
+          status?: string | null
+          subtotal: number
+          total_amount: number
+          tva_amount: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          advance_paid?: number | null
+          advance_percent?: number | null
+          commission_amount?: number
+          created_at?: string | null
+          delivery_address_id?: string | null
+          delivery_distance_meters?: number | null
+          delivery_fee?: number | null
+          delivery_type?: string
+          id?: string
+          is_multi_vendor?: boolean | null
+          notes?: string | null
+          order_number?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
+          remaining_amount?: number | null
+          source_warehouse_id?: string | null
+          status?: string | null
+          subtotal?: number
+          total_amount?: number
+          tva_amount?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_delivery_address_id_fkey"
+            columns: ["delivery_address_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_source_warehouse_id_fkey"
+            columns: ["source_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_transactions: {
         Row: {
           amount: number
@@ -570,6 +746,10 @@ export type Database = {
           cta_pre_title: string | null
           cta_text: string | null
           cta_title: string | null
+          delivery_base_fee: number | null
+          delivery_commission_driver: number | null
+          delivery_commission_fere: number | null
+          delivery_fee_per_500m: number | null
           favicon: string | null
           hero_cards: Json | null
           id: string
@@ -598,6 +778,10 @@ export type Database = {
           cta_pre_title?: string | null
           cta_text?: string | null
           cta_title?: string | null
+          delivery_base_fee?: number | null
+          delivery_commission_driver?: number | null
+          delivery_commission_fere?: number | null
+          delivery_fee_per_500m?: number | null
           favicon?: string | null
           hero_cards?: Json | null
           id?: string
@@ -626,6 +810,10 @@ export type Database = {
           cta_pre_title?: string | null
           cta_text?: string | null
           cta_title?: string | null
+          delivery_base_fee?: number | null
+          delivery_commission_driver?: number | null
+          delivery_commission_fere?: number | null
+          delivery_fee_per_500m?: number | null
           favicon?: string | null
           hero_cards?: Json | null
           id?: string
@@ -1825,6 +2013,130 @@ export type Database = {
           },
         ]
       }
+      warehouse_stock: {
+        Row: {
+          added_by: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          product_id: string
+          quantity: number | null
+          updated_at: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          product_id: string
+          quantity?: number | null
+          updated_at?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          product_id?: string
+          quantity?: number | null
+          updated_at?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_stock_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warehouses: {
+        Row: {
+          address: string | null
+          assigned_admin_id: string | null
+          contract_url: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          geolocation_lat: number | null
+          geolocation_lng: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_contact: string | null
+          owner_name: string | null
+          owner_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          assigned_admin_id?: string | null
+          contract_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_contact?: string | null
+          owner_name?: string | null
+          owner_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          assigned_admin_id?: string | null
+          contract_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          geolocation_lat?: number | null
+          geolocation_lng?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_contact?: string | null
+          owner_name?: string | null
+          owner_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouses_assigned_admin_id_fkey"
+            columns: ["assigned_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1846,6 +2158,7 @@ export type Database = {
       }
       can_manage_story_media: { Args: { _file_path: string }; Returns: boolean }
       cleanup_expired_stories: { Args: never; Returns: undefined }
+      generate_order_number: { Args: never; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]

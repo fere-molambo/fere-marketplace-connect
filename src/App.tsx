@@ -28,6 +28,9 @@ import Messages from "./pages/Messages";
 import PublicMessages from "./pages/PublicMessages";
 import Favorites from "./pages/Favorites";
 import PaymentCallback from "./pages/PaymentCallback";
+import Checkout from "./pages/Checkout";
+import Warehouses from "./pages/Warehouses";
+import WarehouseStock from "./pages/WarehouseStock";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -64,6 +67,7 @@ const App = () => (
           <Route path="/mon-profil" element={<ClientProfile />} />
           <Route path="/mes-favoris" element={<Favorites />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
+          <Route path="/checkout" element={<Checkout />} />
           <Route
             path="/messages"
             element={
@@ -88,6 +92,8 @@ const App = () => (
             <Route path="my-shops" element={<AssignedShops />} />
             <Route path="settings" element={<Settings />} />
             <Route path="messages" element={<Messages />} />
+            <Route path="warehouses" element={<Warehouses />} />
+            <Route path="warehouse-stock" element={<WarehouseStock />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare, Warehouse, Package } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -38,6 +38,8 @@ const getNavigationItems = (roles: string[]) => {
   // Ajouter Boutiques pour super_admin et admin
   if (isSuperAdmin || isAdmin) {
     gestionItems.push({ title: "Boutiques", icon: Store, href: "/dashboard/shops" });
+    gestionItems.push({ title: "Entrepôts", icon: Warehouse, href: "/dashboard/warehouses" });
+    gestionItems.push({ title: "Gestion de stock", icon: Package, href: "/dashboard/warehouse-stock" });
   }
 
   // Ajouter Ma Boutique pour vendeur

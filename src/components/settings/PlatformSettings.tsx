@@ -364,6 +364,96 @@ export const PlatformSettings = () => {
         </CardContent>
       </Card>
 
+      {/* Documents légaux */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Documents légaux</CardTitle>
+          <CardDescription>
+            Conditions générales et politique de cookies
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="cgu">Conditions générales d'utilisation (CGU)</Label>
+            <Textarea
+              id="cgu"
+              defaultValue={settings?.cgu || ""}
+              onBlur={(e) => handleTextUpdate("cgu", e.target.value)}
+              rows={6}
+              placeholder="Vos conditions générales d'utilisation..."
+            />
+          </div>
+          <div>
+            <Label htmlFor="cookies">Politique de cookies</Label>
+            <Textarea
+              id="cookies"
+              defaultValue={settings?.cookies || ""}
+              onBlur={(e) => handleTextUpdate("cookies", e.target.value)}
+              rows={6}
+              placeholder="Votre politique de cookies..."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Paramètres de livraison */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Paramètres de livraison</CardTitle>
+          <CardDescription>
+            Configurez les frais de livraison et commissions livreurs
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="delivery_base_fee">Frais de base (FCFA)</Label>
+              <Input
+                id="delivery_base_fee"
+                type="number"
+                min="0"
+                defaultValue={settings?.delivery_base_fee || 1000}
+                onBlur={(e) => handleTextUpdate("delivery_base_fee", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delivery_fee_per_500m">Frais par 500m (FCFA)</Label>
+              <Input
+                id="delivery_fee_per_500m"
+                type="number"
+                min="0"
+                defaultValue={settings?.delivery_fee_per_500m || 500}
+                onBlur={(e) => handleTextUpdate("delivery_fee_per_500m", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="delivery_commission_fere">Commission Fere (%)</Label>
+              <Input
+                id="delivery_commission_fere"
+                type="number"
+                min="0"
+                max="100"
+                defaultValue={settings?.delivery_commission_fere || 15}
+                onBlur={(e) => handleTextUpdate("delivery_commission_fere", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delivery_commission_driver">Commission Livreur (%)</Label>
+              <Input
+                id="delivery_commission_driver"
+                type="number"
+                min="0"
+                max="100"
+                defaultValue={settings?.delivery_commission_driver || 85}
+                onBlur={(e) => handleTextUpdate("delivery_commission_driver", e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* TVA et Commissions */}
       <TaxAndCommissionsSection settings={settings} onUpdate={handleTextUpdate} />
     </div>

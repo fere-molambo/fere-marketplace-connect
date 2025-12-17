@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +10,16 @@ import { CatalogFilters } from "@/components/landing/CatalogFilters";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SlidersHorizontal, Grid3X3, List } from "lucide-react";
+import { SlidersHorizontal, Grid3X3, List, Loader2 } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export interface CatalogFiltersState {
   collection: string;
@@ -21,9 +30,12 @@ export interface CatalogFiltersState {
   onPromo: boolean | null;
 }
 
+const ITEMS_PER_PAGE = 24;
+
 const ProductsServices = () => {
   const [activeTab, setActiveTab] = useState<"products" | "services">("products");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<CatalogFiltersState>({
     collection: "all",
     categories: [],
@@ -32,6 +44,11 @@ const ProductsServices = () => {
     priceType: [],
     onPromo: null,
   });
+
+  // Reset page when filters or tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, activeTab]);
 
   // Fetch categories
   const { data: categories = [] } = useQuery({
@@ -47,57 +64,7 @@ const ProductsServices = () => {
     },
   });
 
-  // Fetch products
-  const { data: products = [] } = useQuery({
-    queryKey: ["catalog-products"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          shops!inner (
-            id,
-            name,
-            logo_url,
-            is_official,
-            is_active
-          )
-        `)
-        .eq("is_active", true)
-        .eq("shops.is_active", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Fetch services
-  const { data: services = [] } = useQuery({
-    queryKey: ["catalog-services"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("services")
-        .select(`
-          *,
-          shops!inner (
-            id,
-            name,
-            logo_url,
-            is_official,
-            is_active
-          )
-        `)
-        .eq("is_active", true)
-        .eq("shops.is_active", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Fetch flash sales
+  // Fetch flash sales (needed for promo filter)
   const { data: flashSales = [] } = useQuery({
     queryKey: ["flash-sales"],
     queryFn: async () => {
@@ -111,67 +78,142 @@ const ProductsServices = () => {
     },
   });
 
+  // Fetch products with server-side pagination and filtering
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ["catalog-products", currentPage, filters, flashSales],
+    queryFn: async () => {
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      let query = supabase
+        .from("products")
+        .select(`
+          *,
+          shops!inner (
+            id,
+            name,
+            logo_url,
+            is_official,
+            is_active
+          )
+        `, { count: "exact" })
+        .eq("is_active", true)
+        .eq("shops.is_active", true);
+
+      // Apply server-side filters
+      if (filters.categories.length > 0) {
+        query = query.or(`category_id.in.(${filters.categories.join(",")}),subcategory_id.in.(${filters.categories.join(",")})`);
+      }
+      if (filters.condition.length > 0) {
+        query = query.in("condition", filters.condition);
+      }
+      if (filters.priceType.length > 0) {
+        query = query.in("price_type", filters.priceType);
+      }
+      if (filters.priceRange[0] > 0) {
+        query = query.gte("price", filters.priceRange[0]);
+      }
+      if (filters.priceRange[1] < 1000000) {
+        query = query.lte("price", filters.priceRange[1]);
+      }
+
+      // For promo filter, we need to filter in memory after fetching (due to flash_sales join complexity)
+      if (filters.onPromo === true) {
+        query = query.or(`discount_percent.gt.0,id.in.(${flashSales.filter(fs => fs.product_id).map(fs => fs.product_id).join(",") || "00000000-0000-0000-0000-000000000000"})`);
+      }
+
+      query = query.order("created_at", { ascending: false }).range(from, to);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { items: data || [], totalCount: count || 0 };
+    },
+    enabled: activeTab === "products",
+  });
+
+  // Fetch services with server-side pagination and filtering
+  const { data: servicesData, isLoading: servicesLoading } = useQuery({
+    queryKey: ["catalog-services", currentPage, filters, flashSales],
+    queryFn: async () => {
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      let query = supabase
+        .from("services")
+        .select(`
+          *,
+          shops!inner (
+            id,
+            name,
+            logo_url,
+            is_official,
+            is_active
+          )
+        `, { count: "exact" })
+        .eq("is_active", true)
+        .eq("shops.is_active", true);
+
+      // Apply server-side filters
+      if (filters.priceType.length > 0) {
+        query = query.in("price_type", filters.priceType);
+      }
+      if (filters.priceRange[0] > 0) {
+        query = query.gte("price", filters.priceRange[0]);
+      }
+      if (filters.priceRange[1] < 1000000) {
+        query = query.lte("price", filters.priceRange[1]);
+      }
+
+      // For promo filter
+      if (filters.onPromo === true) {
+        query = query.or(`discount_percent.gt.0,id.in.(${flashSales.filter(fs => fs.service_id).map(fs => fs.service_id).join(",") || "00000000-0000-0000-0000-000000000000"})`);
+      }
+
+      query = query.order("created_at", { ascending: false }).range(from, to);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { items: data || [], totalCount: count || 0 };
+    },
+    enabled: activeTab === "services",
+  });
+
   const getFlashSale = (id: string, type: "product" | "service") => {
     return flashSales.find(fs => 
       type === "product" ? fs.product_id === id : fs.service_id === id
     );
   };
 
-  // Filter products
-  const filteredProducts = useMemo(() => {
-    return products.filter((product: any) => {
-      // Category filter
-      if (filters.categories.length > 0) {
-        if (!filters.categories.includes(product.category_id) && 
-            !filters.categories.includes(product.subcategory_id)) {
-          return false;
-        }
-      }
-      // Price range filter
-      if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
-        return false;
-      }
-      // Condition filter
-      if (filters.condition.length > 0 && !filters.condition.includes(product.condition)) {
-        return false;
-      }
-      // Price type filter
-      if (filters.priceType.length > 0 && !filters.priceType.includes(product.price_type)) {
-        return false;
-      }
-      // Promo filter
-      if (filters.onPromo === true) {
-        const hasDiscount = product.discount_percent > 0;
-        const hasFlashSale = flashSales.some(fs => fs.product_id === product.id);
-        if (!hasDiscount && !hasFlashSale) return false;
-      }
-      return true;
-    });
-  }, [products, filters, flashSales]);
+  const currentItems = activeTab === "products" 
+    ? (productsData?.items || []) 
+    : (servicesData?.items || []);
+  const totalCount = activeTab === "products" 
+    ? (productsData?.totalCount || 0) 
+    : (servicesData?.totalCount || 0);
+  const isLoading = activeTab === "products" ? productsLoading : servicesLoading;
+  
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+  const startItem = totalCount > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalCount);
 
-  // Filter services
-  const filteredServices = useMemo(() => {
-    return services.filter((service: any) => {
-      // Price range filter
-      if (service.price < filters.priceRange[0] || service.price > filters.priceRange[1]) {
-        return false;
-      }
-      // Price type filter
-      if (filters.priceType.length > 0 && !filters.priceType.includes(service.price_type)) {
-        return false;
-      }
-      // Promo filter
-      if (filters.onPromo === true) {
-        const hasDiscount = service.discount_percent > 0;
-        const hasFlashSale = flashSales.some(fs => fs.service_id === service.id);
-        if (!hasDiscount && !hasFlashSale) return false;
-      }
-      return true;
-    });
-  }, [services, filters, flashSales]);
+  // Generate page numbers with ellipsis
+  const getPageNumbers = (): (number | "...")[] => {
+    const pages: (number | "...")[] = [];
+    const maxVisiblePages = 5;
 
-  const currentItems = activeTab === "products" ? filteredProducts : filteredServices;
-  const totalItems = activeTab === "products" ? products.length : services.length;
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, "...", totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages);
+      }
+    }
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -235,7 +277,7 @@ const ProductsServices = () => {
 
                   {/* Results count */}
                   <span className="text-sm text-muted-foreground hidden sm:inline">
-                    {currentItems.length} sur {totalItems} résultats
+                    {totalCount > 0 ? `${startItem}-${endItem} sur ${totalCount}` : "0 résultat"}
                   </span>
 
                   {/* View toggle */}
@@ -262,43 +304,89 @@ const ProductsServices = () => {
 
               {/* Mobile Results count */}
               <p className="text-sm text-muted-foreground mb-4 sm:hidden">
-                Affichage de {currentItems.length} résultats sur {totalItems}
+                {totalCount > 0 ? `Affichage ${startItem}-${endItem} sur ${totalCount}` : "0 résultat"}
               </p>
 
-              {/* Items Grid/List */}
-              {currentItems.length === 0 ? (
+              {/* Loading State */}
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : currentItems.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <p>Aucun {activeTab === "products" ? "produit" : "prestation"} trouvé</p>
                   <p className="text-sm mt-2">Essayez de modifier vos filtres</p>
                 </div>
               ) : (
-                <div className={
-                  viewMode === "grid" 
-                    ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-                    : "flex flex-col gap-4"
-                }>
-                {activeTab === "products" ? (
-                    filteredProducts.map((product: any) => (
-                      <Link key={product.id} to={`/product/${product.id}`}>
-                        <PublicProductCard 
-                          product={product}
-                          flashSale={getFlashSale(product.id, "product")}
-                          viewMode={viewMode}
-                        />
-                      </Link>
-                    ))
-                  ) : (
-                    filteredServices.map((service: any) => (
-                      <Link key={service.id} to={`/service/${service.id}`}>
-                        <PublicServiceCard 
-                          service={service}
-                          flashSale={getFlashSale(service.id, "service")}
-                          viewMode={viewMode}
-                        />
-                      </Link>
-                    ))
+                <>
+                  {/* Items Grid/List */}
+                  <div className={
+                    viewMode === "grid" 
+                      ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                      : "flex flex-col gap-4"
+                  }>
+                    {activeTab === "products" ? (
+                      currentItems.map((product: any) => (
+                        <Link key={product.id} to={`/product/${product.id}`}>
+                          <PublicProductCard 
+                            product={product}
+                            flashSale={getFlashSale(product.id, "product")}
+                            viewMode={viewMode}
+                          />
+                        </Link>
+                      ))
+                    ) : (
+                      currentItems.map((service: any) => (
+                        <Link key={service.id} to={`/service/${service.id}`}>
+                          <PublicServiceCard 
+                            service={service}
+                            flashSale={getFlashSale(service.id, "service")}
+                            viewMode={viewMode}
+                          />
+                        </Link>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="mt-8 flex justify-center">
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious 
+                              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          
+                          {getPageNumbers().map((page, index) => (
+                            <PaginationItem key={index}>
+                              {page === "..." ? (
+                                <PaginationEllipsis />
+                              ) : (
+                                <PaginationLink 
+                                  isActive={page === currentPage}
+                                  onClick={() => setCurrentPage(page)}
+                                  className="cursor-pointer"
+                                >
+                                  {page}
+                                </PaginationLink>
+                              )}
+                            </PaginationItem>
+                          ))}
+                          
+                          <PaginationItem>
+                            <PaginationNext 
+                              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                              className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>

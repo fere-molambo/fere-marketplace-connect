@@ -200,9 +200,10 @@ export default function Checkout() {
               action: "initialize",
               amount: advanceAmount,
               email: user?.email,
+              payment_type: "order",
+              related_id: order.id,
               metadata: {
-                order_id: order.id,
-                payment_type: "order",
+                order_number: order.order_number,
               },
               callback_url: `${window.location.origin}/payment/callback`,
             },

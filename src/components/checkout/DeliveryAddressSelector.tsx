@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Plus, MapPin, Navigation, Loader2 } from "lucide-react";
+import { Plus, MapPin, Navigation, Loader2, ExternalLink } from "lucide-react";
 
 interface DeliveryAddressSelectorProps {
   userId: string;
@@ -32,6 +32,7 @@ export function DeliveryAddressSelector({
     geolocation_lng: null as number | null,
     recipient_name: "",
     recipient_phone: "",
+    google_maps_link: "",
   });
 
   // Fetch addresses
@@ -85,6 +86,7 @@ export function DeliveryAddressSelector({
         geolocation_lng: null,
         recipient_name: "",
         recipient_phone: "",
+        google_maps_link: "",
       });
     },
     onError: () => toast.error("Erreur lors de l'ajout"),
@@ -221,6 +223,18 @@ export function DeliveryAddressSelector({
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Lien Google Maps (optionnel)</Label>
+                  <Input
+                    value={formData.google_maps_link}
+                    onChange={(e) => setFormData({ ...formData, google_maps_link: e.target.value })}
+                    placeholder="https://maps.google.com/..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Partagez un lien Google Maps pour faciliter la localisation
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Annuler
@@ -268,6 +282,18 @@ export function DeliveryAddressSelector({
                     <p className="text-xs text-muted-foreground mt-1">
                       📍 {address.recipient_name} {address.recipient_phone && `• 📞 ${address.recipient_phone}`}
                     </p>
+                  )}
+                  {(address as any).google_maps_link && (
+                    <a 
+                      href={(address as any).google_maps_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Voir sur Google Maps
+                    </a>
                   )}
                 </div>
               </label>

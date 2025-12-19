@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
 import ServiceDetail from "./pages/ServiceDetail";
+import ServiceBooking from "./pages/ServiceBooking";
 import ProductsServices from "./pages/ProductsServices";
 import Help from "./pages/Help";
 import HelpArticle from "./pages/HelpArticle";
@@ -59,6 +60,7 @@ const App = () => (
           <Route path="/setup" element={<Setup />} />
           <Route path="/product/:productId" element={<ProductDetail />} />
           <Route path="/service/:serviceId" element={<ServiceDetail />} />
+          <Route path="/service/:serviceId/book" element={<ServiceBooking />} />
           <Route path="/produits-services" element={<ProductsServices />} />
           <Route path="/aide" element={<Help />} />
           <Route path="/aide/article/:slug" element={<HelpArticle />} />

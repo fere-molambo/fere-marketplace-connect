@@ -175,6 +175,7 @@ export type Database = {
           created_at: string | null
           geolocation_lat: number | null
           geolocation_lng: number | null
+          google_maps_link: string | null
           id: string
           is_default: boolean | null
           label: string
@@ -190,6 +191,7 @@ export type Database = {
           created_at?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          google_maps_link?: string | null
           id?: string
           is_default?: boolean | null
           label: string
@@ -205,6 +207,7 @@ export type Database = {
           created_at?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          google_maps_link?: string | null
           id?: string
           is_default?: boolean | null
           label?: string
@@ -1192,42 +1195,60 @@ export type Database = {
           advance_paid: number | null
           booking_date: string
           booking_time: string
+          commission_amount: number | null
           created_at: string | null
           customer_id: string | null
+          delivery_address_id: string | null
           id: string
           notes: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string | null
           service_id: string
           slot_id: string | null
           status: string | null
           total_price: number
+          tva_amount: number | null
           updated_at: string | null
         }
         Insert: {
           advance_paid?: number | null
           booking_date: string
           booking_time: string
+          commission_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
+          delivery_address_id?: string | null
           id?: string
           notes?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
           service_id: string
           slot_id?: string | null
           status?: string | null
           total_price: number
+          tva_amount?: number | null
           updated_at?: string | null
         }
         Update: {
           advance_paid?: number | null
           booking_date?: string
           booking_time?: string
+          commission_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
+          delivery_address_id?: string | null
           id?: string
           notes?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
           service_id?: string
           slot_id?: string | null
           status?: string | null
           total_price?: number
+          tva_amount?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1236,6 +1257,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_delivery_address_id_fkey"
+            columns: ["delivery_address_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_addresses"
             referencedColumns: ["id"]
           },
           {

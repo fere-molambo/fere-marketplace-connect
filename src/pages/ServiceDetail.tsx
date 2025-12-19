@@ -284,7 +284,7 @@ const ServiceDetail = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
-              <Button className="flex-1">
+              <Button className="flex-1" onClick={() => navigate(`/service/${serviceId}/book`)}>
                 <Calendar className="h-4 w-4 mr-2" />
                 Réserver
               </Button>

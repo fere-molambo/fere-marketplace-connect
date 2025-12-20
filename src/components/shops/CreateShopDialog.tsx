@@ -39,6 +39,7 @@ const createShopSchema = z.object({
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   shop_type: z.enum(["fournisseur", "prestataire", "les_deux"]),
   owner_id: z.string().uuid("Sélectionnez un propriétaire"),
+  delivery_zone_id: z.string().uuid().optional(),
   is_official: z.boolean().default(false),
   responsible_admin_id: z.string().uuid().optional(),
   verification_status: z.enum(["pending", "verified", "rejected"]).default("verified"),
@@ -80,6 +81,15 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
     },
   });
 
+  const { data: zones = [] } = useQuery({
+    queryKey: ["delivery-zones"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("delivery_zones").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: admins } = useQuery({
     queryKey: ["admins-list"],
     queryFn: async () => {
@@ -104,6 +114,7 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
         name: data.name,
         shop_type: data.shop_type,
         owner_id: data.owner_id,
+        delivery_zone_id: data.delivery_zone_id || null,
         is_official: data.is_official,
         responsible_admin_id: data.responsible_admin_id,
         verification_status: data.verification_status,
@@ -194,6 +205,31 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
                       {vendors?.map((vendor) => (
                         <SelectItem key={vendor.id} value={vendor.id}>
                           {vendor.nom_complet} ({vendor.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="delivery_zone_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Zone de livraison</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une zone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {zones.map((zone) => (
+                        <SelectItem key={zone.id} value={zone.id}>
+                          {zone.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

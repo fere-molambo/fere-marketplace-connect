@@ -13,7 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag } from "lucide-react";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
 
 export default function ClientProfile() {
@@ -36,6 +40,49 @@ export default function ClientProfile() {
         .select("*")
         .eq("id", user.id)
         .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch user orders
+  const { data: orders = [] } = useQuery({
+    queryKey: ["client-orders", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          order_items (
+            id,
+            quantity,
+            total_price,
+            product:products!product_id (name, main_media_url)
+          )
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch user service bookings
+  const { data: bookings = [] } = useQuery({
+    queryKey: ["client-bookings", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("service_bookings")
+        .select(`
+          *,
+          service:services!service_id (name, shop:shops!shop_id (name))
+        `)
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -282,6 +329,10 @@ export default function ClientProfile() {
             <TabsTrigger value="identity" className="gap-2">
               <CreditCard className="h-4 w-4" />
               Identité
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Commandes
             </TabsTrigger>
           </TabsList>
 
@@ -534,6 +585,93 @@ export default function ClientProfile() {
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Orders Tab */}
+          <TabsContent value="orders">
+            <div className="space-y-6">
+              {/* Product Orders */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mes commandes produits</CardTitle>
+                  <CardDescription>Historique de vos achats</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {orders.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Aucune commande pour le moment
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {orders.map((order: any) => (
+                        <div
+                          key={order.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">Commande #{order.order_number}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(order.created_at), "dd MMM yyyy", { locale: fr })}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {order.order_items?.length || 0} article(s) • {order.delivery_type === "delivery" ? "Livraison" : "Retrait"}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">
+                              {new Intl.NumberFormat("fr-FR").format(order.total_amount)} FCFA
+                            </span>
+                            <OrderStatusBadge status={order.status} />
+                            <PaymentStatusBadge status={order.payment_status} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Service Bookings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mes réservations</CardTitle>
+                  <CardDescription>Vos rendez-vous de services</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {bookings.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Aucune réservation pour le moment
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {bookings.map((booking: any) => (
+                        <div
+                          key={booking.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">{booking.service?.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(booking.booking_date), "dd MMM yyyy", { locale: fr })} à {booking.booking_time}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {booking.service?.shop?.name}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">
+                              {new Intl.NumberFormat("fr-FR").format(booking.total_price)} FCFA
+                            </span>
+                            <OrderStatusBadge status={booking.status} />
+                            <PaymentStatusBadge status={booking.payment_status} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

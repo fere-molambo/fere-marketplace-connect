@@ -86,19 +86,6 @@ export const ProductsServicesSection = () => {
     },
   });
 
-  // Fetch warehouse product IDs for 24h badge
-  const { data: warehouseProductIds = [] } = useQuery({
-    queryKey: ["warehouse-product-ids"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("product_id")
-        .eq("is_active", true)
-        .gt("quantity", 0);
-      if (error) throw error;
-      return data.map((s) => s.product_id);
-    },
-  });
 
   // Map flash sales to products/services
   const getFlashSale = (id: string, type: "product" | "service") => {
@@ -106,8 +93,6 @@ export const ProductsServicesSection = () => {
       type === "product" ? fs.product_id === id : fs.service_id === id
     );
   };
-
-  const isInWarehouse = (productId: string) => warehouseProductIds.includes(productId);
 
   // Filter products and services by search query
   const filteredProducts = useMemo(() => {
@@ -176,7 +161,6 @@ export const ProductsServicesSection = () => {
                       <PublicProductCard 
                         product={product} 
                         flashSale={getFlashSale(product.id, "product")}
-                        isInWarehouse={isInWarehouse(product.id)}
                       />
                     </Link>
                   ))}
@@ -188,7 +172,6 @@ export const ProductsServicesSection = () => {
                       <PublicProductCard 
                         product={product}
                         flashSale={getFlashSale(product.id, "product")}
-                        isInWarehouse={isInWarehouse(product.id)}
                       />
                     </Link>
                   ))}

@@ -1,12 +1,12 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -36,6 +36,7 @@ const editShopSchema = z.object({
   whatsapp_catalog_link: z.string().url("URL invalide").optional().or(z.literal("")),
   opening_time: z.string().optional(),
   closing_time: z.string().optional(),
+  delivery_zone_id: z.string().optional(),
 });
 
 type EditShopFormData = z.infer<typeof editShopSchema>;
@@ -46,6 +47,15 @@ interface ShopInfoSectionProps {
 }
 
 export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
+  const { data: zones = [] } = useQuery({
+    queryKey: ["delivery-zones"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("delivery_zones").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const form = useForm<EditShopFormData>({
     resolver: zodResolver(editShopSchema),
     defaultValues: {
@@ -60,6 +70,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
       whatsapp_catalog_link: shop.whatsapp_catalog_link || "",
       opening_time: shop.opening_time || "",
       closing_time: shop.closing_time || "",
+      delivery_zone_id: shop.delivery_zone_id || "",
     },
   });
 
@@ -79,6 +90,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
           whatsapp_catalog_link: data.whatsapp_catalog_link || null,
           opening_time: data.opening_time || null,
           closing_time: data.closing_time || null,
+          delivery_zone_id: data.delivery_zone_id || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", shop.id);

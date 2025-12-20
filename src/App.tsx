@@ -30,8 +30,8 @@ import PublicMessages from "./pages/PublicMessages";
 import Favorites from "./pages/Favorites";
 import PaymentCallback from "./pages/PaymentCallback";
 import Checkout from "./pages/Checkout";
-import Warehouses from "./pages/Warehouses";
-import WarehouseStock from "./pages/WarehouseStock";
+import DeliveryZones from "./pages/DeliveryZones";
+import Orders from "./pages/Orders";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -94,8 +94,8 @@ const App = () => (
             <Route path="my-shops" element={<AssignedShops />} />
             <Route path="settings" element={<Settings />} />
             <Route path="messages" element={<Messages />} />
-            <Route path="warehouses" element={<Warehouses />} />
-            <Route path="warehouse-stock" element={<WarehouseStock />} />
+            <Route path="delivery-zones" element={<DeliveryZones />} />
+            <Route path="orders" element={<Orders />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

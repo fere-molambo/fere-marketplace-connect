@@ -1,0 +1,133 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { OrderStatusBadge } from "./OrderStatusBadge";
+import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { Eye, MessageSquare, Truck, Store } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+
+interface Order {
+  id: string;
+  order_number: string;
+  created_at: string;
+  status: string;
+  payment_status: string;
+  delivery_type: string;
+  total_amount: number;
+  advance_paid: number;
+  remaining_amount: number;
+  user_id: string;
+  profiles?: { nom_complet: string; contact: string } | null;
+  order_items?: Array<{
+    id?: string;
+    shop_id?: string;
+    shops?: { name: string; delivery_zone_id?: string; delivery_zones?: { name: string } | null } | null;
+  }>;
+}
+
+interface OrdersTableProps {
+  orders: Order[];
+  onViewDetails: (order: Order) => void;
+  onMessage: (userId: string) => void;
+  showVendorActions?: boolean;
+}
+
+export function OrdersTable({ orders, onViewDetails, onMessage, showVendorActions }: OrdersTableProps) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
+  };
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>N° Commande</TableHead>
+            <TableHead>Client</TableHead>
+            <TableHead>Zone</TableHead>
+            <TableHead>Mode</TableHead>
+            <TableHead className="text-right">Total</TableHead>
+            <TableHead className="text-right">Avance</TableHead>
+            <TableHead>Statut</TableHead>
+            <TableHead>Paiement</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {orders.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                Aucune commande trouvée
+              </TableCell>
+            </TableRow>
+          ) : (
+            orders.map((order) => {
+              const zone = order.order_items?.[0]?.shops?.delivery_zones?.name;
+              return (
+                <TableRow key={order.id}>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{order.order_number}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(order.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{order.profiles?.nom_complet || "—"}</div>
+                      <div className="text-xs text-muted-foreground">{order.profiles?.contact || "—"}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">{zone || "—"}</span>
+                  </TableCell>
+                  <TableCell>
+                    {order.delivery_type === "pickup" ? (
+                      <span className="flex items-center gap-1 text-sm">
+                        <Store className="h-3 w-3" /> Retrait
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-sm">
+                        <Truck className="h-3 w-3" /> Livraison
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(order.total_amount)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div>
+                      <div className="text-green-600">{formatCurrency(order.advance_paid || 0)}</div>
+                      {(order.remaining_amount || 0) > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Reste: {formatCurrency(order.remaining_amount)}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <OrderStatusBadge status={order.status} />
+                  </TableCell>
+                  <TableCell>
+                    <PaymentStatusBadge status={order.payment_status} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => onViewDetails(order)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => onMessage(order.user_id)}>
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

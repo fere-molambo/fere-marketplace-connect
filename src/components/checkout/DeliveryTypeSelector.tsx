@@ -5,7 +5,6 @@ interface DeliveryTypeSelectorProps {
   value: "pickup" | "delivery";
   onChange: (value: "pickup" | "delivery") => void;
   isMultiVendor: boolean;
-  allProductsInWarehouse: boolean;
   deliveryFee: number;
 }
 
@@ -13,10 +12,9 @@ export function DeliveryTypeSelector({
   value,
   onChange,
   isMultiVendor,
-  allProductsInWarehouse,
   deliveryFee,
 }: DeliveryTypeSelectorProps) {
-  const canPickup = !isMultiVendor || allProductsInWarehouse;
+  const canPickup = !isMultiVendor;
 
   return (
     <div className="grid grid-cols-2 gap-3">

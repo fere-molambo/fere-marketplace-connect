@@ -226,6 +226,56 @@ export type Database = {
           },
         ]
       }
+      delivery_zones: {
+        Row: {
+          center_lat: number
+          center_lng: number
+          country: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          radius_km: number
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          center_lat: number
+          center_lng: number
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          radius_km?: number
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          center_lat?: number
+          center_lng?: number
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          radius_km?: number
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_zones_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           color: string | null
@@ -261,6 +311,45 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      driver_zones: {
+        Row: {
+          created_at: string | null
+          driver_id: string
+          id: string
+          is_active: boolean | null
+          zone_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          driver_id: string
+          id?: string
+          is_active?: boolean | null
+          zone_id: string
+        }
+        Update: {
+          created_at?: string | null
+          driver_id?: string
+          id?: string
+          is_active?: boolean | null
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_zones_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_zones_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_zones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       faq_items: {
         Row: {
@@ -667,13 +756,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "orders_source_warehouse_id_fkey"
-            columns: ["source_warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "orders_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -762,6 +844,7 @@ export type Database = {
           logo_footer: string | null
           logo_principal: string | null
           logo_sidebar_collapsed: string | null
+          max_delivery_acceptance_hour: number | null
           partner_logos: Json | null
           support_email: string | null
           support_phone: string | null
@@ -794,6 +877,7 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           support_email?: string | null
           support_phone?: string | null
@@ -826,6 +910,7 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           support_email?: string | null
           support_phone?: string | null
@@ -994,12 +1079,18 @@ export type Database = {
           contrat_url: string | null
           created_at: string | null
           created_by: string | null
+          current_lat: number | null
+          current_lng: number | null
           department_id: string | null
+          driver_license_url: string | null
           duree_contrat: string | null
           email: string | null
           geolocalisation_lat: number | null
           geolocalisation_lng: number | null
           id: string
+          is_available: boolean | null
+          is_online: boolean | null
+          last_location_update: string | null
           nom_complet: string
           photo_profil: string | null
           piece_identite_client_type:
@@ -1023,6 +1114,9 @@ export type Database = {
           type_contrat: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at: string | null
+          vehicle_color: string | null
+          vehicle_plate: string | null
+          vehicle_type: string | null
         }
         Insert: {
           adresse?: string | null
@@ -1030,12 +1124,18 @@ export type Database = {
           contrat_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          current_lat?: number | null
+          current_lng?: number | null
           department_id?: string | null
+          driver_license_url?: string | null
           duree_contrat?: string | null
           email?: string | null
           geolocalisation_lat?: number | null
           geolocalisation_lng?: number | null
           id: string
+          is_available?: boolean | null
+          is_online?: boolean | null
+          last_location_update?: string | null
           nom_complet: string
           photo_profil?: string | null
           piece_identite_client_type?:
@@ -1059,6 +1159,9 @@ export type Database = {
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
+          vehicle_color?: string | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
         }
         Update: {
           adresse?: string | null
@@ -1066,12 +1169,18 @@ export type Database = {
           contrat_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          current_lat?: number | null
+          current_lng?: number | null
           department_id?: string | null
+          driver_license_url?: string | null
           duree_contrat?: string | null
           email?: string | null
           geolocalisation_lat?: number | null
           geolocalisation_lng?: number | null
           id?: string
+          is_available?: boolean | null
+          is_online?: boolean | null
+          last_location_update?: string | null
           nom_complet?: string
           photo_profil?: string | null
           piece_identite_client_type?:
@@ -1095,6 +1204,9 @@ export type Database = {
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
+          vehicle_color?: string | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
         }
         Relationships: [
           {
@@ -1690,6 +1802,7 @@ export type Database = {
           created_by: string | null
           creation_reason: string | null
           delivery_details: string | null
+          delivery_zone_id: string | null
           description: string | null
           geolocation_lat: number | null
           geolocation_lng: number | null
@@ -1722,6 +1835,7 @@ export type Database = {
           created_by?: string | null
           creation_reason?: string | null
           delivery_details?: string | null
+          delivery_zone_id?: string | null
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
@@ -1754,6 +1868,7 @@ export type Database = {
           created_by?: string | null
           creation_reason?: string | null
           delivery_details?: string | null
+          delivery_zone_id?: string | null
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
@@ -1782,6 +1897,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shops_delivery_zone_id_fkey"
+            columns: ["delivery_zone_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_zones"
             referencedColumns: ["id"]
           },
           {
@@ -2035,130 +2157,6 @@ export type Database = {
           {
             foreignKeyName: "vendor_admins_vendor_id_fkey"
             columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouse_stock: {
-        Row: {
-          added_by: string | null
-          created_at: string | null
-          id: string
-          is_active: boolean | null
-          product_id: string
-          quantity: number | null
-          updated_at: string | null
-          warehouse_id: string
-        }
-        Insert: {
-          added_by?: string | null
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          product_id: string
-          quantity?: number | null
-          updated_at?: string | null
-          warehouse_id: string
-        }
-        Update: {
-          added_by?: string | null
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          product_id?: string
-          quantity?: number | null
-          updated_at?: string | null
-          warehouse_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_stock_added_by_fkey"
-            columns: ["added_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_warehouse_id_fkey"
-            columns: ["warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouses: {
-        Row: {
-          address: string | null
-          assigned_admin_id: string | null
-          contract_url: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          geolocation_lat: number | null
-          geolocation_lng: number | null
-          id: string
-          is_active: boolean | null
-          name: string
-          owner_contact: string | null
-          owner_name: string | null
-          owner_type: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          address?: string | null
-          assigned_admin_id?: string | null
-          contract_url?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          geolocation_lat?: number | null
-          geolocation_lng?: number | null
-          id?: string
-          is_active?: boolean | null
-          name: string
-          owner_contact?: string | null
-          owner_name?: string | null
-          owner_type?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          address?: string | null
-          assigned_admin_id?: string | null
-          contract_url?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          geolocation_lat?: number | null
-          geolocation_lng?: number | null
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          owner_contact?: string | null
-          owner_name?: string | null
-          owner_type?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouses_assigned_admin_id_fkey"
-            columns: ["assigned_admin_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouses_created_by_fkey"
-            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

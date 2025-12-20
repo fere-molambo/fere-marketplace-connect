@@ -69,33 +69,9 @@ export default function Checkout() {
     },
   });
 
-  // Check if products are in warehouse
-  const productIds = items.map(item => item.productId);
-  const { data: warehouseStock = [] } = useQuery({
-    queryKey: ["warehouse-stock-checkout", productIds],
-    queryFn: async () => {
-      if (productIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("product_id, warehouse_id, quantity, warehouses(id, name, address, geolocation_lat, geolocation_lng)")
-        .in("product_id", productIds)
-        .eq("is_active", true)
-        .gt("quantity", 0);
-      if (error) throw error;
-      return data;
-    },
-    enabled: productIds.length > 0,
-  });
-
   // Get unique shops in cart
   const uniqueShops = [...new Set(items.map(item => item.product.shops.id))];
   const isMultiVendor = uniqueShops.length > 1;
-
-  // Check if all products in multi-vendor cart are in the same warehouse
-  const allProductsInWarehouse = isMultiVendor && 
-    items.every(item => warehouseStock.some(ws => ws.product_id === item.productId));
-
-  // Get single shop info for pickup
   const singleShop = !isMultiVendor ? items[0]?.product.shops : null;
 
   // Calculate delivery fee
@@ -161,7 +137,6 @@ export default function Checkout() {
           payment_method: paymentMethod,
           payment_status: "pending",
           is_multi_vendor: isMultiVendor,
-          source_warehouse_id: allProductsInWarehouse ? warehouseStock[0]?.warehouse_id : null,
         })
         .select()
         .single();
@@ -262,7 +237,7 @@ export default function Checkout() {
         </div>
 
         {/* Multi-vendor warning */}
-        {isMultiVendor && !allProductsInWarehouse && (
+        {isMultiVendor && (
           <MultiVendorWarning shopCount={uniqueShops.length} />
         )}
 
@@ -279,7 +254,6 @@ export default function Checkout() {
                   value={deliveryType}
                   onChange={setDeliveryType}
                   isMultiVendor={isMultiVendor}
-                  allProductsInWarehouse={allProductsInWarehouse}
                   deliveryFee={deliveryFee}
                 />
 

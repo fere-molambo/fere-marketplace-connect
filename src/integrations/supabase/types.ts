@@ -228,11 +228,14 @@ export type Database = {
       }
       delivery_zones: {
         Row: {
-          center_lat: number
-          center_lng: number
+          center_lat: number | null
+          center_lng: number | null
+          city: string | null
+          commune: string | null
           country: string | null
           created_at: string | null
           created_by: string | null
+          google_maps_link: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -241,11 +244,14 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          center_lat: number
-          center_lng: number
+          center_lat?: number | null
+          center_lng?: number | null
+          city?: string | null
+          commune?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          google_maps_link?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -254,11 +260,14 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          center_lat?: number
-          center_lng?: number
+          center_lat?: number | null
+          center_lng?: number | null
+          city?: string | null
+          commune?: string | null
           country?: string | null
           created_at?: string | null
           created_by?: string | null
+          google_maps_link?: string | null
           id?: string
           is_active?: boolean | null
           name?: string

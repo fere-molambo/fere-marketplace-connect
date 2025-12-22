@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { ProductMediaUpload } from "./ProductMediaUpload";
+import { VendorNetAmountDisplay } from "./VendorNetAmountDisplay";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -313,6 +314,17 @@ export const EditProductDialog = ({ shopId, product, open, onOpenChange }: EditP
                 required
               />
             </div>
+
+            {price && parseFloat(price) > 0 && (
+              <div className="col-span-2">
+                <VendorNetAmountDisplay
+                  price={price}
+                  priceType={priceType}
+                  minAutoPrice={minAutoPrice}
+                  categoryId={categoryId}
+                />
+              </div>
+            )}
 
             {priceType === "en_gros" && (
               <div className="col-span-2 space-y-4 p-4 border border-border rounded-lg bg-muted/50">

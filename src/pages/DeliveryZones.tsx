@@ -6,25 +6,54 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, MapPin, Edit2, Trash2, Loader2, Search, Users } from "lucide-react";
+import { Plus, MapPin, Edit2, Trash2, Loader2, Search, Users, Link as LinkIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 const zoneSchema = z.object({
   name: z.string().min(2, "Nom requis"),
-  country: z.string().default("Mali"),
-  center_lat: z.coerce.number().min(-90).max(90),
-  center_lng: z.coerce.number().min(-180).max(180),
+  country: z.enum(["Mali", "Côte d'Ivoire"]),
+  city: z.string().optional(),
+  commune: z.string().optional(),
+  google_maps_link: z.string().optional(),
   radius_km: z.coerce.number().min(1).max(100),
   tags: z.string().optional(),
   is_active: z.boolean().default(true),
 });
 
 type ZoneFormData = z.infer<typeof zoneSchema>;
+
+// Extract coordinates from Google Maps link
+const extractCoordsFromGoogleMapsLink = (link: string): { lat: number; lng: number } | null => {
+  if (!link) return null;
+  
+  // Try different patterns for Google Maps URLs
+  const patterns = [
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/, // @lat,lng format
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, // !3d!4d format
+    /q=(-?\d+\.\d+),(-?\d+\.\d+)/, // q=lat,lng format
+    /place\/.*\/@(-?\d+\.\d+),(-?\d+\.\d+)/, // place format
+    /\/(-?\d+\.\d+),(-?\d+\.\d+)/, // simple /lat,lng
+  ];
+
+  for (const pattern of patterns) {
+    const match = link.match(pattern);
+    if (match) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[2]);
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+  }
+
+  return null;
+};
 
 export default function DeliveryZones() {
   const queryClient = useQueryClient();
@@ -37,8 +66,9 @@ export default function DeliveryZones() {
     defaultValues: {
       name: "",
       country: "Mali",
-      center_lat: 12.6392,
-      center_lng: -8.0029,
+      city: "",
+      commune: "",
+      google_maps_link: "",
       radius_km: 5,
       tags: "",
       is_active: true,
@@ -94,11 +124,18 @@ export default function DeliveryZones() {
   const createMutation = useMutation({
     mutationFn: async (data: ZoneFormData) => {
       const tags = data.tags ? data.tags.split(",").map((t) => t.trim()) : null;
+      
+      // Extract coordinates from Google Maps link
+      const coords = extractCoordsFromGoogleMapsLink(data.google_maps_link || "");
+      
       const { error } = await supabase.from("delivery_zones").insert({
         name: data.name,
         country: data.country,
-        center_lat: data.center_lat,
-        center_lng: data.center_lng,
+        city: data.city || null,
+        commune: data.commune || null,
+        google_maps_link: data.google_maps_link || null,
+        center_lat: coords?.lat || null,
+        center_lng: coords?.lng || null,
         radius_km: data.radius_km,
         tags,
         is_active: data.is_active,
@@ -117,13 +154,20 @@ export default function DeliveryZones() {
   const updateMutation = useMutation({
     mutationFn: async (data: ZoneFormData & { id: string }) => {
       const tags = data.tags ? data.tags.split(",").map((t) => t.trim()) : null;
+      
+      // Extract coordinates from Google Maps link
+      const coords = extractCoordsFromGoogleMapsLink(data.google_maps_link || "");
+      
       const { error } = await supabase
         .from("delivery_zones")
         .update({
           name: data.name,
           country: data.country,
-          center_lat: data.center_lat,
-          center_lng: data.center_lng,
+          city: data.city || null,
+          commune: data.commune || null,
+          google_maps_link: data.google_maps_link || null,
+          center_lat: coords?.lat || null,
+          center_lng: coords?.lng || null,
           radius_km: data.radius_km,
           tags,
           is_active: data.is_active,
@@ -158,8 +202,9 @@ export default function DeliveryZones() {
     form.reset({
       name: zone.name,
       country: zone.country || "Mali",
-      center_lat: zone.center_lat,
-      center_lng: zone.center_lng,
+      city: zone.city || "",
+      commune: zone.commune || "",
+      google_maps_link: zone.google_maps_link || "",
       radius_km: zone.radius_km,
       tags: zone.tags?.join(", ") || "",
       is_active: zone.is_active,
@@ -176,8 +221,13 @@ export default function DeliveryZones() {
   };
 
   const filteredZones = zones.filter((z) =>
-    z.name.toLowerCase().includes(search.toLowerCase())
+    z.name.toLowerCase().includes(search.toLowerCase()) ||
+    z.city?.toLowerCase().includes(search.toLowerCase()) ||
+    z.commune?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const googleMapsLinkValue = form.watch("google_maps_link");
+  const extractedCoords = extractCoordsFromGoogleMapsLink(googleMapsLinkValue || "");
 
   return (
     <div className="space-y-6">
@@ -186,11 +236,11 @@ export default function DeliveryZones() {
           <h1 className="text-2xl font-bold">Zones de livraison</h1>
           <p className="text-muted-foreground">Gérez les zones géographiques pour les livraisons</p>
         </div>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingZone(null); }}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingZone(null); form.reset(); } }}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />Nouvelle zone</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingZone ? "Modifier la zone" : "Créer une zone"}</DialogTitle>
             </DialogHeader>
@@ -201,58 +251,103 @@ export default function DeliveryZones() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nom *</FormLabel>
+                      <FormLabel>Nom de la zone *</FormLabel>
                       <FormControl><Input {...field} placeholder="Ex: Bamako Centre" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Pays</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormLabel>Pays *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un pays" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Mali">Mali</SelectItem>
+                          <SelectItem value="Côte d'Ivoire">Côte d'Ivoire</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="center_lat"
+                    name="city"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Latitude *</FormLabel>
-                        <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                        <FormLabel>Ville</FormLabel>
+                        <FormControl><Input {...field} placeholder="Ex: Bamako" /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="center_lng"
+                    name="commune"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Longitude *</FormLabel>
-                        <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                        <FormLabel>Commune</FormLabel>
+                        <FormControl><Input {...field} placeholder="Ex: Commune III" /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="google_maps_link"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <LinkIcon className="h-4 w-4" />
+                        Lien Google Maps (centre de la zone)
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="https://maps.app.goo.gl/..." />
+                      </FormControl>
+                      <FormDescription>
+                        Collez le lien de partage Google Maps pour définir le centre de la zone
+                      </FormDescription>
+                      {extractedCoords && (
+                        <p className="text-xs text-primary flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          Coordonnées détectées : {extractedCoords.lat.toFixed(4)}, {extractedCoords.lng.toFixed(4)}
+                        </p>
+                      )}
+                      {googleMapsLinkValue && !extractedCoords && (
+                        <p className="text-xs text-destructive">
+                          Impossible d'extraire les coordonnées de ce lien
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="radius_km"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Rayon (km) *</FormLabel>
+                      <FormLabel>Rayon de couverture (km) *</FormLabel>
                       <FormControl><Input type="number" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="tags"
@@ -264,6 +359,7 @@ export default function DeliveryZones() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="is_active"
@@ -276,6 +372,7 @@ export default function DeliveryZones() {
                     </FormItem>
                   )}
                 />
+                
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">
                     Annuler
@@ -324,7 +421,11 @@ export default function DeliveryZones() {
                       <MapPin className="h-4 w-4" />
                       {zone.name}
                     </CardTitle>
-                    <CardDescription>{zone.country}</CardDescription>
+                    <CardDescription>
+                      {zone.city && zone.commune 
+                        ? `${zone.commune}, ${zone.city}` 
+                        : zone.city || zone.commune || zone.country}
+                    </CardDescription>
                   </div>
                   <Badge variant={zone.is_active ? "default" : "secondary"}>
                     {zone.is_active ? "Active" : "Inactive"}
@@ -334,10 +435,7 @@ export default function DeliveryZones() {
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Lat:</span> {zone.center_lat}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Lng:</span> {zone.center_lng}
+                    <span className="text-muted-foreground">Pays:</span> {zone.country}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Rayon:</span> {zone.radius_km} km
@@ -346,10 +444,23 @@ export default function DeliveryZones() {
                     <Users className="h-3 w-3 text-muted-foreground" />
                     <span>{driverCounts[zone.id] || 0} livreurs</span>
                   </div>
+                  <div>
+                    <span className="text-muted-foreground">Boutiques:</span> {shopCounts[zone.id] || 0}
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Boutiques:</span> {shopCounts[zone.id] || 0}
-                </div>
+                
+                {zone.google_maps_link && (
+                  <a 
+                    href={zone.google_maps_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <LinkIcon className="h-3 w-3" />
+                    Voir sur Google Maps
+                  </a>
+                )}
+                
                 {zone.tags && zone.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {zone.tags.map((tag: string) => (

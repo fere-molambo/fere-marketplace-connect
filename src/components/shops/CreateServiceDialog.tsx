@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ProductMediaUpload } from "./ProductMediaUpload";
+import { VendorNetAmountDisplay } from "./VendorNetAmountDisplay";
 import { WeeklyAvailabilityManager, WeeklyAvailability } from "./WeeklyAvailabilityManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -250,6 +251,17 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
                 required
               />
             </div>
+
+            {price && parseFloat(price) > 0 && (
+              <div className="col-span-2">
+                <VendorNetAmountDisplay
+                  price={price}
+                  priceType={priceType}
+                  minAutoPrice={minAutoPrice}
+                  isService={true}
+                />
+              </div>
+            )}
 
             {priceType === "negoce" && (
               <>

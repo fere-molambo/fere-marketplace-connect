@@ -588,22 +588,6 @@ function TaxAndCommissionsSection({ settings, onUpdate }: { settings: any; onUpd
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* TVA */}
-        <div className="space-y-2">
-          <Label htmlFor="tva_rate">Taux de TVA (%)</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              id="tva_rate"
-              type="number"
-              min="0"
-              max="100"
-              className="w-32"
-              defaultValue={settings?.tva_rate || 18}
-              onBlur={(e) => onUpdate("tva_rate", e.target.value)}
-            />
-            <span className="text-muted-foreground">%</span>
-          </div>
-        </div>
 
         {/* Commissions produits */}
         <div className="space-y-3">

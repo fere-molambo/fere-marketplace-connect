@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductMediaUpload } from "./ProductMediaUpload";
+import { VendorNetAmountDisplay } from "./VendorNetAmountDisplay";
 import { WeeklyAvailabilityManager, WeeklyAvailability } from "./WeeklyAvailabilityManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -301,6 +302,17 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
                 placeholder="5000"
               />
             </div>
+
+            {price && parseFloat(price) > 0 && (
+              <div className="col-span-2">
+                <VendorNetAmountDisplay
+                  price={price}
+                  priceType={priceType}
+                  minAutoPrice={minAutoPrice}
+                  isService={true}
+                />
+              </div>
+            )}
 
             {priceType === "negoce" && (
               <>

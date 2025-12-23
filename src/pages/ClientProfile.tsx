@@ -341,10 +341,12 @@ export default function ClientProfile() {
               <CreditCard className="h-4 w-4" />
               Identité
             </TabsTrigger>
-            <TabsTrigger value="orders" className="gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              Commandes
-            </TabsTrigger>
+            {!isLivreur && (
+              <TabsTrigger value="orders" className="gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                Commandes
+              </TabsTrigger>
+            )}
             {isLivreur && (
               <>
                 <TabsTrigger value="driver" className="gap-2">

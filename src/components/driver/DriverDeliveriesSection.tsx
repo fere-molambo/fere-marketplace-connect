@@ -16,24 +16,67 @@ interface DriverDeliveriesSectionProps {
 export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps) {
   const queryClient = useQueryClient();
 
-  // Fetch delivery requests for driver
-  const { data: deliveryRequests = [], isLoading } = useQuery({
-    queryKey: ["driver-delivery-requests", userId],
+  // Fetch driver's active zones
+  const { data: driverZones = [] } = useQuery({
+    queryKey: ["driver-zones-active", userId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("delivery_requests")
-        .select(`
-          *,
-          delivery_zones (name, city)
-        `)
-        .or(`driver_id.eq.${userId},and(status.eq.pending,zone_id.in.(select zone_id from driver_zones where driver_id = '${userId}' and is_active = true))`)
-        .order("created_at", { ascending: false });
-      
+        .from("driver_zones")
+        .select("zone_id")
+        .eq("driver_id", userId)
+        .eq("is_active", true);
       if (error) throw error;
-      return data;
+      return data.map(z => z.zone_id);
     },
     enabled: !!userId,
   });
+
+  // Fetch pending deliveries in driver's zones (available to accept)
+  const { data: pendingDeliveries = [], isLoading: isLoadingPending } = useQuery({
+    queryKey: ["pending-deliveries", userId, driverZones],
+    queryFn: async () => {
+      if (driverZones.length === 0) {
+        // Also fetch deliveries with null zone (generic requests)
+        const { data, error } = await supabase
+          .from("delivery_requests")
+          .select(`*, delivery_zones (name, city)`)
+          .eq("status", "pending")
+          .is("zone_id", null)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data || [];
+      }
+      
+      // Fetch pending deliveries in driver's zones OR with null zone_id
+      const { data, error } = await supabase
+        .from("delivery_requests")
+        .select(`*, delivery_zones (name, city)`)
+        .eq("status", "pending")
+        .or(`zone_id.in.(${driverZones.join(",")}),zone_id.is.null`)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!userId,
+  });
+
+  // Fetch driver's assigned deliveries
+  const { data: myDeliveries = [], isLoading: isLoadingMine } = useQuery({
+    queryKey: ["my-deliveries", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("delivery_requests")
+        .select(`*, delivery_zones (name, city)`)
+        .eq("driver_id", userId)
+        .neq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!userId,
+  });
+
+  const isLoading = isLoadingPending || isLoadingMine;
 
   // Accept delivery mutation
   const acceptDelivery = useMutation({
@@ -134,9 +177,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     }
   };
 
-  // Separate deliveries
-  const pendingDeliveries = deliveryRequests.filter(d => d.status === "pending" && d.driver_id !== userId);
-  const myDeliveries = deliveryRequests.filter(d => d.driver_id === userId);
+  // Deliveries are now already separated by the queries above
 
   if (isLoading) {
     return (

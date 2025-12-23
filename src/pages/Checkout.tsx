@@ -204,32 +204,76 @@ export default function Checkout() {
 
       if (itemsError) throw itemsError;
 
-      // Create delivery requests for each zone if delivery is selected
-      if (deliveryType === "delivery" && deliveryZones.length > 0 && selectedAddress) {
-        const deliveryRequests = deliveryZones.map(zone => ({
-          order_id: order.id,
-          zone_id: zone.zone_id,
-          status: "pending",
-          pickup_points: zone.vendors,
-          delivery_point: {
-            lat: selectedAddress.geolocation_lat,
-            lng: selectedAddress.geolocation_lng,
-            address: selectedAddress.address,
-            recipient_name: selectedAddress.recipient_name || user.user_metadata?.nom_complet,
-            recipient_phone: selectedAddress.recipient_phone
-          },
-          total_distance_meters: zone.total_distance_meters,
-          delivery_fee: zone.delivery_fee,
-          driver_earnings: zone.driver_earnings
-        }));
+      // Create delivery requests for delivery orders
+      if (deliveryType === "delivery" && selectedAddress) {
+        // If we have calculated zones, use them; otherwise create a generic request
+        if (deliveryZones.length > 0) {
+          const deliveryRequests = deliveryZones.map(zone => ({
+            order_id: order.id,
+            zone_id: zone.zone_id,
+            status: "pending",
+            pickup_points: zone.vendors,
+            delivery_point: {
+              lat: selectedAddress.geolocation_lat,
+              lng: selectedAddress.geolocation_lng,
+              address: selectedAddress.address,
+              recipient_name: selectedAddress.recipient_name || user.user_metadata?.nom_complet,
+              recipient_phone: selectedAddress.recipient_phone
+            },
+            total_distance_meters: zone.total_distance_meters,
+            delivery_fee: zone.delivery_fee,
+            driver_earnings: zone.driver_earnings
+          }));
 
-        const { error: deliveryError } = await supabase
-          .from("delivery_requests")
-          .insert(deliveryRequests);
+          const { error: deliveryError } = await supabase
+            .from("delivery_requests")
+            .insert(deliveryRequests);
 
-        if (deliveryError) {
-          console.error("Error creating delivery requests:", deliveryError);
-          // Don't throw - order is created, delivery requests can be retried
+          if (deliveryError) {
+            console.error("Error creating delivery requests:", deliveryError);
+          }
+        } else {
+          // No zones calculated - create a generic delivery request with base fee
+          const baseFee = platformSettings?.delivery_base_fee || 500;
+          const driverEarnings = Math.round(baseFee * (1 - (platformSettings?.delivery_commission_fere || 20) / 100));
+          
+          // Build pickup points from cart items
+          const uniqueShopsList = [...new Map(items.map(item => [
+            item.product.shops.id,
+            {
+              shop_id: item.product.shops.id,
+              shop_name: item.product.shops.name,
+              lat: item.product.shops.geolocation_lat || selectedAddress.geolocation_lat || 0,
+              lng: item.product.shops.geolocation_lng || selectedAddress.geolocation_lng || 0,
+              address: item.product.shops.address || '',
+              pickup_order: 1,
+              distance_to_next: 0,
+              is_approximated: !item.product.shops.geolocation_lat
+            }
+          ])).values()];
+
+          const { error: deliveryError } = await supabase
+            .from("delivery_requests")
+            .insert({
+              order_id: order.id,
+              zone_id: null,
+              status: "pending",
+              pickup_points: uniqueShopsList,
+              delivery_point: {
+                lat: selectedAddress.geolocation_lat,
+                lng: selectedAddress.geolocation_lng,
+                address: selectedAddress.address,
+                recipient_name: selectedAddress.recipient_name || user.user_metadata?.nom_complet,
+                recipient_phone: selectedAddress.recipient_phone
+              },
+              total_distance_meters: 3000, // Default 3km estimate
+              delivery_fee: baseFee,
+              driver_earnings: driverEarnings
+            });
+
+          if (deliveryError) {
+            console.error("Error creating generic delivery request:", deliveryError);
+          }
         }
       }
 

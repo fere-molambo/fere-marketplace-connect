@@ -4,11 +4,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/contexts/CartContext";
+import { useDeliveryCalculation } from "@/hooks/useDeliveryCalculation";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { DeliveryTypeSelector } from "@/components/checkout/DeliveryTypeSelector";
@@ -44,16 +44,23 @@ export default function Checkout() {
     }
   }, [items, authLoading, navigate]);
 
-  // Fetch platform settings
+  // Fetch platform settings with new delivery fields
   const { data: platformSettings } = useQuery({
     queryKey: ["platform-settings-checkout"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings")
-        .select("tva_rate, delivery_base_fee, delivery_fee_per_500m")
+        .select("tva_rate, delivery_base_fee, delivery_fee_per_100m, delivery_discount_per_km, delivery_commission_fere, delivery_commission_driver")
         .single();
       if (error) throw error;
-      return data;
+      return data as {
+        tva_rate: number;
+        delivery_base_fee: number;
+        delivery_fee_per_100m: number;
+        delivery_discount_per_km: number;
+        delivery_commission_fere: number;
+        delivery_commission_driver: number;
+      };
     },
   });
 
@@ -69,19 +76,53 @@ export default function Checkout() {
     },
   });
 
+  // Fetch selected delivery address
+  const { data: selectedAddress } = useQuery({
+    queryKey: ["delivery-address", selectedAddressId],
+    queryFn: async () => {
+      if (!selectedAddressId) return null;
+      const { data, error } = await supabase
+        .from("delivery_addresses")
+        .select("*")
+        .eq("id", selectedAddressId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedAddressId,
+  });
+
   // Get unique shops in cart
   const uniqueShops = [...new Set(items.map(item => item.product.shops.id))];
   const isMultiVendor = uniqueShops.length > 1;
   const singleShop = !isMultiVendor ? items[0]?.product.shops : null;
 
-  // Calculate delivery fee
-  const calculateDeliveryFee = (distanceMeters: number = 0) => {
-    if (deliveryType === "pickup") return 0;
-    const baseFee = platformSettings?.delivery_base_fee || 1000;
-    const per500m = platformSettings?.delivery_fee_per_500m || 500;
-    const intervals = Math.floor(distanceMeters / 500);
-    return baseFee + (intervals * per500m);
-  };
+  // Use the new delivery calculation hook
+  const clientCoordinates = selectedAddress?.geolocation_lat && selectedAddress?.geolocation_lng
+    ? { lat: selectedAddress.geolocation_lat, lng: selectedAddress.geolocation_lng }
+    : null;
+
+  const deliverySettings = platformSettings ? {
+    delivery_base_fee: platformSettings.delivery_base_fee || 500,
+    delivery_fee_per_100m: platformSettings.delivery_fee_per_100m || 100,
+    delivery_discount_per_km: platformSettings.delivery_discount_per_km || 5,
+    delivery_commission_fere: platformSettings.delivery_commission_fere || 20,
+    delivery_commission_driver: platformSettings.delivery_commission_driver || 80,
+  } : null;
+
+  const { 
+    zones: deliveryZones, 
+    totalDeliveryFee, 
+    isLoading: isCalculatingDelivery 
+  } = useDeliveryCalculation(
+    items,
+    clientCoordinates,
+    deliveryType,
+    deliverySettings
+  );
+
+  // Calculate delivery fee (use calculated or fallback)
+  const deliveryFee = deliveryType === "pickup" ? 0 : totalDeliveryFee || (platformSettings?.delivery_base_fee || 500);
 
   // Calculate commission for a product
   const getCommissionRate = (categoryId: string | null | undefined): number => {
@@ -104,7 +145,6 @@ export default function Checkout() {
     return sum + Math.round(item.totalPrice * rate);
   }, 0);
   
-  const deliveryFee = calculateDeliveryFee(0); // TODO: Calculate actual distance
   const totalTTC = subtotal + tvaAmount + commissionAmount + deliveryFee;
   const advanceAmount = Math.round(totalTTC * (advancePercent / 100));
   const remainingAmount = totalTTC - advanceAmount;
@@ -163,6 +203,35 @@ export default function Checkout() {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Create delivery requests for each zone if delivery is selected
+      if (deliveryType === "delivery" && deliveryZones.length > 0 && selectedAddress) {
+        const deliveryRequests = deliveryZones.map(zone => ({
+          order_id: order.id,
+          zone_id: zone.zone_id,
+          status: "pending",
+          pickup_points: zone.vendors,
+          delivery_point: {
+            lat: selectedAddress.geolocation_lat,
+            lng: selectedAddress.geolocation_lng,
+            address: selectedAddress.address,
+            recipient_name: selectedAddress.recipient_name || user.user_metadata?.nom_complet,
+            recipient_phone: selectedAddress.recipient_phone
+          },
+          total_distance_meters: zone.total_distance_meters,
+          delivery_fee: zone.delivery_fee,
+          driver_earnings: zone.driver_earnings
+        }));
+
+        const { error: deliveryError } = await supabase
+          .from("delivery_requests")
+          .insert(deliveryRequests);
+
+        if (deliveryError) {
+          console.error("Error creating delivery requests:", deliveryError);
+          // Don't throw - order is created, delivery requests can be retried
+        }
+      }
 
       return order;
     },
@@ -262,11 +331,26 @@ export default function Checkout() {
                 )}
 
                 {deliveryType === "delivery" && user && (
-                  <DeliveryAddressSelector
-                    userId={user.id}
-                    selectedAddressId={selectedAddressId}
-                    onSelect={setSelectedAddressId}
-                  />
+                  <>
+                    <DeliveryAddressSelector
+                      userId={user.id}
+                      selectedAddressId={selectedAddressId}
+                      onSelect={setSelectedAddressId}
+                    />
+                    {isCalculatingDelivery && (
+                      <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Calcul des frais de livraison...
+                      </div>
+                    )}
+                    {deliveryZones.length > 1 && (
+                      <div className="mt-4 p-3 bg-muted rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          {deliveryZones.length} courses de livraison (vendeurs dans différentes zones)
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -310,7 +394,7 @@ export default function Checkout() {
                 remainingAmount={remainingAmount}
                 paymentMethod={paymentMethod}
                 onSubmit={handleSubmit}
-                isLoading={isCreatingOrder || createOrder.isPending}
+                isLoading={isCreatingOrder || createOrder.isPending || isCalculatingDelivery}
               />
             </div>
           </div>

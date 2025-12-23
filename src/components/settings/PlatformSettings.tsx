@@ -401,54 +401,92 @@ export const PlatformSettings = () => {
         <CardHeader>
           <CardTitle>Paramètres de livraison</CardTitle>
           <CardDescription>
-            Configurez les frais de livraison et commissions livreurs
+            Configurez les frais de livraison, réductions et commissions livreurs
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="delivery_base_fee">Frais de base (FCFA)</Label>
-              <Input
-                id="delivery_base_fee"
-                type="number"
-                min="0"
-                defaultValue={settings?.delivery_base_fee || 1000}
-                onBlur={(e) => handleTextUpdate("delivery_base_fee", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="delivery_fee_per_500m">Frais par 500m (FCFA)</Label>
-              <Input
-                id="delivery_fee_per_500m"
-                type="number"
-                min="0"
-                defaultValue={settings?.delivery_fee_per_500m || 500}
-                onBlur={(e) => handleTextUpdate("delivery_fee_per_500m", e.target.value)}
-              />
+        <CardContent className="space-y-6">
+          {/* Frais de base et par distance */}
+          <div>
+            <h4 className="text-sm font-medium mb-3">Tarification</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="delivery_base_fee">Frais minimum (FCFA)</Label>
+                <Input
+                  id="delivery_base_fee"
+                  type="number"
+                  min="0"
+                  defaultValue={settings?.delivery_base_fee || 500}
+                  onBlur={(e) => handleTextUpdate("delivery_base_fee", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Montant minimum facturé par livraison</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delivery_fee_per_100m">Prix par 100m (FCFA)</Label>
+                <Input
+                  id="delivery_fee_per_100m"
+                  type="number"
+                  min="0"
+                  defaultValue={(settings as any)?.delivery_fee_per_100m || 100}
+                  onBlur={(e) => handleTextUpdate("delivery_fee_per_100m", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Montant ajouté pour chaque 100m de distance</p>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="delivery_commission_fere">Commission Fere (%)</Label>
-              <Input
-                id="delivery_commission_fere"
-                type="number"
-                min="0"
-                max="100"
-                defaultValue={settings?.delivery_commission_fere || 15}
-                onBlur={(e) => handleTextUpdate("delivery_commission_fere", e.target.value)}
-              />
+
+          {/* Réduction progressive */}
+          <div>
+            <h4 className="text-sm font-medium mb-3">Réduction pour longues distances</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="delivery_discount_per_km">Réduction par km (%)</Label>
+                <Input
+                  id="delivery_discount_per_km"
+                  type="number"
+                  min="0"
+                  max="20"
+                  defaultValue={(settings as any)?.delivery_discount_per_km || 5}
+                  onBlur={(e) => handleTextUpdate("delivery_discount_per_km", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Réduction appliquée pour chaque km complet (max 50%)</p>
+              </div>
+              <div className="space-y-2 flex items-end">
+                <div className="bg-muted p-3 rounded-lg text-sm">
+                  <p className="text-muted-foreground">Exemple : 2km à 100 FCFA/100m</p>
+                  <p className="font-medium">= 2000 FCFA - 10% = 1800 FCFA</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="delivery_commission_driver">Commission Livreur (%)</Label>
-              <Input
-                id="delivery_commission_driver"
-                type="number"
-                min="0"
-                max="100"
-                defaultValue={settings?.delivery_commission_driver || 85}
-                onBlur={(e) => handleTextUpdate("delivery_commission_driver", e.target.value)}
-              />
+          </div>
+
+          {/* Commissions */}
+          <div>
+            <h4 className="text-sm font-medium mb-3">Répartition des frais</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="delivery_commission_fere">Commission Fere (%)</Label>
+                <Input
+                  id="delivery_commission_fere"
+                  type="number"
+                  min="0"
+                  max="100"
+                  defaultValue={settings?.delivery_commission_fere || 20}
+                  onBlur={(e) => handleTextUpdate("delivery_commission_fere", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Part de Fere sur les frais de livraison</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delivery_commission_driver">Commission Livreur (%)</Label>
+                <Input
+                  id="delivery_commission_driver"
+                  type="number"
+                  min="0"
+                  max="100"
+                  defaultValue={settings?.delivery_commission_driver || 80}
+                  onBlur={(e) => handleTextUpdate("delivery_commission_driver", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Part du livreur sur les frais de livraison</p>
+              </div>
             </div>
           </div>
         </CardContent>

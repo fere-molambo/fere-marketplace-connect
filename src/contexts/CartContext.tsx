@@ -16,6 +16,10 @@ export interface CartProduct {
     id: string;
     name: string;
     logo_url: string | null;
+    delivery_zone_id?: string | null;
+    geolocation_lat?: number | null;
+    geolocation_lng?: number | null;
+    address?: string | null;
   };
 }
 

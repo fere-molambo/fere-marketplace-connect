@@ -13,7 +13,7 @@ export function MultiVendorWarning({ shopCount }: MultiVendorWarningProps) {
       <AlertDescription>
         Votre panier contient des produits de {shopCount} boutiques différentes. 
         Chaque vendeur recevra sa partie de la commande et les livraisons seront effectuées séparément.
-        Pour un retrait en boutique, les produits doivent être disponibles dans un entrepôt Fere.
+        Pour un retrait en boutique, vous pourrez récupérer vos produits dans chaque boutique concernée.
       </AlertDescription>
     </Alert>
   );

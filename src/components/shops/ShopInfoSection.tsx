@@ -30,6 +30,7 @@ const editShopSchema = z.object({
   shop_type: z.enum(["fournisseur", "prestataire", "les_deux"]),
   statut_legal: z.string().optional(),
   address: z.string().optional(),
+  google_maps_link: z.string().url("URL Google Maps invalide").optional().or(z.literal("")),
   contact_phone: z.string().optional(),
   contact_email: z.string().email("Email invalide").optional().or(z.literal("")),
   support_phone: z.string().optional(),
@@ -64,6 +65,7 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
       shop_type: shop.shop_type || "fournisseur",
       statut_legal: shop.statut_legal || "",
       address: shop.address || "",
+      google_maps_link: shop.google_maps_link || "",
       contact_phone: shop.contact_phone || "",
       contact_email: shop.contact_email || "",
       support_phone: shop.support_phone || "",
@@ -76,6 +78,18 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
 
   const onSubmit = async (data: EditShopFormData) => {
     try {
+      // Extract coordinates from Google Maps link if provided
+      let lat: number | null = shop.geolocation_lat;
+      let lng: number | null = shop.geolocation_lng;
+      
+      if (data.google_maps_link) {
+        const coordsMatch = data.google_maps_link.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+        if (coordsMatch) {
+          lat = parseFloat(coordsMatch[1]);
+          lng = parseFloat(coordsMatch[2]);
+        }
+      }
+
       const { error } = await supabase
         .from("shops")
         .update({
@@ -84,6 +98,9 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
           shop_type: data.shop_type,
           statut_legal: data.statut_legal || null,
           address: data.address || null,
+          google_maps_link: data.google_maps_link || null,
+          geolocation_lat: lat,
+          geolocation_lng: lng,
           contact_phone: data.contact_phone || null,
           contact_email: data.contact_email || null,
           support_phone: data.support_phone || null,
@@ -271,6 +288,23 @@ export const ShopInfoSection = ({ shop, onUpdate }: ShopInfoSectionProps) => {
                   <FormControl>
                     <Input placeholder="+223 XX XX XX XX" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="google_maps_link"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Lien Google Maps</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://www.google.com/maps/place/..." {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Copiez le lien Google Maps de votre boutique. Les coordonnées seront extraites automatiquement.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

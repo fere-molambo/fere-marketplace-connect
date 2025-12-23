@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag } from "lucide-react";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
+import { ClientOrderDetailSheet } from "@/components/orders/ClientOrderDetailSheet";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
@@ -27,6 +28,7 @@ export default function ClientProfile() {
   const [isLocating, setIsLocating] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,7 +48,7 @@ export default function ClientProfile() {
     enabled: !!user?.id,
   });
 
-  // Fetch user orders
+  // Fetch user orders with more details
   const { data: orders = [] } = useQuery({
     queryKey: ["client-orders", user?.id],
     queryFn: async () => {
@@ -55,10 +57,12 @@ export default function ClientProfile() {
         .from("orders")
         .select(`
           *,
+          delivery_addresses (*),
           order_items (
             id,
             quantity,
             total_price,
+            shop_id,
             product:products!product_id (name, main_media_url)
           )
         `)
@@ -606,9 +610,9 @@ export default function ClientProfile() {
                       {orders.map((order: any) => (
                         <div
                           key={order.id}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                         >
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium">Commande #{order.order_number}</p>
                             <p className="text-sm text-muted-foreground">
                               {format(new Date(order.created_at), "dd MMM yyyy", { locale: fr })}
@@ -623,6 +627,14 @@ export default function ClientProfile() {
                             </span>
                             <OrderStatusBadge status={order.status} />
                             <PaymentStatusBadge status={order.payment_status} />
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setSelectedOrder(order)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Détails
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -677,6 +689,13 @@ export default function ClientProfile() {
       </main>
 
       <Footer />
+
+      {/* Order Detail Sheet */}
+      <ClientOrderDetailSheet 
+        order={selectedOrder} 
+        open={!!selectedOrder} 
+        onOpenChange={(open) => !open && setSelectedOrder(null)} 
+      />
     </div>
   );
 }

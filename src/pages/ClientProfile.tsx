@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
@@ -13,17 +14,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag, Truck } from "lucide-react";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { ClientOrderDetailSheet } from "@/components/orders/ClientOrderDetailSheet";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
+import { DriverProfileSection } from "@/components/driver/DriverProfileSection";
+import { DriverDeliveriesSection } from "@/components/driver/DriverDeliveriesSection";
 
 export default function ClientProfile() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { isLivreur } = useUserRoles();
   const queryClient = useQueryClient();
   const [isLocating, setIsLocating] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -320,16 +325,18 @@ export default function ClientProfile() {
           </div>
         </div>
 
-        <Tabs defaultValue="personal" className="space-y-6">
+        <Tabs defaultValue={searchParams.get("tab") || "personal"} className="space-y-6">
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="personal" className="gap-2">
               <User className="h-4 w-4" />
               Informations
             </TabsTrigger>
-            <TabsTrigger value="addresses" className="gap-2">
-              <MapPin className="h-4 w-4" />
-              Adresses
-            </TabsTrigger>
+            {!isLivreur && (
+              <TabsTrigger value="addresses" className="gap-2">
+                <MapPin className="h-4 w-4" />
+                Adresses
+              </TabsTrigger>
+            )}
             <TabsTrigger value="identity" className="gap-2">
               <CreditCard className="h-4 w-4" />
               Identité
@@ -338,6 +345,18 @@ export default function ClientProfile() {
               <ShoppingBag className="h-4 w-4" />
               Commandes
             </TabsTrigger>
+            {isLivreur && (
+              <>
+                <TabsTrigger value="driver" className="gap-2">
+                  <Truck className="h-4 w-4" />
+                  Livreur
+                </TabsTrigger>
+                <TabsTrigger value="deliveries" className="gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Livraisons
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* Personal Information Tab */}
@@ -685,6 +704,24 @@ export default function ClientProfile() {
               </Card>
             </div>
           </TabsContent>
+
+          {/* Driver Profile Tab */}
+          {isLivreur && (
+            <TabsContent value="driver">
+              <DriverProfileSection 
+                userId={user.id} 
+                profile={profile}
+                onUpdateProfile={(updates) => updateProfile.mutate(updates)}
+              />
+            </TabsContent>
+          )}
+
+          {/* Driver Deliveries Tab */}
+          {isLivreur && (
+            <TabsContent value="deliveries">
+              <DriverDeliveriesSection userId={user.id} />
+            </TabsContent>
+          )}
         </Tabs>
       </main>
 

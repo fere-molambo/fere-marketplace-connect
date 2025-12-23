@@ -326,8 +326,22 @@ export default function Checkout() {
                   deliveryFee={deliveryFee}
                 />
 
-                {deliveryType === "pickup" && singleShop && (
-                  <ShopPickupInfo shop={singleShop} />
+                {deliveryType === "pickup" && (
+                  <ShopPickupInfo 
+                    shops={items.map(item => ({
+                      id: item.product.shops.id,
+                      name: item.product.shops.name,
+                      address: item.product.shops.address || undefined,
+                      google_maps_link: (item.product.shops as any).google_maps_link || undefined,
+                      geolocation_lat: item.product.shops.geolocation_lat ?? undefined,
+                      geolocation_lng: item.product.shops.geolocation_lng ?? undefined,
+                      opening_time: (item.product.shops as any).opening_time || undefined,
+                      closing_time: (item.product.shops as any).closing_time || undefined,
+                      support_phone: (item.product.shops as any).support_phone || undefined,
+                    })).filter((shop, index, self) => 
+                      index === self.findIndex(s => s.id === shop.id)
+                    )}
+                  />
                 )}
 
                 {deliveryType === "delivery" && user && (

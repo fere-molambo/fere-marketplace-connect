@@ -29,64 +29,52 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    if (!apiKey) {
-      throw new Error('GOOGLE_MAPS_API_KEY not configured');
-    }
-
     const { origins, destinations }: DistanceRequest = await req.json();
 
     if (!origins || !destinations || origins.length === 0 || destinations.length === 0) {
       throw new Error('Origins and destinations are required');
     }
 
-    // Format coordinates for Google Maps API
-    const originsStr = origins.map(p => `${p.lat},${p.lng}`).join('|');
-    const destinationsStr = destinations.map(p => `${p.lat},${p.lng}`).join('|');
-
     console.log(`Calculating distances for ${origins.length} origins and ${destinations.length} destinations`);
 
-    // Call Google Maps Distance Matrix API
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(originsStr)}&destinations=${encodeURIComponent(destinationsStr)}&mode=driving&key=${apiKey}`;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-
-    console.log('Google Maps API response status:', data.status);
-
-    if (data.status !== 'OK') {
-      console.error('Google Maps API error:', data);
-      throw new Error(`Google Maps API error: ${data.status} - ${data.error_message || 'Unknown error'}`);
-    }
-
-    // Parse results into a flat array
     const results: DistanceResult[] = [];
-    
-    for (let i = 0; i < data.rows.length; i++) {
-      const row = data.rows[i];
-      for (let j = 0; j < row.elements.length; j++) {
-        const element = row.elements[j];
-        
-        if (element.status === 'OK') {
+
+    // Try OSRM first (free, no API key needed)
+    for (let i = 0; i < origins.length; i++) {
+      for (let j = 0; j < destinations.length; j++) {
+        try {
+          const osrmResult = await calculateOSRMDistance(origins[i], destinations[j]);
           results.push({
             origin_index: i,
             destination_index: j,
-            distance_meters: element.distance.value,
-            duration_seconds: element.duration.value,
+            distance_meters: osrmResult.distance,
+            duration_seconds: osrmResult.duration,
           });
-        } else {
-          console.warn(`No route found for origin ${i} to destination ${j}: ${element.status}`);
-          // Use straight-line distance as fallback with 1.3x factor
-          const straightDistance = calculateHaversineDistance(
-            origins[i].lat, origins[i].lng,
-            destinations[j].lat, destinations[j].lng
-          );
-          results.push({
-            origin_index: i,
-            destination_index: j,
-            distance_meters: Math.round(straightDistance * 1.3), // Approximate road distance
-            duration_seconds: Math.round((straightDistance * 1.3) / 500 * 60), // Approximate 30 km/h
-          });
+        } catch (osrmError) {
+          console.warn(`OSRM failed for ${i}->${j}, trying Google Maps fallback:`, osrmError);
+          
+          // Fallback to Google Maps API if available
+          const googleResult = await tryGoogleMapsDistance(origins[i], destinations[j]);
+          if (googleResult) {
+            results.push({
+              origin_index: i,
+              destination_index: j,
+              distance_meters: googleResult.distance,
+              duration_seconds: googleResult.duration,
+            });
+          } else {
+            // Final fallback: Haversine with road factor
+            const straightDistance = calculateHaversineDistance(
+              origins[i].lat, origins[i].lng,
+              destinations[j].lat, destinations[j].lng
+            );
+            results.push({
+              origin_index: i,
+              destination_index: j,
+              distance_meters: Math.round(straightDistance * 1.4), // Road factor
+              duration_seconds: Math.round((straightDistance * 1.4) / 500 * 60), // ~30 km/h average
+            });
+          }
         }
       }
     }
@@ -96,7 +84,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       results,
-      api_status: data.status 
+      provider: 'osrm_with_fallback'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -113,6 +101,55 @@ serve(async (req) => {
     });
   }
 });
+
+// OSRM distance calculation (free, public API)
+async function calculateOSRMDistance(
+  origin: DistancePoint, 
+  destination: DistancePoint
+): Promise<{ distance: number; duration: number }> {
+  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=false`;
+  
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+    throw new Error(`OSRM error: ${data.code || 'No route found'}`);
+  }
+  
+  const route = data.routes[0];
+  return {
+    distance: Math.round(route.distance), // meters
+    duration: Math.round(route.duration), // seconds
+  };
+}
+
+// Google Maps fallback (if API key is configured)
+async function tryGoogleMapsDistance(
+  origin: DistancePoint, 
+  destination: DistancePoint
+): Promise<{ distance: number; duration: number } | null> {
+  const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+  if (!apiKey) return null;
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${destination.lat},${destination.lng}&mode=driving&key=${apiKey}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.rows[0]?.elements[0]?.status === 'OK') {
+      const element = data.rows[0].elements[0];
+      return {
+        distance: element.distance.value,
+        duration: element.duration.value,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('Google Maps API failed:', error);
+    return null;
+  }
+}
 
 // Haversine formula for fallback distance calculation
 function calculateHaversineDistance(

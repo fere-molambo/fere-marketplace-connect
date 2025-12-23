@@ -35,7 +35,7 @@ export async function calculateDistances(
  * Calculate delivery fee based on distance with progressive discount
  * 
  * Formula:
- * - Base calculation: ceil(distance / 100) * feePerInterval
+ * - Base calculation: ceil(distance / 1000) * feePerKm
  * - Apply discount for each complete km: (1 - (km * discountPercent / 100))
  * - Minimum fee is always applied
  */
@@ -43,20 +43,19 @@ export function calculateDeliveryFee(
   distanceMeters: number,
   settings: {
     delivery_base_fee: number;
-    delivery_fee_per_100m: number;
+    delivery_fee_per_km: number;
     delivery_discount_per_km: number;
   }
 ): number {
-  const { delivery_base_fee, delivery_fee_per_100m, delivery_discount_per_km } = settings;
+  const { delivery_base_fee, delivery_fee_per_km, delivery_discount_per_km } = settings;
   
-  // Calculate base fee from intervals
-  const intervals = Math.ceil(distanceMeters / 100);
-  let calculatedFee = intervals * delivery_fee_per_100m;
+  // Calculate fee based on kilometers
+  const km = Math.ceil(distanceMeters / 1000);
+  let calculatedFee = km * delivery_fee_per_km;
   
-  // Apply progressive discount per km
-  const completeKm = Math.floor(distanceMeters / 1000);
-  if (completeKm > 0 && delivery_discount_per_km > 0) {
-    const totalDiscount = Math.min(completeKm * delivery_discount_per_km, 50); // Cap at 50%
+  // Apply progressive discount per km (cap at 50%)
+  if (km > 1 && delivery_discount_per_km > 0) {
+    const totalDiscount = Math.min((km - 1) * delivery_discount_per_km, 50);
     calculatedFee = calculatedFee * (1 - totalDiscount / 100);
   }
   

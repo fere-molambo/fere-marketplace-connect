@@ -421,15 +421,15 @@ export const PlatformSettings = () => {
                 <p className="text-xs text-muted-foreground">Montant minimum facturé par livraison</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="delivery_fee_per_100m">Prix par 100m (FCFA)</Label>
+                <Label htmlFor="delivery_fee_per_km">Prix par km (FCFA)</Label>
                 <Input
-                  id="delivery_fee_per_100m"
+                  id="delivery_fee_per_km"
                   type="number"
                   min="0"
-                  defaultValue={(settings as any)?.delivery_fee_per_100m || 100}
-                  onBlur={(e) => handleTextUpdate("delivery_fee_per_100m", e.target.value)}
+                  defaultValue={(settings as any)?.delivery_fee_per_km || 200}
+                  onBlur={(e) => handleTextUpdate("delivery_fee_per_km", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">Montant ajouté pour chaque 100m de distance</p>
+                <p className="text-xs text-muted-foreground">Montant ajouté pour chaque kilomètre de distance</p>
               </div>
             </div>
           </div>

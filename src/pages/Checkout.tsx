@@ -50,13 +50,13 @@ export default function Checkout() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings")
-        .select("tva_rate, delivery_base_fee, delivery_fee_per_100m, delivery_discount_per_km, delivery_commission_fere, delivery_commission_driver")
+        .select("tva_rate, delivery_base_fee, delivery_fee_per_km, delivery_discount_per_km, delivery_commission_fere, delivery_commission_driver")
         .single();
       if (error) throw error;
       return data as {
         tva_rate: number;
         delivery_base_fee: number;
-        delivery_fee_per_100m: number;
+        delivery_fee_per_km: number;
         delivery_discount_per_km: number;
         delivery_commission_fere: number;
         delivery_commission_driver: number;
@@ -104,7 +104,7 @@ export default function Checkout() {
 
   const deliverySettings = platformSettings ? {
     delivery_base_fee: platformSettings.delivery_base_fee || 500,
-    delivery_fee_per_100m: platformSettings.delivery_fee_per_100m || 100,
+    delivery_fee_per_km: platformSettings.delivery_fee_per_km || 200,
     delivery_discount_per_km: platformSettings.delivery_discount_per_km || 5,
     delivery_commission_fere: platformSettings.delivery_commission_fere || 20,
     delivery_commission_driver: platformSettings.delivery_commission_driver || 80,
@@ -113,7 +113,8 @@ export default function Checkout() {
   const { 
     zones: deliveryZones, 
     totalDeliveryFee, 
-    isLoading: isCalculatingDelivery 
+    isLoading: isCalculatingDelivery,
+    error: deliveryError
   } = useDeliveryCalculation(
     items,
     clientCoordinates,
@@ -452,7 +453,7 @@ export default function Checkout() {
                 remainingAmount={remainingAmount}
                 paymentMethod={paymentMethod}
                 onSubmit={handleSubmit}
-                isLoading={isCreatingOrder || createOrder.isPending || isCalculatingDelivery}
+                isLoading={isCreatingOrder || createOrder.isPending || (isCalculatingDelivery && !deliveryError)}
               />
             </div>
           </div>

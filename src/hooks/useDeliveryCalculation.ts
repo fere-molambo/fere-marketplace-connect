@@ -30,7 +30,7 @@ interface CartItem {
 
 interface DeliverySettings {
   delivery_base_fee: number;
-  delivery_fee_per_100m: number;
+  delivery_fee_per_km: number;
   delivery_discount_per_km: number;
   delivery_commission_driver: number;
   delivery_commission_fere: number;
@@ -165,12 +165,11 @@ export function useDeliveryCalculation(
                   is_approximated: true
                 };
               }
-              // For vendors without coordinates AND without zone center, use a default distance (3km)
-              // and client address as approximate location
+              // For vendors without coordinates AND without zone center, use fixed 3km distance
               return {
                 ...vendor,
-                lat: clientAddress.lat + (Math.random() * 0.01 - 0.005), // Small offset to differentiate
-                lng: clientAddress.lng + (Math.random() * 0.01 - 0.005),
+                lat: clientAddress.lat,
+                lng: clientAddress.lng,
                 is_approximated: true,
                 use_fixed_distance: true
               };
@@ -186,39 +185,60 @@ export function useDeliveryCalculation(
             clientAddress
           );
 
-          // Try to get real distances via API
+          // Calculate total distance
           let totalDistance = 0;
-          let useRealDistances = false;
           
-          try {
-            // Build list of all points for distance calculation
-            const allPoints = [
-              ...enrichedVendors.map(v => ({ lat: v.lat, lng: v.lng })),
-              clientAddress
-            ];
-            
-            // Calculate distances between consecutive points
-            const origins = allPoints.slice(0, -1);
-            const destinations = allPoints.slice(1);
-            
-            if (origins.length > 0 && destinations.length > 0) {
-              const distanceResults = await calculateDistances(origins, destinations);
-              
-              // Sum up the distances
-              distanceResults.forEach(result => {
-                totalDistance += result.distance_meters;
-              });
-              useRealDistances = true;
-            }
-          } catch (distError) {
-            console.warn('API distance calculation failed, using Haversine fallback:', distError);
-          }
-
-          // Fallback to Haversine if API failed
-          if (!useRealDistances) {
-            optimizedRoute.forEach(point => {
-              totalDistance += point.distanceToNext;
+          // Check if any vendor uses fixed distance
+          const hasFixedDistanceVendors = enrichedVendors.some((v: any) => v.use_fixed_distance);
+          
+          if (hasFixedDistanceVendors) {
+            // Use fixed 3km distance per vendor with missing coordinates
+            enrichedVendors.forEach((v: any) => {
+              if (v.use_fixed_distance) {
+                totalDistance += 3000; // 3km fixed
+              }
             });
+            // Add Haversine for vendors with real coordinates
+            const realVendors = enrichedVendors.filter((v: any) => !v.use_fixed_distance);
+            if (realVendors.length > 0) {
+              realVendors.forEach((v, idx) => {
+                const nextPoint = idx < realVendors.length - 1 
+                  ? realVendors[idx + 1] 
+                  : clientAddress;
+                totalDistance += calculateHaversineDistance(v.lat, v.lng, nextPoint.lat, nextPoint.lng) * 1.3;
+              });
+            }
+          } else {
+            // Try API distance calculation with timeout
+            try {
+              const allPoints = [
+                ...enrichedVendors.map(v => ({ lat: v.lat, lng: v.lng })),
+                clientAddress
+              ];
+              
+              const origins = allPoints.slice(0, -1);
+              const destinations = allPoints.slice(1);
+              
+              if (origins.length > 0 && destinations.length > 0) {
+                // Add timeout to API call
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout')), 5000)
+                );
+                
+                const distancePromise = calculateDistances(origins, destinations);
+                const distanceResults = await Promise.race([distancePromise, timeoutPromise]) as any[];
+                
+                distanceResults.forEach(result => {
+                  totalDistance += result.distance_meters;
+                });
+              }
+            } catch (distError) {
+              console.warn('API distance calculation failed, using Haversine fallback:', distError);
+              // Fallback to Haversine
+              optimizedRoute.forEach(point => {
+                totalDistance += point.distanceToNext;
+              });
+            }
           }
 
           const pickupPoints = optimizedRoute.map((point, index) => ({
@@ -235,7 +255,7 @@ export function useDeliveryCalculation(
           // Calculate delivery fee
           const deliveryFee = calculateDeliveryFee(totalDistance, {
             delivery_base_fee: settings.delivery_base_fee,
-            delivery_fee_per_100m: settings.delivery_fee_per_100m,
+            delivery_fee_per_km: settings.delivery_fee_per_km,
             delivery_discount_per_km: settings.delivery_discount_per_km
           });
 

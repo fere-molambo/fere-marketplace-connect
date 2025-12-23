@@ -925,6 +925,7 @@ export type Database = {
           delivery_discount_per_km: number | null
           delivery_fee_per_100m: number | null
           delivery_fee_per_500m: number | null
+          delivery_fee_per_km: number | null
           favicon: string | null
           hero_cards: Json | null
           id: string
@@ -960,6 +961,7 @@ export type Database = {
           delivery_discount_per_km?: number | null
           delivery_fee_per_100m?: number | null
           delivery_fee_per_500m?: number | null
+          delivery_fee_per_km?: number | null
           favicon?: string | null
           hero_cards?: Json | null
           id?: string
@@ -995,6 +997,7 @@ export type Database = {
           delivery_discount_per_km?: number | null
           delivery_fee_per_100m?: number | null
           delivery_fee_per_500m?: number | null
+          delivery_fee_per_km?: number | null
           favicon?: string | null
           hero_cards?: Json | null
           id?: string

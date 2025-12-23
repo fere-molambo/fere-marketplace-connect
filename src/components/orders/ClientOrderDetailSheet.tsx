@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { OrderTimeline } from "./OrderTimeline";
 import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -58,7 +59,10 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
 
   if (!order) return null;
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return "0 FCFA";
+    }
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
 
@@ -66,8 +70,8 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     const statusLabels: Record<string, { label: string; color: string }> = {
       pending: { label: "En attente d'un livreur", color: "bg-yellow-100 text-yellow-800" },
       assigned: { label: "Livreur assigné", color: "bg-blue-100 text-blue-800" },
-      in_progress: { label: "Collecte en cours", color: "bg-blue-100 text-blue-800" },
-      picked_up: { label: "Produits récupérés", color: "bg-purple-100 text-purple-800" },
+      in_progress: { label: "En route pour collecte", color: "bg-blue-100 text-blue-800" },
+      picked_up: { label: "Colis récupéré - En transit", color: "bg-purple-100 text-purple-800" },
       delivered: { label: "Livré", color: "bg-green-100 text-green-800" },
       cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
     };
@@ -115,10 +119,16 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
             </Badge>
           </div>
 
+          {/* Timeline de suivi */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Suivi de votre commande</h3>
+            <OrderTimeline status={order.status} />
+          </div>
+
           {/* Suivi de livraison */}
           {order.delivery_type === "delivery" && (
             <div>
-              <h3 className="text-sm font-semibold mb-2">Suivi de livraison</h3>
+              <h3 className="text-sm font-semibold mb-2">Détails de livraison</h3>
               <div className="rounded-lg bg-muted p-4 space-y-3">
                 {deliveryRequest ? (
                   <>
@@ -136,7 +146,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    La livraison sera préparée après validation de votre commande.
+                    La livraison sera préparée après confirmation de votre commande.
                   </p>
                 )}
                 
@@ -272,7 +282,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                 <span className="text-muted-foreground">Sous-total</span>
                 <span>{formatCurrency(order.subtotal)}</span>
               </div>
-              {order.delivery_fee > 0 && (
+              {(order.delivery_fee || 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frais de livraison</span>
                   <span>{formatCurrency(order.delivery_fee)}</span>

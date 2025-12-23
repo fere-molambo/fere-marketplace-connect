@@ -43,7 +43,8 @@ const ProductDetail = () => {
           *,
           shops (
             id, name, logo_url, is_official, contact_email, support_phone,
-            delivery_details, return_policy, guide_url, guide_name, owner_id
+            delivery_details, return_policy, guide_url, guide_name, owner_id,
+            delivery_zone_id, geolocation_lat, geolocation_lng, address
           ),
           product_categories!products_category_id_fkey (name),
           subcategory:product_categories!products_subcategory_id_fkey (name)
@@ -153,6 +154,10 @@ const ProductDetail = () => {
         id: product.shops?.id || "",
         name: product.shops?.name || "",
         logo_url: product.shops?.logo_url || null,
+        delivery_zone_id: product.shops?.delivery_zone_id || null,
+        geolocation_lat: product.shops?.geolocation_lat || null,
+        geolocation_lng: product.shops?.geolocation_lng || null,
+        address: product.shops?.address || null,
       },
     };
 

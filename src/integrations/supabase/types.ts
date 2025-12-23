@@ -226,6 +226,85 @@ export type Database = {
           },
         ]
       }
+      delivery_requests: {
+        Row: {
+          assigned_at: string | null
+          created_at: string | null
+          delivered_at: string | null
+          delivery_fee: number | null
+          delivery_point: Json | null
+          driver_earnings: number | null
+          driver_id: string | null
+          id: string
+          order_id: string | null
+          picked_up_at: string | null
+          pickup_points: Json | null
+          started_at: string | null
+          status: string | null
+          total_distance_meters: number | null
+          updated_at: string | null
+          zone_id: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_fee?: number | null
+          delivery_point?: Json | null
+          driver_earnings?: number | null
+          driver_id?: string | null
+          id?: string
+          order_id?: string | null
+          picked_up_at?: string | null
+          pickup_points?: Json | null
+          started_at?: string | null
+          status?: string | null
+          total_distance_meters?: number | null
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_fee?: number | null
+          delivery_point?: Json | null
+          driver_earnings?: number | null
+          driver_id?: string | null
+          id?: string
+          order_id?: string | null
+          picked_up_at?: string | null
+          pickup_points?: Json | null
+          started_at?: string | null
+          status?: string | null
+          total_distance_meters?: number | null
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_requests_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_requests_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_zones: {
         Row: {
           center_lat: number | null
@@ -843,6 +922,8 @@ export type Database = {
           delivery_base_fee: number | null
           delivery_commission_driver: number | null
           delivery_commission_fere: number | null
+          delivery_discount_per_km: number | null
+          delivery_fee_per_100m: number | null
           delivery_fee_per_500m: number | null
           favicon: string | null
           hero_cards: Json | null
@@ -876,6 +957,8 @@ export type Database = {
           delivery_base_fee?: number | null
           delivery_commission_driver?: number | null
           delivery_commission_fere?: number | null
+          delivery_discount_per_km?: number | null
+          delivery_fee_per_100m?: number | null
           delivery_fee_per_500m?: number | null
           favicon?: string | null
           hero_cards?: Json | null
@@ -909,6 +992,8 @@ export type Database = {
           delivery_base_fee?: number | null
           delivery_commission_driver?: number | null
           delivery_commission_fere?: number | null
+          delivery_discount_per_km?: number | null
+          delivery_fee_per_100m?: number | null
           delivery_fee_per_500m?: number | null
           favicon?: string | null
           hero_cards?: Json | null

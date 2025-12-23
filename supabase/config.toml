@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.paystack-payment]
 verify_jwt = false
+
+[functions.calculate-distance]
+verify_jwt = true

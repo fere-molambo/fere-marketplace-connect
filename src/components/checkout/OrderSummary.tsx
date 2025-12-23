@@ -83,14 +83,6 @@ export function OrderSummary({
             <span className="text-muted-foreground">Sous-total</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">TVA ({tvaRate}%)</span>
-            <span>{formatPrice(tvaAmount)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Commission plateforme</span>
-            <span>{formatPrice(commissionAmount)}</span>
-          </div>
           {deliveryType === "delivery" && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Frais de livraison</span>

@@ -165,13 +165,20 @@ export function useDeliveryCalculation(
                   is_approximated: true
                 };
               }
-              // Skip vendors with no coordinates and no zone center
-              return null;
+              // For vendors without coordinates AND without zone center, use a default distance (3km)
+              // and client address as approximate location
+              return {
+                ...vendor,
+                lat: clientAddress.lat + (Math.random() * 0.01 - 0.005), // Small offset to differentiate
+                lng: clientAddress.lng + (Math.random() * 0.01 - 0.005),
+                is_approximated: true,
+                use_fixed_distance: true
+              };
             }
             return vendor;
-          }).filter((v): v is NonNullable<typeof v> => v !== null);
+          });
 
-          if (enrichedVendors.length === 0) continue;
+          // Always process vendors, even if all are approximated
 
           // Optimize pickup route
           const optimizedRoute = optimizePickupRoute(

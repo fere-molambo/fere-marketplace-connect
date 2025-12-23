@@ -146,7 +146,7 @@ export default function Checkout() {
     return sum + Math.round(item.totalPrice * rate);
   }, 0);
   
-  const totalTTC = subtotal + tvaAmount + commissionAmount + deliveryFee;
+  const totalTTC = subtotal + deliveryFee;
   const advanceAmount = Math.round(totalTTC * (advancePercent / 100));
   const remainingAmount = totalTTC - advanceAmount;
 
@@ -453,7 +453,7 @@ export default function Checkout() {
                 remainingAmount={remainingAmount}
                 paymentMethod={paymentMethod}
                 onSubmit={handleSubmit}
-                isLoading={isCreatingOrder || createOrder.isPending || (isCalculatingDelivery && !deliveryError)}
+                isLoading={isCreatingOrder || createOrder.isPending}
               />
             </div>
           </div>

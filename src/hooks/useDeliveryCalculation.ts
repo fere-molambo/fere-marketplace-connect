@@ -74,6 +74,12 @@ export function useDeliveryCalculation(
   const [error, setError] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneDeliveryInfo[]>([]);
 
+  // Create stable keys to prevent infinite loops
+  const shopIdsKey = items.map(i => i.product.shops.id).sort().join(',');
+  const settingsKey = settings 
+    ? `${settings.delivery_base_fee}-${settings.delivery_fee_per_km}-${settings.delivery_discount_per_km}`
+    : '';
+  const clientKey = clientAddress ? `${clientAddress.lat}-${clientAddress.lng}` : '';
   // Group items by delivery zone and fetch zone center as fallback
   const vendorsByZone = useMemo(() => {
     const grouped: Record<string, Array<{
@@ -114,10 +120,11 @@ export function useDeliveryCalculation(
     return grouped;
   }, [items]);
 
-  // Calculate delivery fees when conditions change
+  // Calculate delivery fees when conditions change - use stable keys
   useEffect(() => {
-    if (deliveryType === "pickup" || !clientAddress || !settings) {
+    if (deliveryType === "pickup" || !clientKey || !settingsKey) {
       setZones([]);
+      setIsLoading(false);
       return;
     }
 
@@ -288,7 +295,8 @@ export function useDeliveryCalculation(
     };
 
     calculateFees();
-  }, [vendorsByZone, clientAddress, deliveryType, settings]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopIdsKey, clientKey, deliveryType, settingsKey]);
 
   const totalDeliveryFee = zones.reduce((sum, z) => sum + z.delivery_fee, 0);
   const totalDistance = zones.reduce((sum, z) => sum + z.total_distance_meters, 0);

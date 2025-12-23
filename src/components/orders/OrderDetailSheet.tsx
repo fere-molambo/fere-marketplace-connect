@@ -3,9 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { OrderTimeline } from "./OrderTimeline";
 import { MapPin, Phone, Store, Truck, Package } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrderDetailSheetProps {
   order: any;
@@ -14,11 +17,45 @@ interface OrderDetailSheetProps {
 }
 
 export function OrderDetailSheet({ order, open, onOpenChange }: OrderDetailSheetProps) {
+  // Fetch platform settings for commission rates
+  const { data: settings } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("delivery_commission_driver, delivery_commission_fere")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (!order) return null;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return "0 FCFA";
+    }
+    return new Intl.NumberFormat("fr-FR").format(Math.round(amount)) + " FCFA";
   };
+
+  // Calculate commission breakdown
+  const subtotal = order.subtotal || 0;
+  const deliveryFee = order.delivery_fee || 0;
+  const commissionAmount = order.commission_amount || 0;
+  
+  // Vendor net = subtotal - platform commission on products
+  const vendorNet = subtotal - commissionAmount;
+  
+  // Driver commission = delivery_fee × 85% (default)
+  const driverCommissionRate = (settings?.delivery_commission_driver || 85) / 100;
+  const driverCommission = Math.round(deliveryFee * driverCommissionRate);
+  
+  // Platform commission on delivery = delivery_fee × 15%
+  const platformDeliveryCommission = deliveryFee - driverCommission;
+  
+  // Total platform commission = product commission + delivery commission
+  const totalPlatformCommission = commissionAmount + platformDeliveryCommission;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -39,6 +76,12 @@ export function OrderDetailSheet({ order, open, onOpenChange }: OrderDetailSheet
                 <><Truck className="mr-1 h-3 w-3" />Livraison</>
               )}
             </Badge>
+          </div>
+
+          {/* Timeline de suivi */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Suivi de la commande</h3>
+            <OrderTimeline status={order.status} />
           </div>
 
           {/* Client */}
@@ -98,33 +141,50 @@ export function OrderDetailSheet({ order, open, onOpenChange }: OrderDetailSheet
 
           <Separator />
 
-          {/* Récapitulatif financier */}
+          {/* Récapitulatif financier pour Admin */}
           <div>
-            <h3 className="text-sm font-semibold mb-2">Récapitulatif</h3>
+            <h3 className="text-sm font-semibold mb-2">Récapitulatif financier</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Sous-total</span>
-                <span>{formatCurrency(order.subtotal)}</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">TVA</span>
-                <span>{formatCurrency(order.tva_amount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Commission</span>
-                <span>{formatCurrency(order.commission_amount)}</span>
-              </div>
-              {order.delivery_fee > 0 && (
+              {deliveryFee > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Livraison</span>
-                  <span>{formatCurrency(order.delivery_fee)}</span>
+                  <span className="text-muted-foreground">Frais de livraison</span>
+                  <span>{formatCurrency(deliveryFee)}</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between font-semibold">
-                <span>Total TTC</span>
-                <span>{formatCurrency(order.total_amount)}</span>
+                <span>Total client</span>
+                <span>{formatCurrency(order.total_amount || (subtotal + deliveryFee))}</span>
               </div>
+              
+              <Separator className="my-3" />
+              
+              {/* Répartition des commissions */}
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Répartition</p>
+              
+              <div className="flex justify-between text-green-600">
+                <span>💰 Vendeur (net)</span>
+                <span className="font-medium">{formatCurrency(vendorNet)}</span>
+              </div>
+              
+              {deliveryFee > 0 && (
+                <div className="flex justify-between text-blue-600">
+                  <span>🚗 Livreur ({Math.round(driverCommissionRate * 100)}%)</span>
+                  <span className="font-medium">{formatCurrency(driverCommission)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-orange-600">
+                <span>🏢 Plateforme</span>
+                <span className="font-medium">{formatCurrency(totalPlatformCommission)}</span>
+              </div>
+              
+              <Separator />
+              
               <div className="flex justify-between text-green-600">
                 <span>Avance payée</span>
                 <span>{formatCurrency(order.advance_paid || 0)}</span>

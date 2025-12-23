@@ -22,7 +22,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
   const navigate = useNavigate();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
-  // Fetch product orders for this shop
+  // Fetch product orders for this shop with complete order data
   const { data: orderItems = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["shop-order-items", shopId],
     queryFn: async () => {
@@ -37,9 +37,20 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
             payment_status,
             delivery_type,
             total_amount,
+            subtotal,
+            commission_amount,
+            delivery_fee,
+            advance_paid,
+            remaining_amount,
             created_at,
             user_id,
-            profiles:user_id (nom_complet, contact, email)
+            profiles:user_id (nom_complet, contact, email),
+            delivery_addresses:delivery_address_id (label, address, recipient_name, recipient_phone),
+            order_items (
+              id, quantity, unit_price, total_price, selected_color, selected_size, commission_rate,
+              products:product_id (name, main_media_url),
+              shops:shop_id (name)
+            )
           ),
           product:products!product_id (name, main_media_url)
         `)
@@ -71,6 +82,9 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
   });
 
   const formatCurrency = (amount: number) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return "0 FCFA";
+    }
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
 

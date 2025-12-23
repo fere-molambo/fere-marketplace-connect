@@ -1900,6 +1900,7 @@ export type Database = {
           description: string | null
           geolocation_lat: number | null
           geolocation_lng: number | null
+          google_maps_link: string | null
           guide_name: string | null
           guide_url: string | null
           id: string
@@ -1933,6 +1934,7 @@ export type Database = {
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          google_maps_link?: string | null
           guide_name?: string | null
           guide_url?: string | null
           id?: string
@@ -1966,6 +1968,7 @@ export type Database = {
           description?: string | null
           geolocation_lat?: number | null
           geolocation_lng?: number | null
+          google_maps_link?: string | null
           guide_name?: string | null
           guide_url?: string | null
           id?: string

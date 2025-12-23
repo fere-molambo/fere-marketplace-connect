@@ -14,21 +14,17 @@ export function DeliveryTypeSelector({
   isMultiVendor,
   deliveryFee,
 }: DeliveryTypeSelectorProps) {
-  const canPickup = !isMultiVendor;
-
   return (
     <div className="grid grid-cols-2 gap-3">
-      {/* Pickup option */}
+      {/* Pickup option - Now always enabled */}
       <button
         type="button"
-        disabled={!canPickup}
         onClick={() => onChange("pickup")}
         className={cn(
           "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
           value === "pickup"
             ? "border-primary bg-primary/5"
-            : "border-muted hover:border-muted-foreground/30",
-          !canPickup && "opacity-50 cursor-not-allowed"
+            : "border-muted hover:border-muted-foreground/30"
         )}
       >
         <Store className={cn("h-6 w-6", value === "pickup" ? "text-primary" : "text-muted-foreground")} />
@@ -36,6 +32,11 @@ export function DeliveryTypeSelector({
           Récupérer en boutique
         </span>
         <span className="text-xs text-green-600 font-medium">Gratuit</span>
+        {isMultiVendor && (
+          <span className="text-xs text-muted-foreground text-center">
+            Retrait chez chaque vendeur
+          </span>
+        )}
       </button>
 
       {/* Delivery option */}

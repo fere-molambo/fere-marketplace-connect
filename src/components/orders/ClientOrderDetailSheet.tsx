@@ -227,13 +227,19 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
           <div>
             <h3 className="text-sm font-semibold mb-2">Produits ({order.order_items?.length || 0})</h3>
             <div className="space-y-2">
-              {order.order_items?.map((item: any) => (
+              {order.order_items?.map((item: any) => {
+                // Handle both naming conventions (product vs products)
+                const product = item.product || item.products;
+                const imageUrl = product?.main_media_url;
+                const productName = product?.name || "Produit";
+                
+                return (
                 <div key={item.id} className="flex items-center gap-3 rounded-lg border p-3">
                   <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden">
-                    {item.products?.main_media_url ? (
+                    {imageUrl ? (
                       <img 
-                        src={item.products.main_media_url} 
-                        alt={item.products?.name} 
+                        src={imageUrl} 
+                        alt={productName} 
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -241,7 +247,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.products?.name || "Produit"}</p>
+                    <p className="font-medium text-sm truncate">{productName}</p>
                     <div className="flex gap-2 text-xs mt-1 flex-wrap">
                       {item.selected_color && <Badge variant="outline">{item.selected_color}</Badge>}
                       {item.selected_size && <Badge variant="outline">{item.selected_size}</Badge>}
@@ -252,7 +258,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                     <p className="text-xs text-muted-foreground">x{item.quantity}</p>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 

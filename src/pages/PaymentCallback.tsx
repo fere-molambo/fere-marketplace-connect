@@ -39,6 +39,18 @@ export default function PaymentCallback() {
         return;
       }
 
+      // Handle cash payments - don't call Paystack
+      if (reference.startsWith('CASH-')) {
+        setResult({
+          status: 'success',
+          reference: reference,
+          message: 'Commande enregistrée - Paiement à la livraison',
+        });
+        // Store payment type for redirect
+        sessionStorage.setItem('paystack_payment_type', 'order');
+        return;
+      }
+
       try {
         const { data, error } = await supabase.functions.invoke('paystack-payment', {
           body: {
@@ -114,6 +126,10 @@ export default function PaymentCallback() {
       case 'loading':
         return 'Veuillez patienter pendant que nous vérifions votre paiement...';
       case 'success':
+        // Handle cash payments with different message
+        if (result.reference?.startsWith('CASH-')) {
+          return 'Votre commande a été enregistrée avec succès. Vous paierez à la livraison ou au retrait.';
+        }
         return `Votre paiement de ${result.amount?.toLocaleString()} ${result.currency} a été effectué avec succès.`;
       case 'failed':
         return 'Votre paiement n\'a pas pu être traité. Veuillez réessayer.';
@@ -129,19 +145,22 @@ export default function PaymentCallback() {
   const handleContinue = () => {
     const paymentType = sessionStorage.getItem('paystack_payment_type');
     
-    // Navigate based on payment type
+    // Clear storage
+    sessionStorage.removeItem('paystack_payment_type');
+    
+    // Navigate based on payment type - default to profile orders tab
     switch (paymentType) {
       case 'order':
-        navigate('/mes-commandes');
+        navigate('/mon-profil?tab=orders');
         break;
       case 'service_booking':
-        navigate('/mes-reservations');
+        navigate('/mon-profil?tab=orders');
         break;
       case 'subscription':
         navigate('/mon-abonnement');
         break;
       default:
-        navigate('/');
+        navigate('/mon-profil?tab=orders');
     }
   };
 

@@ -41,9 +41,10 @@ export function OrderTimeline({ status }: OrderTimelineProps) {
         />
         
         {steps.map((step, index) => {
-          const isCompleted = currentIndex > index;
-          const isCurrent = currentIndex === index;
-          const isPending = currentIndex < index;
+          // When status is "delivered", all steps are completed (including the last one)
+          const isCompleted = status === "delivered" ? true : currentIndex > index;
+          const isCurrent = status === "delivered" ? false : currentIndex === index;
+          const isPending = status === "delivered" ? false : currentIndex < index;
           const Icon = step.icon;
           
           return (

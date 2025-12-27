@@ -2,9 +2,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
-import { Eye, MessageSquare, Truck, Store } from "lucide-react";
+import { Eye, MessageSquare, Truck, Store, Banknote, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
 
 interface Order {
   id: string;
@@ -12,9 +13,11 @@ interface Order {
   created_at: string;
   status: string;
   payment_status: string;
+  payment_method?: string | null;
   delivery_type: string;
   total_amount: number;
   advance_paid: number;
+  advance_percent?: number | null;
   remaining_amount: number;
   user_id: string;
   profiles?: { nom_complet: string; contact: string } | null;
@@ -110,7 +113,22 @@ export function OrdersTable({ orders, onViewDetails, onMessage, showVendorAction
                     <OrderStatusBadge status={order.status} />
                   </TableCell>
                   <TableCell>
-                    <PaymentStatusBadge status={order.payment_status} />
+                    <div className="flex flex-col gap-1">
+                      <PaymentStatusBadge status={order.payment_status} />
+                      {order.payment_method === "cash" ? (
+                        <Badge variant="outline" className="text-xs w-fit">
+                          <Banknote className="h-3 w-3 mr-1" />Cash
+                        </Badge>
+                      ) : order.advance_percent && order.advance_percent < 100 ? (
+                        <Badge variant="outline" className="text-xs w-fit">
+                          <CreditCard className="h-3 w-3 mr-1" />{order.advance_percent}%
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs w-fit">
+                          <CreditCard className="h-3 w-3 mr-1" />100%
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">

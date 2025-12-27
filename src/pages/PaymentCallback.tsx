@@ -63,6 +63,25 @@ export default function PaymentCallback() {
           throw new Error(error.message);
         }
 
+        // Check if this was a token purchase
+        const paymentType = sessionStorage.getItem('paystack_payment_type');
+        if (paymentType === 'tokens' && data.status === 'success') {
+          // Credit tokens using RPC function
+          try {
+            const { error: tokenError } = await supabase.rpc('add_tokens', {
+              p_user_id: data.metadata?.user_id || sessionStorage.getItem('paystack_user_id'),
+              p_amount: data.metadata?.amount || data.amount,
+              p_payment_reference: reference
+            });
+            
+            if (tokenError) {
+              console.error('Error adding tokens:', tokenError);
+            }
+          } catch (tokenErr) {
+            console.error('Token credit error:', tokenErr);
+          }
+        }
+
         setResult({
           status: data.status as PaymentStatus,
           reference: data.reference,
@@ -74,6 +93,7 @@ export default function PaymentCallback() {
         sessionStorage.removeItem('paystack_reference');
         sessionStorage.removeItem('paystack_payment_type');
         sessionStorage.removeItem('paystack_related_id');
+        sessionStorage.removeItem('paystack_user_id');
 
       } catch (error: any) {
         console.error('Payment verification error:', error);
@@ -148,13 +168,17 @@ export default function PaymentCallback() {
     // Clear storage
     sessionStorage.removeItem('paystack_payment_type');
     
-    // Navigate based on payment type - default to profile orders tab
+    // Navigate based on payment type
     switch (paymentType) {
       case 'order':
         navigate('/mon-profil?tab=orders');
         break;
       case 'service_booking':
         navigate('/mon-profil?tab=orders');
+        break;
+      case 'tokens':
+        // Check if user is driver or vendor to redirect appropriately
+        navigate('/mon-profil?tab=tokens');
         break;
       case 'subscription':
         navigate('/mon-abonnement');

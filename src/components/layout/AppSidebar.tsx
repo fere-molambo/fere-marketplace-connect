@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare, MapPin, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare, MapPin, ShoppingBag, Receipt } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -39,6 +39,7 @@ const getNavigationItems = (roles: string[]) => {
   if (isSuperAdmin || isAdmin) {
     gestionItems.push({ title: "Boutiques", icon: Store, href: "/dashboard/shops" });
     gestionItems.push({ title: "Commandes", icon: ShoppingBag, href: "/dashboard/orders" });
+    gestionItems.push({ title: "Transactions", icon: Receipt, href: "/dashboard/transactions" });
     gestionItems.push({ title: "Zones de livraison", icon: MapPin, href: "/dashboard/delivery-zones" });
   }
 

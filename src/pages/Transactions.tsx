@@ -11,7 +11,7 @@ import { fr } from "date-fns/locale";
 import { Receipt, Search, Filter, Coins, ShoppingBag, Briefcase } from "lucide-react";
 import { useState } from "react";
 
-type TransactionType = "all" | "order" | "service_booking" | "tokens";
+type TransactionType = "all" | "order" | "service_booking" | "tokens" | "commission_payout" | "subscription";
 
 export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState<TransactionType>("all");
@@ -26,11 +26,11 @@ export default function Transactions() {
           *,
           user:profiles!user_id (nom_complet, email, contact)
         `)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false } as any)
         .limit(100);
 
       if (typeFilter !== "all") {
-        query = query.eq("payment_type", typeFilter);
+        query = query.eq("payment_type", typeFilter as any);
       }
 
       const { data, error } = await query;
@@ -58,7 +58,8 @@ export default function Transactions() {
 
       data?.forEach((tx) => {
         totals.total += tx.amount;
-        switch (tx.payment_type) {
+        const paymentType = tx.payment_type as string;
+        switch (paymentType) {
           case "order":
             totals.orders += tx.amount;
             break;

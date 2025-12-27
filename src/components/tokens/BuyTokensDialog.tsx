@@ -49,6 +49,7 @@ export const BuyTokensDialog = ({ open, onOpenChange, onSuccess }: BuyTokensDial
           user_id: user.id,
           email: user.email,
           amount,
+          callback_url: `${window.location.origin}/payment/callback`,
         },
       });
 

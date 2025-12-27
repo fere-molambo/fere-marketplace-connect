@@ -13,9 +13,9 @@ serve(async (req) => {
   }
 
   try {
-    const { user_id, email, amount } = await req.json();
+    const { user_id, email, amount, callback_url } = await req.json();
 
-    console.log('[purchase-tokens] Request received:', { user_id, email, amount });
+    console.log('[purchase-tokens] Request received:', { user_id, email, amount, callback_url });
 
     // Validate inputs
     if (!user_id || !email || !amount) {
@@ -34,9 +34,10 @@ serve(async (req) => {
     // Generate unique reference
     const reference = `TOK-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Get callback URL
+    // Use callback URL from frontend (more reliable) or fallback to default
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const callbackUrl = `${supabaseUrl?.replace('.supabase.co', '.lovable.app') || 'https://jajfuajmkjulujnwfqen.lovable.app'}/payment/callback`;
+    const defaultCallbackUrl = `${supabaseUrl?.replace('.supabase.co', '.lovable.app') || 'https://jajfuajmkjulujnwfqen.lovable.app'}/payment/callback`;
+    const callbackUrl = callback_url || defaultCallbackUrl;
 
     console.log('[purchase-tokens] Initializing Paystack payment:', { reference, amount, callbackUrl });
 

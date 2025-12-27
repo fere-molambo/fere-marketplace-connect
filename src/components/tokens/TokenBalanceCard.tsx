@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Coins, Plus, Loader2 } from "lucide-react";
+import { Coins, Plus, Loader2, RefreshCw } from "lucide-react";
 import { BuyTokensDialog } from "./BuyTokensDialog";
 import { useState } from "react";
 
@@ -19,7 +19,7 @@ export const TokenBalanceCard = ({
   const { user } = useAuth();
   const [showBuyDialog, setShowBuyDialog] = useState(false);
 
-  const { data: tokenBalance, isLoading, refetch } = useQuery({
+  const { data: tokenBalance, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["user-tokens", user?.id],
     queryFn: async () => {
       if (!user?.id) return 0;
@@ -34,6 +34,7 @@ export const TokenBalanceCard = ({
       return data?.balance || 0;
     },
     enabled: !!user?.id,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
   return (
@@ -66,10 +67,20 @@ export const TokenBalanceCard = ({
                 Disponible pour les commissions
               </p>
             </div>
-            <Button onClick={() => setShowBuyDialog(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Acheter
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button onClick={() => setShowBuyDialog(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Acheter
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

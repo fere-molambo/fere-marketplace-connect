@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
+
+const SUPABASE_PROJECT_ID = "jajfuajmkjulujnwfqen";
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const signOutInProgressRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -15,6 +18,11 @@ export const useAuth = () => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Ignore session updates if signOut is in progress
+        if (signOutInProgressRef.current) {
+          return;
+        }
+        
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
@@ -26,6 +34,11 @@ export const useAuth = () => {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // Ignore if signOut is in progress
+      if (signOutInProgressRef.current) {
+        return;
+      }
+      
       if (mounted) {
         setSession(session);
         setUser(session?.user ?? null);
@@ -43,6 +56,7 @@ export const useAuth = () => {
   const signIn = async (identifier: string, password: string) => {
     try {
       setLoading(true);
+      signOutInProgressRef.current = false; // Reset signOut flag
       
       // Detect if identifier is email or phone
       const isEmail = identifier.includes("@");
@@ -71,15 +85,6 @@ export const useAuth = () => {
           throw new Error("Aucun compte trouvé avec ce numéro de téléphone");
         }
         
-        // Get the email from auth.users using the user_id
-        // We need to use the service to get user email
-        // Since we can't access auth.users directly, we'll use a different approach
-        // We'll store the email in metadata during signup
-        
-        // For now, let's try to sign in with the phone as username
-        // Actually, Supabase requires email for password login
-        // We need to get the email somehow - let's add it to profiles table
-        
         toast.error("La connexion par téléphone nécessite une configuration supplémentaire");
         throw new Error("Fonctionnalité en cours de développement");
       }
@@ -101,6 +106,7 @@ export const useAuth = () => {
   ) => {
     try {
       setLoading(true);
+      signOutInProgressRef.current = false; // Reset signOut flag
       
       const redirectUrl = `${window.location.origin}/`;
       
@@ -125,7 +131,6 @@ export const useAuth = () => {
 
         if (roleError) {
           console.error("Erreur lors de l'attribution du rôle:", roleError);
-          // On ne bloque pas l'inscription même si le rôle échoue
         }
       }
       
@@ -147,18 +152,34 @@ export const useAuth = () => {
   const signOut = async () => {
     try {
       setLoading(true);
+      signOutInProgressRef.current = true;
       
       // Clear local state IMMEDIATELY
       setUser(null);
       setSession(null);
       
-      const { error } = await supabase.auth.signOut();
+      // Clear all Supabase-related localStorage keys for this project
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`sb-${SUPABASE_PROJECT_ID}`)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       
-      // If error is "session_not_found", that's OK - user is already logged out
-      if (error && !error.message?.includes("Session not found") && !error.message?.includes("session_not_found")) {
-        console.error("Sign out error:", error);
-        // Try to sign out locally only as fallback
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      // Try global signout first (best effort)
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch {
+        // Ignore global signout errors
+      }
+      
+      // Then local signout as fallback
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignore local signout errors
       }
       
       toast.success("Déconnexion réussie");
@@ -167,10 +188,10 @@ export const useAuth = () => {
       // Even on error, ensure local state is cleared
       setUser(null);
       setSession(null);
-      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       toast.success("Déconnexion réussie");
     } finally {
       setLoading(false);
+      // Keep signOutInProgressRef true to prevent any stale session restoration
     }
   };
 

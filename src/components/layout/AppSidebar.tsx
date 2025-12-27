@@ -73,9 +73,8 @@ const getNavigationItems = (roles: string[]) => {
 
 export const AppSidebar = () => {
   const { state } = useSidebar();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { roles } = useUserRoles();
-  const { signOut } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const collapsed = state === "collapsed";

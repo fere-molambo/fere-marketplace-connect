@@ -2444,6 +2444,7 @@ export type Database = {
         | "service_booking"
         | "subscription"
         | "commission_payout"
+        | "tokens"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
@@ -2609,6 +2610,7 @@ export const Constants = {
         "service_booking",
         "subscription",
         "commission_payout",
+        "tokens",
       ],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],

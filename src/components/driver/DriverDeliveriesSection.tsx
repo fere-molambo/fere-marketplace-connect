@@ -78,11 +78,10 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
 
   const isLoading = isLoadingPending || isLoadingMine;
 
-  // Accept delivery mutation - sync order status to "confirmed"
+  // Accept delivery mutation - le trigger DB sync automatiquement orders.status
   const acceptDelivery = useMutation({
     mutationFn: async (requestId: string) => {
-      // 1. Update the delivery_request
-      const { data: deliveryData, error } = await supabase
+      const { error } = await supabase
         .from("delivery_requests")
         .update({
           driver_id: userId,
@@ -90,28 +89,14 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
           assigned_at: new Date().toISOString(),
         })
         .eq("id", requestId)
-        .eq("status", "pending")
-        .select("order_id")
-        .single();
+        .eq("status", "pending");
       
       if (error) throw error;
-
-      // 2. Sync order status to "confirmed"
-      if (deliveryData?.order_id) {
-        const { error: orderError } = await supabase
-          .from("orders")
-          .update({ status: "confirmed" })
-          .eq("id", deliveryData.order_id);
-        
-        if (orderError) console.error("Error syncing order status:", orderError);
-      }
+      // Le trigger sync_order_status_from_delivery met à jour orders.status automatiquement
     },
     onSuccess: () => {
-      // Correct cache invalidation keys
       queryClient.invalidateQueries({ queryKey: ["pending-deliveries"] });
       queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["shop-order-items"] });
       toast.success("Livraison acceptée !");
     },
     onError: (error) => {
@@ -120,7 +105,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     },
   });
 
-  // Update status mutation - sync order status accordingly
+  // Update status mutation - le trigger DB sync automatiquement orders.status
   const updateStatus = useMutation({
     mutationFn: async ({ requestId, newStatus }: { requestId: string; newStatus: string }) => {
       const updates: Record<string, any> = { status: newStatus };
@@ -133,42 +118,17 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         updates.delivered_at = new Date().toISOString();
       }
       
-      // 1. Update delivery_request
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("delivery_requests")
         .update(updates)
         .eq("id", requestId)
-        .eq("driver_id", userId)
-        .select("order_id")
-        .single();
+        .eq("driver_id", userId);
       
       if (error) throw error;
-
-      // 2. Sync order status based on delivery status
-      if (data?.order_id) {
-        let orderStatus: string | null = null;
-        
-        if (newStatus === "picked_up") {
-          orderStatus = "in_transit";
-        } else if (newStatus === "delivered") {
-          orderStatus = "delivered";
-        }
-        
-        if (orderStatus) {
-          const { error: orderError } = await supabase
-            .from("orders")
-            .update({ status: orderStatus })
-            .eq("id", data.order_id);
-          
-          if (orderError) console.error("Error syncing order status:", orderError);
-        }
-      }
+      // Le trigger sync_order_status_from_delivery met à jour orders.status automatiquement
     },
     onSuccess: () => {
-      // Correct cache invalidation keys
       queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["shop-order-items"] });
       toast.success("Statut mis à jour !");
     },
     onError: (error) => {

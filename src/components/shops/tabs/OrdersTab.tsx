@@ -34,12 +34,15 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           schema: 'public',
           table: 'orders'
         },
-        () => {
+        (payload) => {
+          console.log('[Realtime] Vendor orders change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
           queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Vendor orders subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

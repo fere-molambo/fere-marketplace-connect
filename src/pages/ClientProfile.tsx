@@ -50,12 +50,15 @@ export default function ClientProfile() {
           schema: 'public',
           table: 'orders'
         },
-        () => {
+        (payload) => {
+          console.log('[Realtime] Client orders change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ["client-orders", user.id] });
           queryClient.invalidateQueries({ queryKey: ["client-bookings", user.id] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Client orders subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

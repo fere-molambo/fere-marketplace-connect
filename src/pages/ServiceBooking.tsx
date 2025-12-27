@@ -8,9 +8,7 @@ import { Footer } from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Clock, Star, CreditCard, Banknote } from "lucide-react";
 import { format, getDay, parse, addMinutes, isBefore } from "date-fns";
@@ -19,7 +17,6 @@ import { ServiceBookingCalendar } from "@/components/booking/ServiceBookingCalen
 import { TimeSlotSelector } from "@/components/booking/TimeSlotSelector";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { DeliveryAddressSelector } from "@/components/checkout/DeliveryAddressSelector";
-import { AdvancePaymentSelector } from "@/components/checkout/AdvancePaymentSelector";
 
 interface TimeSlot {
   start: string;
@@ -50,7 +47,6 @@ export default function ServiceBooking() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cash">("online");
-  const [advancePercent, setAdvancePercent] = useState(100);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect to auth if not logged in
@@ -158,7 +154,7 @@ export default function ServiceBooking() {
     
     const dayName = dayIndexToName[getDay(selectedDate)];
     const daySlots = weeklyAvailability[dayName] || [];
-    const duration = service.duration; // in minutes
+    const duration = service.duration;
     const slots: TimeSlot[] = [];
 
     daySlots.forEach(slot => {
@@ -170,7 +166,6 @@ export default function ServiceBooking() {
         const slotStart = format(currentTime, "HH:mm");
         const slotEnd = format(addMinutes(currentTime, duration), "HH:mm");
 
-        // Check if slot is already booked
         const isBooked = existingBookings.some(b => b.booking_time === slotStart);
 
         if (!isBooked) {
@@ -183,13 +178,6 @@ export default function ServiceBooking() {
 
     return slots;
   }, [selectedDate, service, weeklyAvailability, existingBookings]);
-
-  // Set default advance percent from service
-  useEffect(() => {
-    if (service?.booking_advance_percent && service.booking_advance_percent > 0) {
-      setAdvancePercent(service.booking_advance_percent);
-    }
-  }, [service]);
 
   // Reset slot when date changes
   useEffect(() => {
@@ -214,8 +202,8 @@ export default function ServiceBooking() {
   const commissionRate = getCommissionRate();
   const commissionAmount = Math.round(discountedPrice * (commissionRate / 100));
   const totalPrice = Math.round(discountedPrice + tvaAmount + commissionAmount);
-  const advanceAmount = paymentMethod === "online" ? Math.round(totalPrice * (advancePercent / 100)) : 0;
-  const remainingAmount = totalPrice - advanceAmount;
+  // 100% for online, 0% for cash
+  const advanceAmount = paymentMethod === "online" ? totalPrice : 0;
 
   // Create booking mutation
   const createBooking = useMutation({
@@ -232,7 +220,7 @@ export default function ServiceBooking() {
           booking_date: format(selectedDate, "yyyy-MM-dd"),
           booking_time: selectedSlot.start,
           total_price: totalPrice,
-          advance_paid: paymentMethod === "online" ? advanceAmount : 0,
+          advance_paid: advanceAmount,
           notes: comment || null,
           delivery_address_id: selectedAddressId,
           payment_method: paymentMethod,
@@ -248,12 +236,12 @@ export default function ServiceBooking() {
       return booking;
     },
     onSuccess: async (booking) => {
-      if (paymentMethod === "online" && advanceAmount > 0) {
+      if (paymentMethod === "online") {
         try {
           const response = await supabase.functions.invoke("paystack-payment", {
             body: {
               action: "initialize",
-              amount: advanceAmount,
+              amount: totalPrice,
               email: user?.email,
               payment_type: "service_booking",
               related_id: booking.id,
@@ -452,7 +440,7 @@ export default function ServiceBooking() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4" />
-                        <span className="font-medium">Payer maintenant</span>
+                        <span className="font-medium">Payer maintenant (100%)</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         Wave, Mobile Money, Visa/Mastercard
@@ -475,19 +463,6 @@ export default function ServiceBooking() {
                     </div>
                   </label>
                 </RadioGroup>
-
-                {paymentMethod === "online" && (
-                  <div className="pt-4">
-                    <Label className="text-sm font-medium mb-2 block">
-                      Montant de l'acompte
-                    </Label>
-                    <AdvancePaymentSelector
-                      value={advancePercent}
-                      onChange={setAdvancePercent}
-                      totalAmount={totalPrice}
-                    />
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -508,9 +483,6 @@ export default function ServiceBooking() {
                 commissionAmount={commissionAmount}
                 commissionRate={commissionRate}
                 totalPrice={totalPrice}
-                advancePercent={paymentMethod === "online" ? advancePercent : 0}
-                advanceAmount={advanceAmount}
-                remainingAmount={remainingAmount}
                 paymentMethod={paymentMethod}
                 onSubmit={handleSubmit}
                 isLoading={isSubmitting}

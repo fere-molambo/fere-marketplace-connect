@@ -12,11 +12,7 @@ interface OrderSummaryProps {
   tvaRate: number;
   commissionAmount: number;
   deliveryFee: number;
-  deliveryType: "pickup" | "delivery";
   totalTTC: number;
-  advancePercent: number;
-  advanceAmount: number;
-  remainingAmount: number;
   paymentMethod: "online" | "cash";
   onSubmit: () => void;
   isLoading: boolean;
@@ -29,11 +25,7 @@ export function OrderSummary({
   tvaRate,
   commissionAmount,
   deliveryFee,
-  deliveryType,
   totalTTC,
-  advancePercent,
-  advanceAmount,
-  remainingAmount,
   paymentMethod,
   onSubmit,
   isLoading,
@@ -83,18 +75,10 @@ export function OrderSummary({
             <span className="text-muted-foreground">Sous-total</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
-          {deliveryType === "delivery" && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Frais de livraison</span>
-              <span>{formatPrice(deliveryFee)}</span>
-            </div>
-          )}
-          {deliveryType === "pickup" && (
-            <div className="flex justify-between text-green-600">
-              <span>Retrait en boutique</span>
-              <span>Gratuit</span>
-            </div>
-          )}
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Frais de livraison</span>
+            <span>{formatPrice(deliveryFee)}</span>
+          </div>
         </div>
 
         <Separator />
@@ -105,24 +89,19 @@ export function OrderSummary({
           <span className="text-xl font-bold text-primary">{formatPrice(totalTTC)}</span>
         </div>
 
-        {/* Payment breakdown */}
-        {paymentMethod === "online" && advancePercent < 100 && (
-          <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span>À payer maintenant ({advancePercent}%)</span>
-              <span className="font-medium">{formatPrice(advanceAmount)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Reste à la livraison</span>
-              <span>{formatPrice(remainingAmount)}</span>
-            </div>
-          </div>
-        )}
-
+        {/* Payment info */}
         {paymentMethod === "cash" && (
           <div className="bg-muted/50 rounded-lg p-3 text-sm">
             <p className="text-center text-muted-foreground">
               Montant à payer à la livraison: <span className="font-medium">{formatPrice(totalTTC)}</span>
+            </p>
+          </div>
+        )}
+
+        {paymentMethod === "online" && (
+          <div className="bg-primary/5 rounded-lg p-3 text-sm">
+            <p className="text-center">
+              Paiement intégral: <span className="font-medium text-primary">{formatPrice(totalTTC)}</span>
             </p>
           </div>
         )}
@@ -135,7 +114,7 @@ export function OrderSummary({
             <Lock className="h-4 w-4 mr-2" />
           )}
           {paymentMethod === "online"
-            ? `Payer ${formatPrice(advanceAmount)}`
+            ? `Payer ${formatPrice(totalTTC)}`
             : "Confirmer la commande"}
         </Button>
 

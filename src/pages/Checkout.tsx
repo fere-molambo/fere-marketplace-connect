@@ -11,11 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { DeliveryTypeSelector } from "@/components/checkout/DeliveryTypeSelector";
 import { DeliveryAddressSelector } from "@/components/checkout/DeliveryAddressSelector";
-import { ShopPickupInfo } from "@/components/checkout/ShopPickupInfo";
 import { PaymentMethodSelector } from "@/components/checkout/PaymentMethodSelector";
-import { AdvancePaymentSelector } from "@/components/checkout/AdvancePaymentSelector";
 import { OrderSummary } from "@/components/checkout/OrderSummary";
 import { MultiVendorWarning } from "@/components/checkout/MultiVendorWarning";
 
@@ -24,10 +21,8 @@ export default function Checkout() {
   const { user, loading: authLoading } = useAuth();
   const { items, clearCart, totalAmount } = useCart();
   
-  const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery">("delivery");
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cash">("online");
-  const [advancePercent, setAdvancePercent] = useState(100);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   // Redirect if not logged in
@@ -95,7 +90,6 @@ export default function Checkout() {
   // Get unique shops in cart
   const uniqueShops = [...new Set(items.map(item => item.product.shops.id))];
   const isMultiVendor = uniqueShops.length > 1;
-  const singleShop = !isMultiVendor ? items[0]?.product.shops : null;
 
   // Use the new delivery calculation hook
   const clientCoordinates = selectedAddress?.geolocation_lat && selectedAddress?.geolocation_lng
@@ -114,24 +108,21 @@ export default function Checkout() {
     zones: deliveryZones, 
     totalDeliveryFee, 
     isLoading: isCalculatingDelivery,
-    error: deliveryError
   } = useDeliveryCalculation(
     items,
     clientCoordinates,
-    deliveryType,
+    "delivery", // Always delivery
     deliverySettings
   );
 
   // Calculate delivery fee (use calculated or fallback)
-  const deliveryFee = deliveryType === "pickup" ? 0 : totalDeliveryFee || (platformSettings?.delivery_base_fee || 500);
+  const deliveryFee = totalDeliveryFee || (platformSettings?.delivery_base_fee || 500);
 
   // Calculate commission for a product
   const getCommissionRate = (categoryId: string | null | undefined): number => {
-    // Find specific category commission
     const specificCommission = commissions.find((c: any) => c.category_id === categoryId);
     if (specificCommission) return specificCommission.commission_rate;
     
-    // Find global product commission
     const globalCommission = commissions.find((c: any) => c.commission_type === "all_products" || (!c.category_id && !c.service_type_id));
     return globalCommission?.commission_rate || 10;
   };
@@ -147,8 +138,8 @@ export default function Checkout() {
   }, 0);
   
   const totalTTC = subtotal + deliveryFee;
-  const advanceAmount = Math.round(totalTTC * (advancePercent / 100));
-  const remainingAmount = totalTTC - advanceAmount;
+  // 100% advance for online, 0% for cash
+  const advanceAmount = paymentMethod === "online" ? totalTTC : 0;
 
   // Create order mutation
   const createOrder = useMutation({
@@ -165,16 +156,14 @@ export default function Checkout() {
         .insert({
           order_number: orderNumber,
           user_id: user.id,
-          delivery_type: deliveryType,
-          delivery_address_id: deliveryType === "delivery" ? selectedAddressId : null,
+          delivery_type: "delivery",
+          delivery_address_id: selectedAddressId,
           delivery_fee: deliveryFee,
           subtotal,
           tva_amount: tvaAmount,
           commission_amount: commissionAmount,
           total_amount: totalTTC,
-          advance_percent: advancePercent,
-          advance_paid: paymentMethod === "online" ? advanceAmount : 0,
-          remaining_amount: paymentMethod === "online" ? remainingAmount : totalTTC,
+          advance_paid: advanceAmount,
           payment_method: paymentMethod,
           payment_status: "pending",
           is_multi_vendor: isMultiVendor,
@@ -205,9 +194,8 @@ export default function Checkout() {
 
       if (itemsError) throw itemsError;
 
-      // Create delivery requests for delivery orders
-      if (deliveryType === "delivery" && selectedAddress) {
-        // If we have calculated zones, use them; otherwise create a generic request
+      // Create delivery requests
+      if (selectedAddress) {
         if (deliveryZones.length > 0) {
           const deliveryRequests = deliveryZones.map(zone => ({
             order_id: order.id,
@@ -234,11 +222,10 @@ export default function Checkout() {
             console.error("Error creating delivery requests:", deliveryError);
           }
         } else {
-          // No zones calculated - create a generic delivery request with base fee
+          // No zones calculated - create a generic delivery request
           const baseFee = platformSettings?.delivery_base_fee || 500;
           const driverEarnings = Math.round(baseFee * (1 - (platformSettings?.delivery_commission_fere || 20) / 100));
           
-          // Build pickup points from cart items
           const uniqueShopsList = [...new Map(items.map(item => [
             item.product.shops.id,
             {
@@ -267,7 +254,7 @@ export default function Checkout() {
                 recipient_name: selectedAddress.recipient_name || user.user_metadata?.nom_complet,
                 recipient_phone: selectedAddress.recipient_phone
               },
-              total_distance_meters: 3000, // Default 3km estimate
+              total_distance_meters: 3000,
               delivery_fee: baseFee,
               driver_earnings: driverEarnings
             });
@@ -281,13 +268,13 @@ export default function Checkout() {
       return order;
     },
     onSuccess: async (order) => {
-      if (paymentMethod === "online" && advanceAmount > 0) {
-        // Initialize Paystack payment
+      if (paymentMethod === "online") {
+        // Initialize Paystack payment for 100%
         try {
           const response = await supabase.functions.invoke("paystack-payment", {
             body: {
               action: "initialize",
-              amount: advanceAmount,
+              amount: totalTTC,
               email: user?.email,
               payment_type: "order",
               related_id: order.id,
@@ -321,7 +308,7 @@ export default function Checkout() {
   });
 
   const handleSubmit = () => {
-    if (deliveryType === "delivery" && !selectedAddressId) {
+    if (!selectedAddressId) {
       toast.error("Veuillez sélectionner une adresse de livraison");
       return;
     }
@@ -358,58 +345,31 @@ export default function Checkout() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left column - Options */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Delivery Type */}
+            {/* Delivery Address */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">1. Mode de livraison</CardTitle>
+                <CardTitle className="text-lg">1. Adresse de livraison</CardTitle>
               </CardHeader>
               <CardContent>
-                <DeliveryTypeSelector
-                  value={deliveryType}
-                  onChange={setDeliveryType}
-                  isMultiVendor={isMultiVendor}
-                  deliveryFee={deliveryFee}
-                />
-
-                {deliveryType === "pickup" && (
-                  <ShopPickupInfo 
-                    shops={items.map(item => ({
-                      id: item.product.shops.id,
-                      name: item.product.shops.name,
-                      address: item.product.shops.address || undefined,
-                      google_maps_link: (item.product.shops as any).google_maps_link || undefined,
-                      geolocation_lat: item.product.shops.geolocation_lat ?? undefined,
-                      geolocation_lng: item.product.shops.geolocation_lng ?? undefined,
-                      opening_time: (item.product.shops as any).opening_time || undefined,
-                      closing_time: (item.product.shops as any).closing_time || undefined,
-                      support_phone: (item.product.shops as any).support_phone || undefined,
-                    })).filter((shop, index, self) => 
-                      index === self.findIndex(s => s.id === shop.id)
-                    )}
+                {user && (
+                  <DeliveryAddressSelector
+                    userId={user.id}
+                    selectedAddressId={selectedAddressId}
+                    onSelect={setSelectedAddressId}
                   />
                 )}
-
-                {deliveryType === "delivery" && user && (
-                  <>
-                    <DeliveryAddressSelector
-                      userId={user.id}
-                      selectedAddressId={selectedAddressId}
-                      onSelect={setSelectedAddressId}
-                    />
-                    {isCalculatingDelivery && (
-                      <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Calcul des frais de livraison...
-                      </div>
-                    )}
-                    {deliveryZones.length > 1 && (
-                      <div className="mt-4 p-3 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">
-                          {deliveryZones.length} courses de livraison (vendeurs dans différentes zones)
-                        </p>
-                      </div>
-                    )}
-                  </>
+                {isCalculatingDelivery && (
+                  <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Calcul des frais de livraison...
+                  </div>
+                )}
+                {deliveryZones.length > 1 && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      {deliveryZones.length} courses de livraison (vendeurs dans différentes zones)
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -419,19 +379,11 @@ export default function Checkout() {
               <CardHeader>
                 <CardTitle className="text-lg">2. Mode de paiement</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <PaymentMethodSelector
                   value={paymentMethod}
                   onChange={setPaymentMethod}
                 />
-
-                {paymentMethod === "online" && (
-                  <AdvancePaymentSelector
-                    value={advancePercent}
-                    onChange={setAdvancePercent}
-                    totalAmount={totalTTC}
-                  />
-                )}
               </CardContent>
             </Card>
           </div>
@@ -446,11 +398,7 @@ export default function Checkout() {
                 tvaRate={platformSettings?.tva_rate || 18}
                 commissionAmount={commissionAmount}
                 deliveryFee={deliveryFee}
-                deliveryType={deliveryType}
                 totalTTC={totalTTC}
-                advancePercent={advancePercent}
-                advanceAmount={advanceAmount}
-                remainingAmount={remainingAmount}
                 paymentMethod={paymentMethod}
                 onSubmit={handleSubmit}
                 isLoading={isCreatingOrder || createOrder.isPending}

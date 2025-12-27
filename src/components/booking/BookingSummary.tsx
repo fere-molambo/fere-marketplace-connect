@@ -18,9 +18,6 @@ interface BookingSummaryProps {
   commissionAmount: number;
   commissionRate: number;
   totalPrice: number;
-  advancePercent: number;
-  advanceAmount: number;
-  remainingAmount: number;
   paymentMethod: "online" | "cash";
   onSubmit: () => void;
   isLoading: boolean;
@@ -40,9 +37,6 @@ export function BookingSummary({
   commissionAmount,
   commissionRate,
   totalPrice,
-  advancePercent,
-  advanceAmount,
-  remainingAmount,
   paymentMethod,
   onSubmit,
   isLoading,
@@ -108,7 +102,7 @@ export function BookingSummary({
         <div className="flex items-center gap-2 text-sm">
           <CreditCard className="h-4 w-4 text-primary" />
           <span>
-            {paymentMethod === "online" ? "Paiement en ligne" : "Paiement à la réalisation"}
+            {paymentMethod === "online" ? "Paiement en ligne (100%)" : "Paiement à la réalisation"}
           </span>
         </div>
 
@@ -133,20 +127,6 @@ export function BookingSummary({
             <span>Total</span>
             <span className="text-primary">{formatPrice(totalPrice)}</span>
           </div>
-
-          {paymentMethod === "online" && advancePercent < 100 && (
-            <>
-              <Separator />
-              <div className="flex justify-between text-primary font-medium">
-                <span>Acompte à payer ({advancePercent}%)</span>
-                <span>{formatPrice(advanceAmount)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Reste à payer</span>
-                <span>{formatPrice(remainingAmount)}</span>
-              </div>
-            </>
-          )}
         </div>
       </CardContent>
       <CardFooter>
@@ -158,7 +138,7 @@ export function BookingSummary({
         >
           {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
           {paymentMethod === "online" 
-            ? `Payer ${formatPrice(advanceAmount)}`
+            ? `Payer ${formatPrice(totalPrice)}`
             : "Confirmer la réservation"
           }
         </Button>

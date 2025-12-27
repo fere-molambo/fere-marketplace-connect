@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,11 +13,35 @@ import { Package, Calendar, TrendingUp, Clock, Loader2, Search } from "lucide-re
 
 export default function Orders() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // Realtime subscription for order updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-bookings"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Fetch orders
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
@@ -166,7 +190,7 @@ export default function Orders() {
             <SelectItem value="all">Tous statuts</SelectItem>
             <SelectItem value="pending">En attente</SelectItem>
             <SelectItem value="confirmed">Confirmée</SelectItem>
-            <SelectItem value="processing">En préparation</SelectItem>
+            <SelectItem value="in_transit">En transit</SelectItem>
             <SelectItem value="delivered">Livrée</SelectItem>
             <SelectItem value="cancelled">Annulée</SelectItem>
           </SelectContent>

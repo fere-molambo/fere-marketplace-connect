@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,31 @@ interface OrdersTabProps {
 
 export const OrdersTab = ({ shopId }: OrdersTabProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+
+  // Realtime subscription for order updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('vendor-orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
+          queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, shopId]);
 
   // Fetch product orders for this shop with complete order data
   const { data: orderItems = [], isLoading: loadingOrders } = useQuery({
@@ -233,6 +257,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           order={selectedOrder}
           open={!!selectedOrder}
           onOpenChange={(open) => !open && setSelectedOrder(null)}
+          isVendorView={true}
         />
       )}
     </Tabs>

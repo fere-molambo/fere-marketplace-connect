@@ -72,7 +72,7 @@ export default function PaymentCallback() {
           console.log('[PaymentCallback] Token purchase detected, processing...');
           
           try {
-            // Get transaction data from DB (more reliable than sessionStorage)
+            // Get transaction data from DB
             const { data: txData, error: txError } = await supabase
               .from('payment_transactions')
               .select('user_id, amount, status')
@@ -86,7 +86,16 @@ export default function PaymentCallback() {
               throw new Error('Transaction non trouvée');
             }
 
-            if (txData && txData.status === 'pending') {
+            // Check if tokens were already credited by looking at token_transactions
+            const { data: existingTokenTx } = await supabase
+              .from('token_transactions')
+              .select('id')
+              .eq('payment_reference', reference)
+              .maybeSingle();
+
+            console.log('[PaymentCallback] Existing token transaction:', existingTokenTx);
+
+            if (!existingTokenTx) {
               console.log('[PaymentCallback] Crediting tokens:', txData.amount, 'to user:', txData.user_id);
               
               // Credit tokens using RPC function
@@ -102,57 +111,26 @@ export default function PaymentCallback() {
               }
               
               console.log('[PaymentCallback] Tokens credited successfully! New balance:', newBalance);
-
-              // Update transaction status to success
-              const { error: updateError } = await supabase
-                .from('payment_transactions')
-                .update({ 
-                  status: 'success' as const,
-                  paid_at: new Date().toISOString(),
-                  paystack_response: data
-                })
-                .eq('reference', reference);
-
-              if (updateError) {
-                console.error('[PaymentCallback] Error updating transaction:', updateError);
-              }
-
-              // Check if user is vendor (has a shop)
-              const { data: shopData } = await supabase
-                .from('shops')
-                .select('id')
-                .eq('owner_id', txData.user_id)
-                .limit(1);
-
-              setResult({
-                status: data.status as PaymentStatus,
-                reference: data.reference,
-                amount: txData.amount,
-                currency: 'XOF',
-                paymentType: 'tokens',
-                isVendor: shopData && shopData.length > 0,
-              });
-              return;
-            } else if (txData && txData.status === 'success') {
-              console.log('[PaymentCallback] Transaction already processed');
-              
-              // Check if user is vendor
-              const { data: shopData } = await supabase
-                .from('shops')
-                .select('id')
-                .eq('owner_id', txData.user_id)
-                .limit(1);
-
-              setResult({
-                status: 'success',
-                reference: reference,
-                amount: txData.amount,
-                currency: 'XOF',
-                paymentType: 'tokens',
-                isVendor: shopData && shopData.length > 0,
-              });
-              return;
+            } else {
+              console.log('[PaymentCallback] Tokens already credited for this reference');
             }
+
+            // Check if user is vendor (has a shop)
+            const { data: shopData } = await supabase
+              .from('shops')
+              .select('id')
+              .eq('owner_id', txData.user_id)
+              .limit(1);
+
+            setResult({
+              status: 'success',
+              reference: reference,
+              amount: txData.amount,
+              currency: 'XOF',
+              paymentType: 'tokens',
+              isVendor: shopData && shopData.length > 0,
+            });
+            return;
           } catch (tokenErr: any) {
             console.error('[PaymentCallback] Token credit error:', tokenErr);
             setResult({

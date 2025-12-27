@@ -14,9 +14,10 @@ interface OrderDetailSheetProps {
   order: any;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isVendorView?: boolean;
 }
 
-export function OrderDetailSheet({ order, open, onOpenChange }: OrderDetailSheetProps) {
+export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = false }: OrderDetailSheetProps) {
   // Fetch platform settings for commission rates
   const { data: settings } = useQuery({
     queryKey: ["platform-settings"],
@@ -163,25 +164,37 @@ export function OrderDetailSheet({ order, open, onOpenChange }: OrderDetailSheet
               
               <Separator className="my-3" />
               
-              {/* Répartition des commissions */}
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Répartition</p>
-              
-              <div className="flex justify-between text-green-600">
-                <span>💰 Vendeur (net)</span>
-                <span className="font-medium">{formatCurrency(vendorNet)}</span>
-              </div>
-              
-              {deliveryFee > 0 && (
-                <div className="flex justify-between text-blue-600">
-                  <span>🚗 Livreur ({Math.round(driverCommissionRate * 100)}%)</span>
-                  <span className="font-medium">{formatCurrency(driverCommission)}</span>
-                </div>
+              {/* Répartition des commissions - Admin only */}
+              {!isVendorView && (
+                <>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Répartition</p>
+                  
+                  <div className="flex justify-between text-green-600">
+                    <span>💰 Vendeur (net)</span>
+                    <span className="font-medium">{formatCurrency(vendorNet)}</span>
+                  </div>
+                  
+                  {deliveryFee > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>🚗 Livreur ({Math.round(driverCommissionRate * 100)}%)</span>
+                      <span className="font-medium">{formatCurrency(driverCommission)}</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between text-orange-600">
+                    <span>🏢 Plateforme</span>
+                    <span className="font-medium">{formatCurrency(totalPlatformCommission)}</span>
+                  </div>
+                </>
               )}
               
-              <div className="flex justify-between text-orange-600">
-                <span>🏢 Plateforme</span>
-                <span className="font-medium">{formatCurrency(totalPlatformCommission)}</span>
-              </div>
+              {/* Vendor view - Only show their net */}
+              {isVendorView && (
+                <div className="flex justify-between text-green-600 font-medium">
+                  <span>💰 Votre commission (net)</span>
+                  <span>{formatCurrency(vendorNet)}</span>
+                </div>
+              )}
               
               <Separator />
               

@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
-import { Eye, MessageSquare, Truck, Store, Banknote, CreditCard } from "lucide-react";
+import { Eye, MessageSquare, Truck, Banknote, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +17,6 @@ interface Order {
   delivery_type: string;
   total_amount: number;
   advance_paid: number;
-  advance_percent?: number | null;
-  remaining_amount: number;
   user_id: string;
   profiles?: { nom_complet: string; contact: string } | null;
   order_items?: Array<{
@@ -35,7 +33,7 @@ interface OrdersTableProps {
   showVendorActions?: boolean;
 }
 
-export function OrdersTable({ orders, onViewDetails, onMessage, showVendorActions }: OrdersTableProps) {
+export function OrdersTable({ orders, onViewDetails, onMessage }: OrdersTableProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
@@ -48,9 +46,8 @@ export function OrdersTable({ orders, onViewDetails, onMessage, showVendorAction
             <TableHead>N° Commande</TableHead>
             <TableHead>Client</TableHead>
             <TableHead>Zone</TableHead>
-            <TableHead>Mode</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">Avance</TableHead>
+            <TableHead className="text-right">Payé</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead>Paiement</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -59,13 +56,14 @@ export function OrdersTable({ orders, onViewDetails, onMessage, showVendorAction
         <TableBody>
           {orders.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 Aucune commande trouvée
               </TableCell>
             </TableRow>
           ) : (
             orders.map((order) => {
               const zone = order.order_items?.[0]?.shops?.delivery_zones?.name;
+              const isCash = order.payment_method === "cash";
               return (
                 <TableRow key={order.id}>
                   <TableCell>
@@ -85,29 +83,13 @@ export function OrdersTable({ orders, onViewDetails, onMessage, showVendorAction
                   <TableCell>
                     <span className="text-sm">{zone || "—"}</span>
                   </TableCell>
-                  <TableCell>
-                    {order.delivery_type === "pickup" ? (
-                      <span className="flex items-center gap-1 text-sm">
-                        <Store className="h-3 w-3" /> Retrait
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-sm">
-                        <Truck className="h-3 w-3" /> Livraison
-                      </span>
-                    )}
-                  </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(order.total_amount)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div>
-                      <div className="text-green-600">{formatCurrency(order.advance_paid || 0)}</div>
-                      {(order.remaining_amount || 0) > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          Reste: {formatCurrency(order.remaining_amount)}
-                        </div>
-                      )}
-                    </div>
+                    <span className={isCash ? "text-muted-foreground" : "text-green-600"}>
+                      {formatCurrency(order.advance_paid || 0)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <OrderStatusBadge status={order.status} />
@@ -115,13 +97,9 @@ export function OrdersTable({ orders, onViewDetails, onMessage, showVendorAction
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <PaymentStatusBadge status={order.payment_status} />
-                      {order.payment_method === "cash" ? (
+                      {isCash ? (
                         <Badge variant="outline" className="text-xs w-fit">
                           <Banknote className="h-3 w-3 mr-1" />Cash
-                        </Badge>
-                      ) : order.advance_percent && order.advance_percent < 100 ? (
-                        <Badge variant="outline" className="text-xs w-fit">
-                          <CreditCard className="h-3 w-3 mr-1" />{order.advance_percent}%
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs w-fit">

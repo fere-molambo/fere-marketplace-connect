@@ -762,7 +762,6 @@ export type Database = {
       orders: {
         Row: {
           advance_paid: number | null
-          advance_percent: number | null
           commission_amount: number
           created_at: string | null
           delivery_address_id: string | null
@@ -776,7 +775,6 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
-          remaining_amount: number | null
           source_warehouse_id: string | null
           status: string | null
           subtotal: number
@@ -787,7 +785,6 @@ export type Database = {
         }
         Insert: {
           advance_paid?: number | null
-          advance_percent?: number | null
           commission_amount: number
           created_at?: string | null
           delivery_address_id?: string | null
@@ -801,7 +798,6 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
-          remaining_amount?: number | null
           source_warehouse_id?: string | null
           status?: string | null
           subtotal: number
@@ -812,7 +808,6 @@ export type Database = {
         }
         Update: {
           advance_paid?: number | null
-          advance_percent?: number | null
           commission_amount?: number
           created_at?: string | null
           delivery_address_id?: string | null
@@ -826,7 +821,6 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
-          remaining_amount?: number | null
           source_warehouse_id?: string | null
           status?: string | null
           subtotal?: number
@@ -1404,6 +1398,9 @@ export type Database = {
           advance_paid: number | null
           booking_date: string
           booking_time: string
+          client_confirmed_at: string | null
+          client_rating: number | null
+          client_review: string | null
           commission_amount: number | null
           created_at: string | null
           customer_id: string | null
@@ -1419,11 +1416,15 @@ export type Database = {
           total_price: number
           tva_amount: number | null
           updated_at: string | null
+          vendor_confirmed_at: string | null
         }
         Insert: {
           advance_paid?: number | null
           booking_date: string
           booking_time: string
+          client_confirmed_at?: string | null
+          client_rating?: number | null
+          client_review?: string | null
           commission_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
@@ -1439,11 +1440,15 @@ export type Database = {
           total_price: number
           tva_amount?: number | null
           updated_at?: string | null
+          vendor_confirmed_at?: string | null
         }
         Update: {
           advance_paid?: number | null
           booking_date?: string
           booking_time?: string
+          client_confirmed_at?: string | null
+          client_rating?: number | null
+          client_review?: string | null
           commission_amount?: number | null
           created_at?: string | null
           customer_id?: string | null
@@ -1459,6 +1464,7 @@ export type Database = {
           total_price?: number
           tva_amount?: number | null
           updated_at?: string | null
+          vendor_confirmed_at?: string | null
         }
         Relationships: [
           {
@@ -2105,6 +2111,53 @@ export type Database = {
           },
         ]
       }
+      token_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string | null
+          description: string | null
+          id: string
+          payment_reference: string | null
+          reference_id: string | null
+          reference_type: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          payment_reference?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          payment_reference?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tutorials: {
         Row: {
           content: string | null
@@ -2217,6 +2270,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tokens: {
+        Row: {
+          balance: number
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_admins: {
         Row: {
           admin_id: string
@@ -2268,6 +2353,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_tokens: {
+        Args: {
+          p_amount: number
+          p_payment_reference: string
+          p_user_id: string
+        }
+        Returns: number
+      }
       assign_self_role: { Args: { role_name: string }; Returns: undefined }
       can_manage_product_media: {
         Args: { _file_path: string }
@@ -2284,6 +2377,17 @@ export type Database = {
       }
       can_manage_story_media: { Args: { _file_path: string }; Returns: boolean }
       cleanup_expired_stories: { Args: never; Returns: undefined }
+      deduct_tokens: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_reference_id: string
+          p_reference_type: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      ensure_user_tokens: { Args: { p_user_id: string }; Returns: number }
       generate_order_number: { Args: never; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }

@@ -55,9 +55,10 @@ export const BuyTokensDialog = ({ open, onOpenChange, onSuccess }: BuyTokensDial
       if (error) throw error;
 
       if (data?.authorization_url) {
-        // Store payment info for callback
+        // Store payment info for callback (backup - main data comes from DB)
         sessionStorage.setItem('paystack_reference', data.reference);
         sessionStorage.setItem('paystack_payment_type', 'tokens');
+        sessionStorage.setItem('paystack_user_id', user.id);
         
         // Redirect to Paystack
         window.location.href = data.authorization_url;

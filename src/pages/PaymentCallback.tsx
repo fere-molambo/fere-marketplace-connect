@@ -13,6 +13,8 @@ interface PaymentResult {
   amount?: number;
   currency?: string;
   message?: string;
+  paymentType?: string;
+  isVendor?: boolean;
 }
 
 export default function PaymentCallback() {
@@ -45,11 +47,13 @@ export default function PaymentCallback() {
           status: 'success',
           reference: reference,
           message: 'Commande enregistrée - Paiement à la livraison',
+          paymentType: 'order',
         });
-        // Store payment type for redirect
-        sessionStorage.setItem('paystack_payment_type', 'order');
         return;
       }
+
+      // Detect token purchase from reference prefix (more reliable than sessionStorage)
+      const isTokenPurchase = reference.startsWith('TOK-');
 
       try {
         const { data, error } = await supabase.functions.invoke('paystack-payment', {
@@ -63,30 +67,75 @@ export default function PaymentCallback() {
           throw new Error(error.message);
         }
 
-        // Check if this was a token purchase
-        const paymentType = sessionStorage.getItem('paystack_payment_type');
-        if (paymentType === 'tokens' && data.status === 'success') {
-          // Credit tokens using RPC function
+        // Handle token purchase - get data from payment_transactions table
+        if (isTokenPurchase && data.status === 'success') {
           try {
-            const { error: tokenError } = await supabase.rpc('add_tokens', {
-              p_user_id: data.metadata?.user_id || sessionStorage.getItem('paystack_user_id'),
-              p_amount: data.metadata?.amount || data.amount,
-              p_payment_reference: reference
-            });
-            
-            if (tokenError) {
-              console.error('Error adding tokens:', tokenError);
+            // Get transaction data from DB (more reliable than sessionStorage)
+            const { data: txData, error: txError } = await supabase
+              .from('payment_transactions')
+              .select('user_id, amount')
+              .eq('reference', reference)
+              .single();
+
+            if (txError) {
+              console.error('Error fetching transaction:', txError);
+            }
+
+            if (txData) {
+              // Credit tokens using RPC function
+              const { error: tokenError } = await supabase.rpc('add_tokens', {
+                p_user_id: txData.user_id,
+                p_amount: txData.amount,
+                p_payment_reference: reference
+              });
+              
+              if (tokenError) {
+                console.error('Error adding tokens:', tokenError);
+              } else {
+                console.log('Tokens credited successfully:', txData.amount);
+              }
+
+              // Update transaction status to success
+              await supabase
+                .from('payment_transactions')
+                .update({ 
+                  status: 'success' as const,
+                  paid_at: new Date().toISOString(),
+                  paystack_response: data
+                })
+                .eq('reference', reference);
+
+              // Check if user is vendor (has a shop)
+              const { data: shopData } = await supabase
+                .from('shops')
+                .select('id')
+                .eq('owner_id', txData.user_id)
+                .limit(1);
+
+              setResult({
+                status: data.status as PaymentStatus,
+                reference: data.reference,
+                amount: txData.amount,
+                currency: 'XOF',
+                paymentType: 'tokens',
+                isVendor: shopData && shopData.length > 0,
+              });
+              return;
             }
           } catch (tokenErr) {
             console.error('Token credit error:', tokenErr);
           }
         }
 
+        // Default handling for other payment types
+        const paymentType = sessionStorage.getItem('paystack_payment_type') || 'order';
+        
         setResult({
           status: data.status as PaymentStatus,
           reference: data.reference,
           amount: data.amount,
           currency: data.currency,
+          paymentType,
         });
 
         // Clear session storage
@@ -163,10 +212,12 @@ export default function PaymentCallback() {
   };
 
   const handleContinue = () => {
-    const paymentType = sessionStorage.getItem('paystack_payment_type');
+    // Use result.paymentType which was set during verification
+    const paymentType = result.paymentType || sessionStorage.getItem('paystack_payment_type');
     
     // Clear storage
     sessionStorage.removeItem('paystack_payment_type');
+    sessionStorage.removeItem('paystack_reference');
     
     // Navigate based on payment type
     switch (paymentType) {
@@ -177,8 +228,12 @@ export default function PaymentCallback() {
         navigate('/mon-profil?tab=orders');
         break;
       case 'tokens':
-        // Check if user is driver or vendor to redirect appropriately
-        navigate('/mon-profil?tab=tokens');
+        // Redirect based on whether user is vendor or driver
+        if (result.isVendor) {
+          navigate('/dashboard/my-shop?tab=tokens');
+        } else {
+          navigate('/mon-profil?tab=tokens');
+        }
         break;
       case 'subscription':
         navigate('/mon-abonnement');

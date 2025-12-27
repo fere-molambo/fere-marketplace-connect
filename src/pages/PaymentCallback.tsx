@@ -69,34 +69,42 @@ export default function PaymentCallback() {
 
         // Handle token purchase - get data from payment_transactions table
         if (isTokenPurchase && data.status === 'success') {
+          console.log('[PaymentCallback] Token purchase detected, processing...');
+          
           try {
             // Get transaction data from DB (more reliable than sessionStorage)
             const { data: txData, error: txError } = await supabase
               .from('payment_transactions')
-              .select('user_id, amount')
+              .select('user_id, amount, status')
               .eq('reference', reference)
               .single();
 
+            console.log('[PaymentCallback] Transaction data:', txData, 'Error:', txError);
+
             if (txError) {
-              console.error('Error fetching transaction:', txError);
+              console.error('[PaymentCallback] Error fetching transaction:', txError);
+              throw new Error('Transaction non trouvée');
             }
 
-            if (txData) {
+            if (txData && txData.status === 'pending') {
+              console.log('[PaymentCallback] Crediting tokens:', txData.amount, 'to user:', txData.user_id);
+              
               // Credit tokens using RPC function
-              const { error: tokenError } = await supabase.rpc('add_tokens', {
+              const { data: newBalance, error: tokenError } = await supabase.rpc('add_tokens', {
                 p_user_id: txData.user_id,
                 p_amount: txData.amount,
                 p_payment_reference: reference
               });
               
               if (tokenError) {
-                console.error('Error adding tokens:', tokenError);
-              } else {
-                console.log('Tokens credited successfully:', txData.amount);
+                console.error('[PaymentCallback] Error adding tokens:', tokenError);
+                throw new Error('Erreur lors du crédit des tokens: ' + tokenError.message);
               }
+              
+              console.log('[PaymentCallback] Tokens credited successfully! New balance:', newBalance);
 
               // Update transaction status to success
-              await supabase
+              const { error: updateError } = await supabase
                 .from('payment_transactions')
                 .update({ 
                   status: 'success' as const,
@@ -104,6 +112,10 @@ export default function PaymentCallback() {
                   paystack_response: data
                 })
                 .eq('reference', reference);
+
+              if (updateError) {
+                console.error('[PaymentCallback] Error updating transaction:', updateError);
+              }
 
               // Check if user is vendor (has a shop)
               const { data: shopData } = await supabase
@@ -121,9 +133,34 @@ export default function PaymentCallback() {
                 isVendor: shopData && shopData.length > 0,
               });
               return;
+            } else if (txData && txData.status === 'success') {
+              console.log('[PaymentCallback] Transaction already processed');
+              
+              // Check if user is vendor
+              const { data: shopData } = await supabase
+                .from('shops')
+                .select('id')
+                .eq('owner_id', txData.user_id)
+                .limit(1);
+
+              setResult({
+                status: 'success',
+                reference: reference,
+                amount: txData.amount,
+                currency: 'XOF',
+                paymentType: 'tokens',
+                isVendor: shopData && shopData.length > 0,
+              });
+              return;
             }
-          } catch (tokenErr) {
-            console.error('Token credit error:', tokenErr);
+          } catch (tokenErr: any) {
+            console.error('[PaymentCallback] Token credit error:', tokenErr);
+            setResult({
+              status: 'error',
+              reference: reference,
+              message: tokenErr.message || 'Erreur lors du crédit des tokens',
+            });
+            return;
           }
         }
 

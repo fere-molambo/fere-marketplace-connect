@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { OrderTimeline } from "./OrderTimeline";
-import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink } from "lucide-react";
+import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink, Banknote, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
@@ -117,6 +117,20 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                 <><Truck className="mr-1 h-3 w-3" />Livraison</>
               )}
             </Badge>
+            {/* Mode de paiement */}
+            {order.payment_method === "cash" ? (
+              <Badge variant="secondary">
+                <Banknote className="mr-1 h-3 w-3" />Cash à la livraison
+              </Badge>
+            ) : order.advance_percent && order.advance_percent < 100 ? (
+              <Badge variant="secondary">
+                <CreditCard className="mr-1 h-3 w-3" />{order.advance_percent}% payé
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                <CreditCard className="mr-1 h-3 w-3" />Payé intégralement
+              </Badge>
+            )}
           </div>
 
           {/* Timeline de suivi */}

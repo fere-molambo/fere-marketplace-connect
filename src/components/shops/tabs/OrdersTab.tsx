@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { OrderDetailSheet } from "@/components/orders/OrderDetailSheet";
+import { BookingDetailSheet } from "@/components/orders/BookingDetailSheet";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Package, Calendar, Eye, MessageSquare } from "lucide-react";
@@ -22,10 +23,10 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-
-  // Realtime subscription for order updates
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  // Realtime subscription for order and booking updates
   useEffect(() => {
-    const channel = supabase
+    const ordersChannel = supabase
       .channel('vendor-orders-changes')
       .on(
         'postgres_changes',
@@ -37,15 +38,29 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
         (payload) => {
           console.log('[Realtime] Vendor orders change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
+        }
+      )
+      .subscribe();
+
+    const bookingsChannel = supabase
+      .channel('vendor-bookings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'service_bookings'
+        },
+        (payload) => {
+          console.log('[Realtime] Vendor bookings change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
         }
       )
-      .subscribe((status) => {
-        console.log('[Realtime] Vendor orders subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(bookingsChannel);
     };
   }, [queryClient, shopId]);
 
@@ -89,7 +104,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
     },
   });
 
-  // Fetch service bookings for this shop
+  // Fetch service bookings for this shop with delivery address
   const { data: bookings = [], isLoading: loadingBookings } = useQuery({
     queryKey: ["shop-bookings", shopId],
     queryFn: async () => {
@@ -97,8 +112,12 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
         .from("service_bookings")
         .select(`
           *,
-          service:services!service_id (name, shop_id),
-          customer:profiles!customer_id (nom_complet, contact, email)
+          service:services!service_id (name, shop_id, price),
+          customer:profiles!customer_id (nom_complet, contact, email),
+          delivery_address:delivery_addresses!delivery_address_id (
+            id, label, address, city, country, recipient_name, recipient_phone,
+            geolocation_lat, geolocation_lng, google_maps_link
+          )
         `)
         .eq("service.shop_id", shopId)
         .order("created_at", { ascending: false });
@@ -237,6 +256,13 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                       <Badge variant="outline">{formatCurrency(booking.total_price)}</Badge>
                       <OrderStatusBadge status={booking.status} />
                       <PaymentStatusBadge status={booking.payment_status} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedBooking(booking)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       {booking.customer_id && (
                         <Button
                           variant="ghost"
@@ -261,6 +287,15 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           open={!!selectedOrder}
           onOpenChange={(open) => !open && setSelectedOrder(null)}
           isVendorView={true}
+        />
+      )}
+
+      {selectedBooking && (
+        <BookingDetailSheet
+          booking={selectedBooking}
+          open={!!selectedBooking}
+          onOpenChange={(open) => !open && setSelectedBooking(null)}
+          shopId={shopId}
         />
       )}
     </Tabs>

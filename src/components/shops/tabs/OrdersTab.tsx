@@ -64,7 +64,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
     };
   }, [queryClient, shopId]);
 
-  // Fetch product orders for this shop with complete order data
+  // Fetch product orders for this shop - optimized query without nested order_items
   const { data: orderItems = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["shop-order-items", shopId],
     queryFn: async () => {
@@ -83,16 +83,10 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
             commission_amount,
             delivery_fee,
             advance_paid,
-            remaining_amount,
             created_at,
             user_id,
             profiles:user_id (nom_complet, contact, email),
-            delivery_addresses:delivery_address_id (label, address, recipient_name, recipient_phone),
-            order_items (
-              id, quantity, unit_price, total_price, selected_color, selected_size, commission_rate,
-              products:product_id (name, main_media_url),
-              shops:shop_id (name)
-            )
+            delivery_addresses:delivery_address_id (label, address, recipient_name, recipient_phone)
           ),
           product:products!product_id (name, main_media_url)
         `)

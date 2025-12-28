@@ -19,7 +19,17 @@ export const TokenHistoryTable = () => {
       
       const { data, error } = await supabase
         .from("token_transactions")
-        .select("*")
+        .select(`
+          *,
+          service_booking:service_bookings (
+            id,
+            service:services (name)
+          ),
+          order:orders (
+            id,
+            order_number
+          )
+        `)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -92,31 +102,46 @@ export const TokenHistoryTable = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Référence</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead className="text-right">Montant</TableHead>
                   <TableHead className="text-right">Solde après</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {format(new Date(tx.created_at!), "dd MMM yyyy HH:mm", { locale: fr })}
-                    </TableCell>
-                    <TableCell>
-                      {getTransactionBadge(tx.type, tx.amount)}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {tx.description || "-"}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()} FCFA
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {tx.balance_after.toLocaleString()} FCFA
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {transactions.map((tx: any) => {
+                  // Determine reference display
+                  const referenceDisplay = tx.reference_type === 'service_booking' && tx.service_booking?.service?.name
+                    ? tx.service_booking.service.name
+                    : tx.reference_type === 'order' && tx.order?.order_number
+                    ? `Cmd ${tx.order.order_number}`
+                    : tx.reference_type === 'delivery_request'
+                    ? "Livraison"
+                    : "-";
+                  
+                  return (
+                    <TableRow key={tx.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {format(new Date(tx.created_at!), "dd MMM yyyy HH:mm", { locale: fr })}
+                      </TableCell>
+                      <TableCell>
+                        {getTransactionBadge(tx.type, tx.amount)}
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate text-muted-foreground">
+                        {referenceDisplay}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {tx.description || "-"}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()} FCFA
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {tx.balance_after.toLocaleString()} FCFA
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

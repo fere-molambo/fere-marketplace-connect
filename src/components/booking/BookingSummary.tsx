@@ -108,23 +108,10 @@ export function BookingSummary({
 
         <Separator />
 
-        {/* Price breakdown */}
+        {/* Price breakdown - simplified for client */}
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span>Prestation</span>
-            <span>{formatPrice(basePrice)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>TVA ({tvaRate}%)</span>
-            <span>{formatPrice(tvaAmount)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Commission ({commissionRate}%)</span>
-            <span>{formatPrice(commissionAmount)}</span>
-          </div>
-          <Separator />
           <div className="flex justify-between font-semibold text-base">
-            <span>Total</span>
+            <span>Total à payer</span>
             <span className="text-primary">{formatPrice(totalPrice)}</span>
           </div>
         </div>

@@ -258,43 +258,32 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
 
           <Separator />
 
-          {/* Récapitulatif financier */}
+          {/* Récapitulatif financier - simplifié pour le vendeur */}
           <div>
             <h3 className="text-sm font-semibold mb-2">Récapitulatif financier</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Prix du service</span>
-                <span>{formatCurrency(totalPrice)}</span>
-              </div>
-              {tvaAmount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">TVA</span>
-                  <span>{formatCurrency(tvaAmount)}</span>
-                </div>
-              )}
-              <Separator />
-              <div className="flex justify-between font-semibold">
-                <span>Total</span>
-                <span>{formatCurrency(totalPrice)}</span>
+              <div className="flex justify-between font-semibold text-lg text-green-600">
+                <span>💰 Vous recevrez (net)</span>
+                <span>{formatCurrency(vendorNet)}</span>
               </div>
               
               <Separator className="my-3" />
               
-              <div className="flex justify-between text-green-600 font-medium">
-                <span>💰 Votre commission (net)</span>
-                <span>{formatCurrency(vendorNet)}</span>
-              </div>
-              
-              <Separator />
-              
-              <div className="flex justify-between text-green-600">
-                <span>Avance payée</span>
-                <span>{formatCurrency(advancePaid)}</span>
-              </div>
-              {remainingToPay > 0 && (
-                <div className="flex justify-between text-orange-600">
-                  <span>Reste à payer</span>
+              {advancePaid > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Avance déjà payée</span>
+                  <span>{formatCurrency(advancePaid)}</span>
+                </div>
+              )}
+              {remainingToPay > 0 && booking.payment_method === "cash" && (
+                <div className="flex justify-between text-orange-600 font-medium">
+                  <span>À encaisser sur place</span>
                   <span>{formatCurrency(remainingToPay)}</span>
+                </div>
+              )}
+              {booking.payment_status === "paid" && (
+                <div className="flex justify-between text-green-600">
+                  <span>✓ Paiement complet reçu</span>
                 </div>
               )}
             </div>

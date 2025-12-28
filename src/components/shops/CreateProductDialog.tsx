@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { ProductMediaUpload } from "./ProductMediaUpload";
 import { VendorNetAmountDisplay } from "./VendorNetAmountDisplay";
+import { ColorPicker, ColorItem, normalizeColors } from "./ColorPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -45,8 +46,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
   const [video, setVideo] = useState("");
   const [otherMedia, setOtherMedia] = useState<string[]>([]);
   
-  const [colors, setColors] = useState<string[]>([]);
-  const [colorInput, setColorInput] = useState("");
+  const [colors, setColors] = useState<ColorItem[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [sizeInput, setSizeInput] = useState("");
   
@@ -83,13 +83,6 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
     setQuantityIntervals(updated);
   };
 
-  const addColor = () => {
-    if (colorInput.trim() && !colors.includes(colorInput.trim())) {
-      setColors([...colors, colorInput.trim()]);
-      setColorInput("");
-    }
-  };
-
   const addSize = () => {
     if (sizeInput.trim() && !sizes.includes(sizeInput.trim())) {
       setSizes([...sizes, sizeInput.trim()]);
@@ -124,7 +117,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
         subcategory_id: subcategoryId || null,
         product_type: productType || null,
         condition,
-        discount_percent: parseFloat(discount),
+        discount_percent: priceType === "en_gros" ? 0 : parseFloat(discount),
         quantity_available: parseInt(stock),
         min_quantity: parseInt(minQuantity),
         is_active: isActive,
@@ -132,7 +125,7 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
         hover_media_url: hoverMedia || null,
         video_url: video || null,
         media_urls: otherMedia,
-        colors,
+        colors: colors.map(c => ({ hex: c.hex, name: c.name })),
         sizes,
         quantity_intervals: priceType === "en_gros" && quantityIntervals.length > 0 
           ? quantityIntervals.map(interval => ({
@@ -448,48 +441,28 @@ export const CreateProductDialog = ({ shopId, open, onOpenChange }: CreateProduc
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="discount">Réduction (%)</Label>
-              <Input
-                id="discount"
-                type="number"
-                min="0"
-                max="100"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-              />
-              {discount && parseFloat(discount) > 0 && price && (
-                <p className="text-sm text-muted-foreground">
-                  Prix après réduction : {(parseFloat(price) * (1 - parseFloat(discount) / 100)).toLocaleString()} FCFA{" "}
-                  <span className="line-through">(au lieu de {parseFloat(price).toLocaleString()} FCFA)</span>
-                </p>
-              )}
-            </div>
-
-            <div className="col-span-2 space-y-2">
-              <Label>Couleurs disponibles</Label>
-              <div className="flex gap-2">
+            {priceType !== "en_gros" && (
+              <div className="space-y-2">
+                <Label htmlFor="discount">Réduction (%)</Label>
                 <Input
-                  value={colorInput}
-                  onChange={(e) => setColorInput(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addColor())}
-                  placeholder="Ajouter une couleur"
+                  id="discount"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
                 />
-                <Button type="button" onClick={addColor} size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                {discount && parseFloat(discount) > 0 && price && (
+                  <p className="text-sm text-muted-foreground">
+                    Prix après réduction : {(parseFloat(price) * (1 - parseFloat(discount) / 100)).toLocaleString()} FCFA{" "}
+                    <span className="line-through">(au lieu de {parseFloat(price).toLocaleString()} FCFA)</span>
+                  </p>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {colors.map((color) => (
-                  <Badge key={color} variant="secondary">
-                    {color}
-                    <X
-                      className="ml-1 h-3 w-3 cursor-pointer"
-                      onClick={() => setColors(colors.filter((c) => c !== color))}
-                    />
-                  </Badge>
-                ))}
-              </div>
+            )}
+
+            <div className="col-span-2">
+              <ColorPicker colors={colors} onChange={setColors} />
             </div>
 
             <div className="col-span-2 space-y-2">

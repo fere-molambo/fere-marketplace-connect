@@ -118,7 +118,7 @@ export const ProductCard = ({ product, viewMode = "cards", warehouseStock }: Pro
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <span className="font-semibold text-lg">{product.price.toLocaleString()} FCFA</span>
-                {product.discount_percent > 0 && (
+                {product.price_type !== "en_gros" && product.discount_percent > 0 && (
                   <Badge variant="destructive">-{product.discount_percent}%</Badge>
                 )}
                 {product.condition && (
@@ -182,7 +182,7 @@ export const ProductCard = ({ product, viewMode = "cards", warehouseStock }: Pro
             )}
           </Carousel>
         )}
-        {product.discount_percent > 0 && (
+        {product.price_type !== "en_gros" && product.discount_percent > 0 && (
           <Badge className="absolute top-2 right-2 z-10" variant="destructive">
             -{product.discount_percent}%
           </Badge>

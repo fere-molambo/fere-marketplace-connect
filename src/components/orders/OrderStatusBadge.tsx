@@ -15,6 +15,8 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
+  if (!status) return null;
+  
   const config = statusConfig[status] || { label: status, className: "bg-gray-100 text-gray-800" };
   
   return (

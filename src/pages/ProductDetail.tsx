@@ -13,6 +13,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { useFavorite } from "@/hooks/useFavorite";
 import { ContactVendorDialog } from "@/components/contact/ContactVendorDialog";
 import { useCart, CartProduct } from "@/contexts/CartContext";
+import { getColorHex, getColorName } from "@/components/shops/ColorPicker";
 import { 
   Heart, Share2, ShoppingCart, ArrowLeft, Star, Package, 
   Truck, RotateCcw, MessageCircle, Store, BadgeCheck, FileText,
@@ -119,12 +120,14 @@ const ProductDetail = () => {
     ...mediaUrls,
   ].filter((m): m is string => typeof m === 'string' && m.length > 0);
 
-  const colors = Array.isArray(product.colors) ? product.colors as string[] : [];
+  const colors = Array.isArray(product.colors) ? product.colors : [];
   const sizes = Array.isArray(product.sizes) ? product.sizes as string[] : [];
   const quantityIntervals = Array.isArray(product.quantity_intervals) ? product.quantity_intervals : [];
 
   const basePrice = flashSale ? flashSale.flash_price : product.price;
-  const discountedPrice = product.discount_percent 
+  // Don't apply discount for wholesale products
+  const shouldShowDiscount = product.price_type !== "en_gros" && product.discount_percent > 0;
+  const discountedPrice = shouldShowDiscount 
     ? basePrice * (1 - product.discount_percent / 100) 
     : basePrice;
 
@@ -283,7 +286,7 @@ const ProductDetail = () => {
             <div className="space-y-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-primary">{formatPrice(discountedPrice)}</span>
-                {(product.discount_percent > 0 || flashSale) && (
+                {(shouldShowDiscount || flashSale) && (
                   <span className="text-lg text-muted-foreground line-through">
                     {formatPrice(product.price)}
                   </span>
@@ -320,16 +323,21 @@ const ProductDetail = () => {
             {/* Colors */}
             {colors.length > 0 && (
               <div className="space-y-2">
-                <p className="font-medium text-sm">Couleur :</p>
+                <p className="font-medium text-sm">Couleur : {selectedColor ? getColorName(selectedColor) : ""}</p>
                 <div className="flex gap-2 flex-wrap">
-                  {colors.map((color: string, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedColor(color)}
-                      className={`w-8 h-8 rounded-full border-2 ${selectedColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted"}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
+                  {colors.map((color: any, index: number) => {
+                    const hex = getColorHex(color);
+                    const colorValue = typeof color === "object" ? color.hex : color;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedColor(colorValue)}
+                        className={`w-8 h-8 rounded-full border-2 ${selectedColor === colorValue ? "border-primary ring-2 ring-primary/50" : "border-muted"}`}
+                        style={{ backgroundColor: hex }}
+                        title={getColorName(color)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

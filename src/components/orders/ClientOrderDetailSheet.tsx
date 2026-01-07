@@ -5,11 +5,13 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { OrderTimeline } from "./OrderTimeline";
-import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink, Banknote, CreditCard } from "lucide-react";
+import { DeliveryProgressTracker } from "./DeliveryProgressTracker";
+import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink, Banknote, CreditCard, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
 interface ClientOrderDetailSheetProps {
   order: any;
@@ -18,7 +20,32 @@ interface ClientOrderDetailSheetProps {
 }
 
 export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrderDetailSheetProps) {
-  // Fetch shops info for pickup orders
+  const queryClient = useQueryClient();
+
+  // Realtime subscription for delivery updates
+  useEffect(() => {
+    if (!order?.id) return;
+
+    const channel = supabase
+      .channel(`client-order-${order.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_requests',
+          filter: `order_id=eq.${order.id}`
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["delivery-request", order.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [order?.id, queryClient]);
   const { data: shopsInfo = [] } = useQuery({
     queryKey: ["order-shops", order?.id],
     queryFn: async () => {
@@ -70,8 +97,10 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     const statusLabels: Record<string, { label: string; color: string }> = {
       pending: { label: "En attente d'un livreur", color: "bg-yellow-100 text-yellow-800" },
       assigned: { label: "Livreur assigné", color: "bg-blue-100 text-blue-800" },
-      in_progress: { label: "En route pour collecte", color: "bg-blue-100 text-blue-800" },
-      picked_up: { label: "Colis récupéré - En transit", color: "bg-purple-100 text-purple-800" },
+      in_progress: { label: "En route vers la boutique", color: "bg-purple-100 text-purple-800" },
+      picked_up: { label: "Colis récupéré", color: "bg-indigo-100 text-indigo-800" },
+      en_route_client: { label: "En route vers vous", color: "bg-cyan-100 text-cyan-800" },
+      arrived: { label: "Livreur arrivé !", color: "bg-amber-100 text-amber-800" },
       delivered: { label: "Livré", color: "bg-green-100 text-green-800" },
       cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
     };
@@ -139,41 +168,50 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
             <OrderTimeline status={order.status} />
           </div>
 
-          {/* Suivi de livraison */}
+          {/* Suivi de livraison avec nouveau tracker */}
           {order.delivery_type === "delivery" && (
             <div>
-              <h3 className="text-sm font-semibold mb-2">Détails de livraison</h3>
-              <div className="rounded-lg bg-muted p-4 space-y-3">
-                {deliveryRequest ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4" />
-                      <Badge className={getDeliveryStatusLabel(deliveryRequest.status).color}>
-                        {getDeliveryStatusLabel(deliveryRequest.status).label}
-                      </Badge>
-                    </div>
-                    {deliveryRequest.total_distance_meters && (
-                      <p className="text-sm text-muted-foreground">
-                        Distance: {(deliveryRequest.total_distance_meters / 1000).toFixed(1)} km
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    La livraison sera préparée après confirmation de votre commande.
+              <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Suivi de livraison
+              </h3>
+              
+              {/* Alerte si livreur est arrivé */}
+              {deliveryRequest?.status === 'arrived' && (
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-3">
+                  <p className="font-medium text-primary flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Le livreur est arrivé !
                   </p>
-                )}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Vérifiez votre commande avant d'accepter.
+                    Aucune annulation possible après acceptation.
+                  </p>
+                </div>
+              )}
+              
+              {/* Tracker visuel 7 étapes */}
+              <DeliveryProgressTracker 
+                deliveryStatus={deliveryRequest?.status}
+                paymentMethod={order.payment_method}
+              />
+              
+              {/* Distance */}
+              {deliveryRequest?.total_distance_meters && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Distance: {(deliveryRequest.total_distance_meters / 1000).toFixed(1)} km
+                </p>
+              )}
                 
-                {/* Adresse de livraison */}
-                {order.delivery_addresses && (
-                  <div className="pt-2 border-t border-border/50">
-                    <p className="font-medium text-sm">{order.delivery_addresses.label}</p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <MapPin className="h-3 w-3" /> {order.delivery_addresses.address}
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Adresse de livraison */}
+              {order.delivery_addresses && (
+                <div className="pt-3 mt-3 border-t border-border/50">
+                  <p className="font-medium text-sm">{order.delivery_addresses.label}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> {order.delivery_addresses.address}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

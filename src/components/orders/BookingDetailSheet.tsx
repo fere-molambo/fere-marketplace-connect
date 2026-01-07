@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { CancellationBanner } from "./CancellationBanner";
 import { MapPin, Phone, Calendar, Clock, MessageSquare, Banknote, CreditCard, ExternalLink, CheckCircle, Play, CircleDollarSign, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface BookingDetailSheetProps {
   booking: any;
@@ -29,6 +30,25 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
   useEffect(() => {
     setBookingData(booking);
   }, [booking]);
+
+  // Fetch cancellation details if booking is cancelled
+  const { data: cancellation } = useQuery({
+    queryKey: ["booking-cancellation", booking?.id],
+    queryFn: async () => {
+      if (!booking?.id) return null;
+      const { data, error } = await supabase
+        .from("cancellations")
+        .select(`
+          *,
+          reason:cancellation_reasons(label)
+        `)
+        .eq("booking_id", booking.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!booking?.id && booking?.status === "cancelled",
+  });
 
   if (!bookingData) return null;
 
@@ -151,6 +171,14 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
               </Badge>
             )}
           </div>
+
+          {/* Cancellation Banner */}
+          {bookingData.status === "cancelled" && cancellation && (
+            <CancellationBanner 
+              cancellation={cancellation} 
+              type="booking"
+            />
+          )}
 
           {/* Date et heure du RDV */}
           <div className="rounded-lg bg-primary/10 p-4 text-center">

@@ -56,6 +56,118 @@ export type Database = {
           },
         ]
       }
+      cancellation_reasons: {
+        Row: {
+          applies_to: string[] | null
+          created_at: string | null
+          created_by: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          label: string
+        }
+        Insert: {
+          applies_to?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          label: string
+        }
+        Update: {
+          applies_to?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+        }
+        Relationships: []
+      }
+      cancellations: {
+        Row: {
+          attachment_url: string | null
+          booking_id: string | null
+          cancelled_by: string
+          canceller_role: string
+          created_at: string | null
+          custom_reason: string | null
+          delivery_fee_kept: boolean | null
+          id: string
+          notes: string | null
+          order_id: string | null
+          penalty_amount: number | null
+          processed_at: string | null
+          processed_by: string | null
+          reason_id: string | null
+          refund_amount: number | null
+          requires_return: boolean | null
+          status_at_cancellation: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          booking_id?: string | null
+          cancelled_by: string
+          canceller_role: string
+          created_at?: string | null
+          custom_reason?: string | null
+          delivery_fee_kept?: boolean | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          penalty_amount?: number | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason_id?: string | null
+          refund_amount?: number | null
+          requires_return?: boolean | null
+          status_at_cancellation: string
+        }
+        Update: {
+          attachment_url?: string | null
+          booking_id?: string | null
+          cancelled_by?: string
+          canceller_role?: string
+          created_at?: string | null
+          custom_reason?: string | null
+          delivery_fee_kept?: boolean | null
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          penalty_amount?: number | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason_id?: string | null
+          refund_amount?: number | null
+          requires_return?: boolean | null
+          status_at_cancellation?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "service_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_reason_id_fkey"
+            columns: ["reason_id"]
+            isOneToOne: false
+            referencedRelation: "cancellation_reasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_commissions: {
         Row: {
           category_id: string | null
@@ -228,17 +340,23 @@ export type Database = {
       }
       delivery_requests: {
         Row: {
+          arrived_at_client_at: string | null
           assigned_at: string | null
+          client_verified: boolean | null
           created_at: string | null
           delivered_at: string | null
           delivery_fee: number | null
+          delivery_payment_status: string | null
           delivery_point: Json | null
           driver_earnings: number | null
           driver_id: string | null
           id: string
+          is_return: boolean | null
           order_id: string | null
+          original_delivery_id: string | null
           picked_up_at: string | null
           pickup_points: Json | null
+          return_status: string | null
           started_at: string | null
           status: string | null
           total_distance_meters: number | null
@@ -246,17 +364,23 @@ export type Database = {
           zone_id: string | null
         }
         Insert: {
+          arrived_at_client_at?: string | null
           assigned_at?: string | null
+          client_verified?: boolean | null
           created_at?: string | null
           delivered_at?: string | null
           delivery_fee?: number | null
+          delivery_payment_status?: string | null
           delivery_point?: Json | null
           driver_earnings?: number | null
           driver_id?: string | null
           id?: string
+          is_return?: boolean | null
           order_id?: string | null
+          original_delivery_id?: string | null
           picked_up_at?: string | null
           pickup_points?: Json | null
+          return_status?: string | null
           started_at?: string | null
           status?: string | null
           total_distance_meters?: number | null
@@ -264,17 +388,23 @@ export type Database = {
           zone_id?: string | null
         }
         Update: {
+          arrived_at_client_at?: string | null
           assigned_at?: string | null
+          client_verified?: boolean | null
           created_at?: string | null
           delivered_at?: string | null
           delivery_fee?: number | null
+          delivery_payment_status?: string | null
           delivery_point?: Json | null
           driver_earnings?: number | null
           driver_id?: string | null
           id?: string
+          is_return?: boolean | null
           order_id?: string | null
+          original_delivery_id?: string | null
           picked_up_at?: string | null
           pickup_points?: Json | null
+          return_status?: string | null
           started_at?: string | null
           status?: string | null
           total_distance_meters?: number | null
@@ -294,6 +424,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_requests_original_delivery_id_fkey"
+            columns: ["original_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_requests"
             referencedColumns: ["id"]
           },
           {
@@ -762,6 +899,7 @@ export type Database = {
       orders: {
         Row: {
           advance_paid: number | null
+          cancellation_id: string | null
           commission_amount: number
           created_at: string | null
           delivery_address_id: string | null
@@ -785,6 +923,7 @@ export type Database = {
         }
         Insert: {
           advance_paid?: number | null
+          cancellation_id?: string | null
           commission_amount: number
           created_at?: string | null
           delivery_address_id?: string | null
@@ -808,6 +947,7 @@ export type Database = {
         }
         Update: {
           advance_paid?: number | null
+          cancellation_id?: string | null
           commission_amount?: number
           created_at?: string | null
           delivery_address_id?: string | null
@@ -830,6 +970,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_cancellation_id_fkey"
+            columns: ["cancellation_id"]
+            isOneToOne: false
+            referencedRelation: "cancellations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_delivery_address_id_fkey"
             columns: ["delivery_address_id"]
@@ -899,10 +1046,93 @@ export type Database = {
           },
         ]
       }
+      pending_payouts: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string | null
+          currency: string | null
+          delivery_request_id: string | null
+          eligible_at: string | null
+          failure_reason: string | null
+          id: string
+          order_id: string | null
+          paystack_recipient_code: string | null
+          paystack_reference: string | null
+          paystack_transfer_code: string | null
+          processed_at: string | null
+          recipient_id: string
+          recipient_type: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          delivery_request_id?: string | null
+          eligible_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          order_id?: string | null
+          paystack_recipient_code?: string | null
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          processed_at?: string | null
+          recipient_id: string
+          recipient_type: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          delivery_request_id?: string | null
+          eligible_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          order_id?: string | null
+          paystack_recipient_code?: string | null
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          processed_at?: string | null
+          recipient_id?: string
+          recipient_type?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_payouts_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "service_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_payouts_delivery_request_id_fkey"
+            columns: ["delivery_request_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_payouts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           app_description: string | null
           app_name: string
+          cancellation_penalty_rate: number | null
           cgu: string | null
           company_email: string | null
           cookies: string | null
@@ -929,8 +1159,10 @@ export type Database = {
           logo_footer: string | null
           logo_principal: string | null
           logo_sidebar_collapsed: string | null
+          max_cash_order_amount: number | null
           max_delivery_acceptance_hour: number | null
           partner_logos: Json | null
+          payout_delay_hours: number | null
           support_email: string | null
           support_phone: string | null
           tva_rate: number | null
@@ -939,6 +1171,7 @@ export type Database = {
         Insert: {
           app_description?: string | null
           app_name?: string
+          cancellation_penalty_rate?: number | null
           cgu?: string | null
           company_email?: string | null
           cookies?: string | null
@@ -965,8 +1198,10 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          max_cash_order_amount?: number | null
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
+          payout_delay_hours?: number | null
           support_email?: string | null
           support_phone?: string | null
           tva_rate?: number | null
@@ -975,6 +1210,7 @@ export type Database = {
         Update: {
           app_description?: string | null
           app_name?: string
+          cancellation_penalty_rate?: number | null
           cgu?: string | null
           company_email?: string | null
           cookies?: string | null
@@ -1001,8 +1237,10 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
+          max_cash_order_amount?: number | null
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
+          payout_delay_hours?: number | null
           support_email?: string | null
           support_phone?: string | null
           tva_rate?: number | null
@@ -1316,6 +1554,82 @@ export type Database = {
           },
         ]
       }
+      refunds: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          cancellation_id: string | null
+          created_at: string | null
+          failure_reason: string | null
+          id: string
+          net_refund: number
+          order_id: string | null
+          original_payment_reference: string | null
+          paystack_refund_reference: string | null
+          processed_at: string | null
+          processed_by: string | null
+          status: string | null
+          transaction_fee_deducted: number | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          cancellation_id?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          net_refund: number
+          order_id?: string | null
+          original_payment_reference?: string | null
+          paystack_refund_reference?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: string | null
+          transaction_fee_deducted?: number | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          cancellation_id?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          net_refund?: number
+          order_id?: string | null
+          original_payment_reference?: string | null
+          paystack_refund_reference?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: string | null
+          transaction_fee_deducted?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "service_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_cancellation_id_fkey"
+            columns: ["cancellation_id"]
+            isOneToOne: false
+            referencedRelation: "cancellations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       review_replies: {
         Row: {
           created_at: string | null
@@ -1416,6 +1730,7 @@ export type Database = {
           total_price: number
           tva_amount: number | null
           updated_at: string | null
+          vendor_arrived_at: string | null
           vendor_confirmed_at: string | null
         }
         Insert: {
@@ -1440,6 +1755,7 @@ export type Database = {
           total_price: number
           tva_amount?: number | null
           updated_at?: string | null
+          vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
         }
         Update: {
@@ -1464,6 +1780,7 @@ export type Database = {
           total_price?: number
           tva_amount?: number | null
           updated_at?: string | null
+          vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
         }
         Relationships: [
@@ -2245,6 +2562,76 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_penalties: {
+        Row: {
+          amount: number
+          applied_at: string | null
+          applied_to_booking_id: string | null
+          applied_to_order_id: string | null
+          blocks_cash_payment: boolean | null
+          cancellation_id: string | null
+          created_at: string | null
+          id: string
+          status: string | null
+          user_id: string
+          waived_at: string | null
+          waived_by: string | null
+          waived_reason: string | null
+        }
+        Insert: {
+          amount: number
+          applied_at?: string | null
+          applied_to_booking_id?: string | null
+          applied_to_order_id?: string | null
+          blocks_cash_payment?: boolean | null
+          cancellation_id?: string | null
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          user_id: string
+          waived_at?: string | null
+          waived_by?: string | null
+          waived_reason?: string | null
+        }
+        Update: {
+          amount?: number
+          applied_at?: string | null
+          applied_to_booking_id?: string | null
+          applied_to_order_id?: string | null
+          blocks_cash_payment?: boolean | null
+          cancellation_id?: string | null
+          created_at?: string | null
+          id?: string
+          status?: string | null
+          user_id?: string
+          waived_at?: string | null
+          waived_by?: string | null
+          waived_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_penalties_applied_to_booking_id_fkey"
+            columns: ["applied_to_booking_id"]
+            isOneToOne: false
+            referencedRelation: "service_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_penalties_applied_to_order_id_fkey"
+            columns: ["applied_to_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_penalties_cancellation_id_fkey"
+            columns: ["cancellation_id"]
+            isOneToOne: false
+            referencedRelation: "cancellations"
             referencedColumns: ["id"]
           },
         ]

@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { BookingsTable } from "@/components/orders/BookingsTable";
+import { CancellationsTable } from "@/components/orders/CancellationsTable";
 import { OrderDetailSheet } from "@/components/orders/OrderDetailSheet";
-import { Package, Calendar, TrendingUp, Clock, Loader2, Search } from "lucide-react";
+import { BookingDetailSheet } from "@/components/orders/BookingDetailSheet";
+import { Package, Calendar, TrendingUp, Clock, Loader2, Search, XCircle } from "lucide-react";
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -86,7 +88,8 @@ export default function Orders() {
         .select(`
           *,
           profiles!service_bookings_customer_id_fkey(nom_complet, contact),
-          services(name, shops(name))
+          services(name, shop_id, shops(name)),
+          delivery_address:delivery_addresses(*)
         `)
         .order("created_at", { ascending: false });
 
@@ -98,6 +101,26 @@ export default function Orders() {
       }
 
       const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch cancellations
+  const { data: cancellations = [], isLoading: cancellationsLoading } = useQuery({
+    queryKey: ["admin-cancellations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cancellations")
+        .select(`
+          *,
+          reason:cancellation_reasons(label),
+          cancelled_by_profile:profiles!cancellations_cancelled_by_fkey(nom_complet),
+          order:orders(order_number, profiles!orders_user_id_fkey(nom_complet)),
+          booking:service_bookings(id, profiles!service_bookings_customer_id_fkey(nom_complet), services(name))
+        `)
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data;
     },
@@ -221,6 +244,10 @@ export default function Orders() {
             <Calendar className="h-4 w-4" />
             Réservations services ({filteredBookings.length})
           </TabsTrigger>
+          <TabsTrigger value="cancellations" className="gap-2">
+            <XCircle className="h-4 w-4" />
+            Annulations ({cancellations.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="orders">
@@ -250,6 +277,28 @@ export default function Orders() {
             />
           )}
         </TabsContent>
+
+        <TabsContent value="cancellations">
+          {cancellationsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <Card>
+              <CancellationsTable
+                cancellations={cancellations}
+                onViewOrder={(orderId) => {
+                  const order = orders.find((o: any) => o.id === orderId);
+                  if (order) setSelectedOrder(order);
+                }}
+                onViewBooking={(bookingId) => {
+                  const booking = bookings.find((b: any) => b.id === bookingId);
+                  if (booking) setSelectedBooking(booking);
+                }}
+              />
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
 
       <OrderDetailSheet
@@ -257,6 +306,20 @@ export default function Orders() {
         open={!!selectedOrder}
         onOpenChange={(open) => !open && setSelectedOrder(null)}
       />
+
+      {selectedBooking && (
+        <BookingDetailSheet
+          booking={{
+            ...selectedBooking,
+            service: selectedBooking.services,
+            customer: selectedBooking.profiles,
+            delivery_address: selectedBooking.delivery_address,
+          }}
+          open={!!selectedBooking}
+          onOpenChange={(open) => !open && setSelectedBooking(null)}
+          shopId={selectedBooking.services?.shop_id || ""}
+        />
+      )}
     </div>
   );
 }

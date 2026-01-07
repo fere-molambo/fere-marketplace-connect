@@ -32,6 +32,7 @@ import PaymentCallback from "./pages/PaymentCallback";
 import Checkout from "./pages/Checkout";
 import DeliveryZones from "./pages/DeliveryZones";
 import Orders from "./pages/Orders";
+import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
@@ -97,6 +98,7 @@ const App = () => (
             <Route path="messages" element={<Messages />} />
             <Route path="delivery-zones" element={<DeliveryZones />} />
             <Route path="orders" element={<Orders />} />
+            <Route path="payments" element={<Payments />} />
             <Route path="transactions" element={<Transactions />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

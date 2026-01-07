@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { OrderTimeline } from "./OrderTimeline";
+import { CancellationBanner } from "./CancellationBanner";
 import { MapPin, Phone, Store, Truck, Package, Banknote, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -29,6 +30,25 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch cancellation details if order is cancelled
+  const { data: cancellation } = useQuery({
+    queryKey: ["order-cancellation", order?.id],
+    queryFn: async () => {
+      if (!order?.id) return null;
+      const { data, error } = await supabase
+        .from("cancellations")
+        .select(`
+          *,
+          reason:cancellation_reasons(label)
+        `)
+        .eq("order_id", order.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!order?.id && order?.status === "cancelled",
   });
 
   if (!order) return null;
@@ -92,6 +112,15 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
               </Badge>
             )}
           </div>
+
+          {/* Cancellation Banner */}
+          {order.status === "cancelled" && cancellation && (
+            <CancellationBanner 
+              cancellation={cancellation} 
+              returnStatus={order.return_status}
+              type="order"
+            />
+          )}
 
           {/* Timeline de suivi */}
           <div>

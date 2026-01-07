@@ -7,7 +7,9 @@ import { TeamTagsSettings } from "@/components/settings/TeamTagsSettings";
 import { HomepageSettings } from "@/components/settings/HomepageSettings";
 import { HelpSettings } from "@/components/settings/HelpSettings";
 import { AIIntegrationsSettings } from "@/components/settings/AIIntegrationsSettings";
-import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle, Sparkles } from "lucide-react";
+import { CancellationSettings } from "@/components/settings/CancellationSettings";
+import { FinancialPoliciesSettings } from "@/components/settings/FinancialPoliciesSettings";
+import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle, Sparkles, XCircle, Coins } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -70,6 +72,18 @@ export default function Settings() {
                 <span className="hidden sm:inline">Intégrations IA</span>
               </TabsTrigger>
             )}
+            {canManagePlatform && (
+              <TabsTrigger value="cancellations" className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Annulations</span>
+              </TabsTrigger>
+            )}
+            {canManagePlatform && (
+              <TabsTrigger value="financial" className="flex items-center gap-2">
+                <Coins className="h-4 w-4" />
+                <span className="hidden sm:inline">Politiques financières</span>
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
         <TabsContent value="profile" className="mt-6">
@@ -106,6 +120,16 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="ai" className="mt-6">
             <AIIntegrationsSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="cancellations" className="mt-6">
+            <CancellationSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="financial" className="mt-6">
+            <FinancialPoliciesSettings />
           </TabsContent>
         )}
       </Tabs>

@@ -350,6 +350,7 @@ export type Database = {
           delivery_point: Json | null
           driver_earnings: number | null
           driver_id: string | null
+          en_route_client_at: string | null
           id: string
           is_return: boolean | null
           order_id: string | null
@@ -374,6 +375,7 @@ export type Database = {
           delivery_point?: Json | null
           driver_earnings?: number | null
           driver_id?: string | null
+          en_route_client_at?: string | null
           id?: string
           is_return?: boolean | null
           order_id?: string | null
@@ -398,6 +400,7 @@ export type Database = {
           delivery_point?: Json | null
           driver_earnings?: number | null
           driver_id?: string | null
+          en_route_client_at?: string | null
           id?: string
           is_return?: boolean | null
           order_id?: string | null

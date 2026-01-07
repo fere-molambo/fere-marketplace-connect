@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
+import { DeliveryStatusBadge } from "@/components/orders/DeliveryStatusBadge";
 import { OrderDetailSheet } from "@/components/orders/OrderDetailSheet";
 import { BookingDetailSheet } from "@/components/orders/BookingDetailSheet";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Package, Calendar, Eye, MessageSquare } from "lucide-react";
+import { Package, Calendar, Eye, MessageSquare, Truck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface OrdersTabProps {
@@ -64,7 +65,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
     };
   }, [queryClient, shopId]);
 
-  // Fetch product orders for this shop - optimized query without nested order_items
+  // Fetch product orders for this shop with delivery request status
   const { data: orderItems = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["shop-order-items", shopId],
     queryFn: async () => {
@@ -94,7 +95,23 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data;
+      
+      // Fetch delivery requests for all orders
+      const orderIds = [...new Set(data?.map(item => item.order?.id).filter(Boolean))];
+      if (orderIds.length > 0) {
+        const { data: deliveryRequests } = await supabase
+          .from("delivery_requests")
+          .select("order_id, status")
+          .in("order_id", orderIds);
+        
+        // Map delivery status to each order item
+        return data?.map(item => ({
+          ...item,
+          deliveryStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id)?.status
+        })) || [];
+      }
+      
+      return data || [];
     },
   });
 
@@ -194,6 +211,12 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                       <Badge variant="outline">{formatCurrency(item.total_price)}</Badge>
                       <OrderStatusBadge status={item.order?.status} />
                       <PaymentStatusBadge status={item.order?.payment_status} />
+                      {item.order?.delivery_type === "delivery" && item.deliveryStatus && (
+                        <div className="flex items-center gap-1">
+                          <Truck className="h-3 w-3 text-muted-foreground" />
+                          <DeliveryStatusBadge status={item.deliveryStatus} />
+                        </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

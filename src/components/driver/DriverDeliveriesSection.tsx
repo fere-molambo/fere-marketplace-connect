@@ -1,10 +1,11 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play } from "lucide-react";
+import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play, MapPin, Eye, AlertTriangle, Banknote, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +16,35 @@ interface DriverDeliveriesSectionProps {
 
 export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps) {
   const queryClient = useQueryClient();
+
+  // Realtime subscription for delivery updates
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('driver-deliveries-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_requests'
+        },
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
+          queryClient.invalidateQueries({ queryKey: ["pending-deliveries"] });
+          
+          if (payload.eventType === 'UPDATE' && (payload.new as any)?.driver_id === userId) {
+            toast.info("Statut de livraison mis à jour");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, queryClient]);
 
   // Fetch driver's active zones
   const { data: driverZones = [] } = useQuery({
@@ -60,15 +90,20 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     enabled: !!userId,
   });
 
-  // Fetch driver's assigned deliveries
+  // Fetch driver's assigned deliveries with order info
   const { data: myDeliveries = [], isLoading: isLoadingMine } = useQuery({
     queryKey: ["my-deliveries", userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("delivery_requests")
-        .select(`*, delivery_zones (name, city)`)
+        .select(`
+          *, 
+          delivery_zones (name, city),
+          order:orders!order_id (id, payment_method, payment_status)
+        `)
         .eq("driver_id", userId)
         .neq("status", "pending")
+        .neq("status", "delivered")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -105,7 +140,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     },
   });
 
-  // Update status mutation - le trigger DB sync automatiquement orders.status
+  // Update status mutation - avec les nouveaux statuts du workflow 7 étapes
   const updateStatus = useMutation({
     mutationFn: async ({ requestId, newStatus }: { requestId: string; newStatus: string }) => {
       const updates: Record<string, any> = { status: newStatus };
@@ -114,6 +149,10 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         updates.started_at = new Date().toISOString();
       } else if (newStatus === "picked_up") {
         updates.picked_up_at = new Date().toISOString();
+      } else if (newStatus === "en_route_client") {
+        updates.en_route_client_at = new Date().toISOString();
+      } else if (newStatus === "arrived") {
+        updates.arrived_at_client_at = new Date().toISOString();
       } else if (newStatus === "delivered") {
         updates.delivered_at = new Date().toISOString();
       }
@@ -125,7 +164,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .eq("driver_id", userId);
       
       if (error) throw error;
-      // Le trigger sync_order_status_from_delivery met à jour orders.status automatiquement
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
@@ -143,14 +181,18 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
       assigned: "bg-blue-100 text-blue-800",
       in_progress: "bg-purple-100 text-purple-800",
       picked_up: "bg-indigo-100 text-indigo-800",
+      en_route_client: "bg-cyan-100 text-cyan-800",
+      arrived: "bg-amber-100 text-amber-800",
       delivered: "bg-green-100 text-green-800",
       cancelled: "bg-red-100 text-red-800",
     };
     const labels: Record<string, string> = {
       pending: "Disponible",
       assigned: "Acceptée",
-      in_progress: "En route",
+      in_progress: "Vers pickup",
       picked_up: "Récupérée",
+      en_route_client: "Vers client",
+      arrived: "Arrivé",
       delivered: "Livrée",
       cancelled: "Annulée",
     };
@@ -167,14 +209,25 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     window.open(url, "_blank");
   };
 
-  const getNextStatusAction = (status: string) => {
+  // Nouveau workflow 7 étapes
+  const getNextStatusAction = (status: string, delivery: any) => {
+    const paymentMethod = delivery.order?.payment_method;
+    
     switch (status) {
       case "assigned":
-        return { label: "Démarrer la course", nextStatus: "in_progress", icon: Play };
+        return { label: "Démarrer vers vendeur", nextStatus: "in_progress", icon: Play, description: "En route vers la boutique" };
       case "in_progress":
-        return { label: "Colis récupéré", nextStatus: "picked_up", icon: Package };
+        return { label: "Colis récupéré", nextStatus: "picked_up", icon: Package, description: "Colis récupéré chez le vendeur" };
       case "picked_up":
-        return { label: "Marquer comme livré", nextStatus: "delivered", icon: CheckCircle };
+        return { label: "En route vers client", nextStatus: "en_route_client", icon: Truck, description: "Départ vers le client" };
+      case "en_route_client":
+        return { label: "Arrivé chez client", nextStatus: "arrived", icon: MapPin, description: "Vous êtes arrivé" };
+      case "arrived":
+        // Pour cash, on affiche des boutons spéciaux
+        if (paymentMethod === "cash") {
+          return { label: "Vérification client", nextStatus: null, icon: Eye, showPaymentOptions: true };
+        }
+        return { label: "Confirmer livraison", nextStatus: "delivered", icon: CheckCircle, description: "Client a accepté" };
       default:
         return null;
     }
@@ -293,7 +346,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
               {myDeliveries.map((delivery) => {
                 const pickupPoints = delivery.pickup_points as any[] || [];
                 const deliveryPoint = delivery.delivery_point as any;
-                const nextAction = getNextStatusAction(delivery.status);
+                const nextAction = getNextStatusAction(delivery.status, delivery);
                 
                 return (
                   <div key={delivery.id} className="p-4 rounded-lg border space-y-3">
@@ -363,13 +416,53 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         </div>
                       </div>
                     )}
+
+                    {/* Message vérification client (statut arrived) */}
+                    {delivery.status === 'arrived' && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-amber-800 font-medium flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          Client doit vérifier le colis
+                        </p>
+                        <p className="text-sm text-amber-600 mt-1">
+                          Demandez au client de vérifier avant d'accepter.
+                          Aucune annulation possible après acceptation.
+                        </p>
+                      </div>
+                    )}
                     
-                    {/* Next Action Button */}
-                    {nextAction && (
+                    {/* Boutons spéciaux pour paiement cash au statut arrived */}
+                    {nextAction?.showPaymentOptions && delivery.order?.payment_method === 'cash' ? (
+                      <div className="space-y-2">
+                        <Button 
+                          onClick={() => updateStatus.mutate({ 
+                            requestId: delivery.id, 
+                            newStatus: "delivered" 
+                          })}
+                          disabled={updateStatus.isPending}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                        >
+                          {updateStatus.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Banknote className="h-4 w-4 mr-2" />
+                          )}
+                          Livraison payée (cash reçu)
+                        </Button>
+                        <Button 
+                          variant="destructive"
+                          className="w-full"
+                          onClick={() => toast.info("Fonctionnalité d'annulation à implémenter")}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Client refuse / Annuler
+                        </Button>
+                      </div>
+                    ) : nextAction && nextAction.nextStatus && (
                       <Button
                         onClick={() => updateStatus.mutate({ 
                           requestId: delivery.id, 
-                          newStatus: nextAction.nextStatus 
+                          newStatus: nextAction.nextStatus! 
                         })}
                         disabled={updateStatus.isPending}
                         className="w-full"

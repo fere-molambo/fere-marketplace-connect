@@ -6,7 +6,7 @@ interface OrderTimelineProps {
 }
 
 const steps = [
-  { key: "pending", label: "En attente", icon: Clock },
+  { key: "pending", label: "Créée", icon: Clock },
   { key: "confirmed", label: "Confirmée", icon: Check },
   { key: "in_transit", label: "En transit", icon: Truck },
   { key: "delivered", label: "Livrée", icon: MapPin },

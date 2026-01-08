@@ -1,0 +1,372 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, AlertTriangle, Upload, X } from "lucide-react";
+
+interface RequestCancellationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  order: any;
+  deliveryRequest?: any; // For specific sub-delivery cancellation
+  type: "order" | "booking";
+  bookingId?: string;
+}
+
+export function RequestCancellationDialog({
+  open,
+  onOpenChange,
+  order,
+  deliveryRequest,
+  type,
+  bookingId,
+}: RequestCancellationDialogProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedReasonId, setSelectedReasonId] = useState<string>("");
+  const [customReason, setCustomReason] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Fetch cancellation reasons
+  const { data: reasons = [] } = useQuery({
+    queryKey: ["cancellation-reasons", type],
+    queryFn: async () => {
+      const appliesTo = type === "order" ? "product" : "service";
+      const { data, error } = await supabase
+        .from("cancellation_reasons")
+        .select("*")
+        .eq("is_active", true)
+        .contains("applies_to", [appliesTo])
+        .order("display_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const selectedReason = reasons.find((r) => r.id === selectedReasonId);
+  const isOtherReason = selectedReason?.label === "Autre";
+
+  // Determine cancellation eligibility and refund info
+  const getStatusInfo = () => {
+    const status = deliveryRequest?.status || "pending";
+    
+    const statusOrder = ["pending", "assigned", "in_progress", "picked_up", "en_route_client", "arrived", "delivered"];
+    const currentIndex = statusOrder.indexOf(status);
+    const pickedUpIndex = statusOrder.indexOf("picked_up");
+    
+    if (status === "delivered" || status === "cancelled") {
+      return {
+        canCancel: false,
+        warning: "Cette commande ne peut plus être annulée.",
+        refundType: "none" as const,
+      };
+    }
+    
+    if (currentIndex >= pickedUpIndex) {
+      return {
+        canCancel: true,
+        warning: "Le colis a déjà été récupéré. Les frais de livraison ne seront pas remboursés.",
+        refundType: "product_only" as const,
+      };
+    }
+    
+    return {
+      canCancel: true,
+      warning: null,
+      refundType: "full" as const,
+    };
+  };
+
+  const statusInfo = type === "order" && order?.delivery_type === "delivery" 
+    ? getStatusInfo() 
+    : { canCancel: true, warning: null, refundType: "full" as const };
+
+  // Handle file upload
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Le fichier ne doit pas dépasser 5 Mo");
+        return;
+      }
+      setAttachmentFile(file);
+    }
+  };
+
+  const uploadAttachment = async (): Promise<string | null> => {
+    if (!attachmentFile || !user?.id) return null;
+    
+    setIsUploading(true);
+    try {
+      const ext = attachmentFile.name.split(".").pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      
+      const { error } = await supabase.storage
+        .from("identity-documents")
+        .upload(path, attachmentFile);
+      
+      if (error) throw error;
+      
+      const { data } = supabase.storage
+        .from("identity-documents")
+        .getPublicUrl(path);
+      
+      return data.publicUrl;
+    } catch (error) {
+      console.error("Upload error:", error);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Create cancellation mutation
+  const createCancellation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Non authentifié");
+      if (!selectedReasonId) throw new Error("Veuillez sélectionner un motif");
+      if (isOtherReason && !customReason.trim()) {
+        throw new Error("Veuillez préciser le motif");
+      }
+
+      // Upload attachment if present
+      const attachmentUrl = await uploadAttachment();
+
+      // Calculate refund amounts
+      const productAmount = order?.subtotal || 0;
+      const deliveryFee = order?.delivery_fee || 0;
+      const refundAmount = statusInfo.refundType === "full" 
+        ? productAmount + deliveryFee 
+        : statusInfo.refundType === "product_only" 
+          ? productAmount 
+          : 0;
+      
+      const deliveryFeeKept = statusInfo.refundType === "product_only";
+      const requiresReturn = deliveryRequest?.status && 
+        ["picked_up", "en_route_client", "arrived"].includes(deliveryRequest.status);
+
+      // Insert cancellation record
+      const { data: cancellation, error: cancellationError } = await supabase
+        .from("cancellations")
+        .insert({
+          order_id: type === "order" ? order.id : null,
+          booking_id: type === "booking" ? bookingId : null,
+          cancelled_by: user.id,
+          canceller_role: "client",
+          reason_id: selectedReasonId,
+          custom_reason: isOtherReason ? customReason : null,
+          attachment_url: attachmentUrl,
+          status_at_cancellation: deliveryRequest?.status || order?.status || "pending",
+          refund_amount: refundAmount,
+          delivery_fee_kept: deliveryFeeKept,
+          requires_return: requiresReturn,
+        })
+        .select()
+        .single();
+
+      if (cancellationError) throw cancellationError;
+
+      // Update order/booking status
+      if (type === "order") {
+        const { error: orderError } = await supabase
+          .from("orders")
+          .update({ 
+            status: "cancelled", 
+            cancellation_id: cancellation.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", order.id);
+
+        if (orderError) throw orderError;
+
+        // Cancel all delivery requests for this order
+        const { error: deliveryError } = await supabase
+          .from("delivery_requests")
+          .update({ status: "cancelled" })
+          .eq("order_id", order.id)
+          .neq("status", "delivered");
+
+        if (deliveryError) console.error("Error cancelling deliveries:", deliveryError);
+      } else if (type === "booking" && bookingId) {
+        const { error: bookingError } = await supabase
+          .from("service_bookings")
+          .update({ status: "cancelled" })
+          .eq("id", bookingId);
+
+        if (bookingError) throw bookingError;
+      }
+
+      return cancellation;
+    },
+    onSuccess: () => {
+      toast.success("Demande d'annulation envoyée avec succès");
+      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["client-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-requests"] });
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erreur lors de l'annulation");
+    },
+  });
+
+  const resetForm = () => {
+    setSelectedReasonId("");
+    setCustomReason("");
+    setAttachmentFile(null);
+  };
+
+  const handleSubmit = () => {
+    createCancellation.mutate();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Demander une annulation</DialogTitle>
+          <DialogDescription>
+            {type === "order" 
+              ? `Commande ${order?.order_number}`
+              : "Réservation de service"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* Warning if already picked up */}
+          {statusInfo.warning && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{statusInfo.warning}</AlertDescription>
+            </Alert>
+          )}
+
+          {!statusInfo.canCancel ? (
+            <p className="text-center text-muted-foreground py-4">
+              Cette commande ne peut plus être annulée car elle a déjà été livrée.
+            </p>
+          ) : (
+            <>
+              {/* Reason selector */}
+              <div className="space-y-2">
+                <Label htmlFor="reason">Motif d'annulation *</Label>
+                <Select value={selectedReasonId} onValueChange={setSelectedReasonId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un motif" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reasons.map((reason) => (
+                      <SelectItem key={reason.id} value={reason.id}>
+                        {reason.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom reason textarea */}
+              {isOtherReason && (
+                <div className="space-y-2">
+                  <Label htmlFor="customReason">Précisez le motif *</Label>
+                  <Textarea
+                    id="customReason"
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    placeholder="Expliquez pourquoi vous souhaitez annuler..."
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {/* Attachment upload */}
+              <div className="space-y-2">
+                <Label>Pièce jointe (optionnel)</Label>
+                {attachmentFile ? (
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <span className="text-sm truncate">{attachmentFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setAttachmentFile(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Ajouter une photo (max 5 Mo)
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Refund info */}
+              {statusInfo.refundType !== "none" && (
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="font-medium mb-1">Remboursement prévu :</p>
+                  {statusInfo.refundType === "full" ? (
+                    <p className="text-muted-foreground">
+                      Remboursement intégral (produits + livraison)
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Remboursement des produits uniquement (hors frais de livraison)
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annuler
+          </Button>
+          {statusInfo.canCancel && (
+            <Button
+              variant="destructive"
+              onClick={handleSubmit}
+              disabled={createCancellation.isPending || isUploading || !selectedReasonId}
+            >
+              {(createCancellation.isPending || isUploading) && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Confirmer l'annulation
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

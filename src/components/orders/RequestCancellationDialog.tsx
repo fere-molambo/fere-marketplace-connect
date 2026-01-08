@@ -189,16 +189,22 @@ export function RequestCancellationDialog({
 
       // Update order/booking status
       if (type === "order") {
-        const { error: orderError } = await supabase
+        const { data: updatedOrder, error: orderError } = await supabase
           .from("orders")
           .update({ 
             status: "cancelled", 
             cancellation_id: cancellation.id,
             updated_at: new Date().toISOString()
           })
-          .eq("id", order.id);
+          .eq("id", order.id)
+          .select()
+          .single();
 
-        if (orderError) throw orderError;
+        if (orderError || !updatedOrder) {
+          // Rollback: delete cancellation record
+          await supabase.from("cancellations").delete().eq("id", cancellation.id);
+          throw new Error("Impossible de mettre à jour la commande. Veuillez réessayer.");
+        }
 
         // Cancel all delivery requests for this order
         const { error: deliveryError } = await supabase
@@ -207,20 +213,31 @@ export function RequestCancellationDialog({
           .eq("order_id", order.id)
           .neq("status", "delivered");
 
-        if (deliveryError) console.error("Error cancelling deliveries:", deliveryError);
+        if (deliveryError) {
+          console.error("Error cancelling deliveries:", deliveryError);
+        }
       } else if (type === "booking" && bookingId) {
-        const { error: bookingError } = await supabase
+        const { data: updatedBooking, error: bookingError } = await supabase
           .from("service_bookings")
           .update({ status: "cancelled" })
-          .eq("id", bookingId);
+          .eq("id", bookingId)
+          .select()
+          .single();
 
-        if (bookingError) throw bookingError;
+        if (bookingError || !updatedBooking) {
+          // Rollback: delete cancellation record
+          await supabase.from("cancellations").delete().eq("id", cancellation.id);
+          throw new Error("Impossible de mettre à jour la réservation. Veuillez réessayer.");
+        }
       }
 
-      return cancellation;
+      return { cancellation, refundAmount };
     },
-    onSuccess: () => {
-      toast.success("Demande d'annulation envoyée avec succès");
+    onSuccess: (data) => {
+      const refundMessage = data.refundAmount > 0 
+        ? ` Remboursement de ${data.refundAmount.toLocaleString()} FCFA en cours de traitement.`
+        : "";
+      toast.success(`Annulation confirmée.${refundMessage}`, { duration: 5000 });
       queryClient.invalidateQueries({ queryKey: ["client-orders"] });
       queryClient.invalidateQueries({ queryKey: ["client-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-requests"] });

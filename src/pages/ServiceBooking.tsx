@@ -8,9 +8,8 @@ import { Footer } from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Clock, Star, CreditCard, Banknote } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Star, Banknote, Car } from "lucide-react";
 import { format, getDay, parse, addMinutes, isBefore } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ServiceBookingCalendar } from "@/components/booking/ServiceBookingCalendar";
@@ -46,7 +45,6 @@ export default function ServiceBooking() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"online" | "cash">("online");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Redirect to auth if not logged in
@@ -184,26 +182,29 @@ export default function ServiceBooking() {
     setSelectedSlot(null);
   }, [selectedDate]);
 
-  // Calculate prices
-  const basePrice = flashSale ? flashSale.flash_price : (service?.price || 0);
-  const discountedPrice = service?.discount_percent 
-    ? basePrice * (1 - service.discount_percent / 100)
-    : basePrice;
+  // Calculate prices - SIMPLIFIED
+  const baseServicePrice = flashSale ? flashSale.flash_price : (service?.price || 0);
+  const discountedServicePrice = service?.discount_percent 
+    ? baseServicePrice * (1 - service.discount_percent / 100)
+    : baseServicePrice;
 
-  const tvaRate = platformSettings?.tva_rate || 18;
-  const tvaAmount = Math.round(discountedPrice * (tvaRate / 100));
+  // Travel fee
+  const travelFeeType = service?.travel_fee_type || "free";
+  const travelFeeAmount = travelFeeType === "paid" ? (service?.travel_fee_amount || 0) : 0;
 
-  // Get commission rate for services
+  // Get commission rate for services (applied to service price only)
   const getCommissionRate = (): number => {
     const global = commissions.find((c: any) => c.commission_type === "all_services");
     return global?.commission_rate || 10;
   };
 
   const commissionRate = getCommissionRate();
-  const commissionAmount = Math.round(discountedPrice * (commissionRate / 100));
-  const totalPrice = Math.round(discountedPrice + tvaAmount + commissionAmount);
-  // 100% for online, 0% for cash
-  const advanceAmount = paymentMethod === "online" ? totalPrice : 0;
+  const commissionAmount = Math.round(discountedServicePrice * (commissionRate / 100));
+
+  // Total service price (paid in cash) - includes TVA and commission for display
+  const tvaRate = platformSettings?.tva_rate || 18;
+  const tvaAmount = Math.round(discountedServicePrice * (tvaRate / 100));
+  const totalServicePrice = Math.round(discountedServicePrice + tvaAmount + commissionAmount);
 
   // Create booking mutation
   const createBooking = useMutation({
@@ -219,15 +220,17 @@ export default function ServiceBooking() {
           customer_id: user.id,
           booking_date: format(selectedDate, "yyyy-MM-dd"),
           booking_time: selectedSlot.start,
-          total_price: totalPrice,
-          advance_paid: advanceAmount,
+          total_price: totalServicePrice,
+          travel_fee: travelFeeAmount,
+          travel_fee_paid: false,
+          advance_paid: 0,
           notes: comment || null,
           delivery_address_id: selectedAddressId,
-          payment_method: paymentMethod,
-          payment_status: "pending",
+          payment_method: "cash",
+          payment_status: travelFeeAmount > 0 ? "pending" : "not_required",
           commission_amount: commissionAmount,
           tva_amount: tvaAmount,
-          status: "pending",
+          status: "reserved",
         })
         .select()
         .single();
@@ -236,12 +239,13 @@ export default function ServiceBooking() {
       return booking;
     },
     onSuccess: async (booking) => {
-      if (paymentMethod === "online") {
+      if (travelFeeAmount > 0) {
+        // Pay travel fee via Paystack
         try {
           const response = await supabase.functions.invoke("paystack-payment", {
             body: {
               action: "initialize",
-              amount: totalPrice,
+              amount: travelFeeAmount,
               email: user?.email,
               payment_type: "service_booking",
               related_id: booking.id,
@@ -249,12 +253,19 @@ export default function ServiceBooking() {
                 service_id: service?.id,
                 booking_date: format(selectedDate!, "yyyy-MM-dd"),
                 booking_time: selectedSlot?.start,
+                is_travel_fee: true,
               },
               callback_url: `${window.location.origin}/payment/callback`,
             },
           });
 
           if (response.data?.authorization_url) {
+            // Update booking to mark travel fee as being processed
+            await supabase
+              .from("service_bookings")
+              .update({ payment_reference: response.data.reference })
+              .eq("id", booking.id);
+              
             window.location.href = response.data.authorization_url;
           } else {
             throw new Error("Erreur d'initialisation du paiement");
@@ -264,8 +275,9 @@ export default function ServiceBooking() {
           setIsSubmitting(false);
         }
       } else {
+        // No travel fee - booking confirmed directly
         toast.success("Réservation confirmée !");
-        navigate(`/payment/callback?reference=CASH-${booking.id}&status=success`);
+        navigate(`/payment/callback?reference=BOOKING-${booking.id}&status=success`);
       }
     },
     onError: (error) => {
@@ -356,14 +368,20 @@ export default function ServiceBooking() {
                         </>
                       )}
                     </div>
-                    <p className="text-primary font-bold mt-2">
-                      {discountedPrice.toLocaleString()} FCFA
-                      {(flashSale || service.discount_percent > 0) && (
-                        <span className="text-muted-foreground line-through text-sm ml-2">
-                          {service.price.toLocaleString()} FCFA
-                        </span>
-                      )}
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-primary font-bold">
+                        {totalServicePrice.toLocaleString()} FCFA
+                        {(flashSale || (service.discount_percent && service.discount_percent > 0)) && (
+                          <span className="text-muted-foreground line-through text-sm ml-2">
+                            {service.price.toLocaleString()} FCFA
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Banknote className="h-3 w-3" />
+                        À payer en espèces le jour de la prestation
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -422,47 +440,32 @@ export default function ServiceBooking() {
               </CardContent>
             </Card>
 
-            {/* Payment */}
-            <Card>
+            {/* Travel Fee Info */}
+            <Card className={travelFeeAmount > 0 ? "border-primary" : ""}>
               <CardHeader>
-                <CardTitle className="text-lg">4. Mode de paiement</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Car className="h-5 w-5" />
+                  4. Frais de déplacement
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <RadioGroup
-                  value={paymentMethod}
-                  onValueChange={(v) => setPaymentMethod(v as "online" | "cash")}
-                  className="space-y-3"
-                >
-                  <label className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                    paymentMethod === "online" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                  }`}>
-                    <RadioGroupItem value="online" className="mt-1" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" />
-                        <span className="font-medium">Payer maintenant (100%)</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Wave, Mobile Money, Visa/Mastercard
-                      </p>
+              <CardContent>
+                {travelFeeAmount > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-primary/10 rounded-lg">
+                      <span className="font-medium">Frais de déplacement</span>
+                      <span className="text-lg font-bold text-primary">{travelFeeAmount.toLocaleString()} FCFA</span>
                     </div>
-                  </label>
-
-                  <label className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                    paymentMethod === "cash" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                  }`}>
-                    <RadioGroupItem value="cash" className="mt-1" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Banknote className="h-4 w-4" />
-                        <span className="font-medium">Payer à la réalisation</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Payez en espèces après la prestation
-                      </p>
-                    </div>
-                  </label>
-                </RadioGroup>
+                    <p className="text-sm text-muted-foreground">
+                      Ces frais seront payés maintenant via Paystack pour confirmer votre réservation.
+                      Le prestataire recevra ce montant après son arrivée chez vous.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-green-600 p-3 bg-green-50 rounded-lg">
+                    <Car className="h-5 w-5" />
+                    <span className="font-medium">Déplacement gratuit</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -477,13 +480,8 @@ export default function ServiceBooking() {
                 selectedTime={selectedSlot?.start || null}
                 duration={service.duration}
                 addressLabel={selectedAddressId ? "Adresse sélectionnée" : undefined}
-                basePrice={Math.round(discountedPrice)}
-                tvaAmount={tvaAmount}
-                tvaRate={tvaRate}
-                commissionAmount={commissionAmount}
-                commissionRate={commissionRate}
-                totalPrice={totalPrice}
-                paymentMethod={paymentMethod}
+                servicePrice={totalServicePrice}
+                travelFee={travelFeeAmount}
                 onSubmit={handleSubmit}
                 isLoading={isSubmitting}
                 isDisabled={!isFormValid}

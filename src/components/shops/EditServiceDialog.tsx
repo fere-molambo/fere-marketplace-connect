@@ -39,7 +39,8 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
   const [clientPreparation, setClientPreparation] = useState("");
   const [portfolioLink, setPortfolioLink] = useState("");
   const [requiresBooking, setRequiresBooking] = useState(false);
-  const [bookingAdvancePercent, setBookingAdvancePercent] = useState("");
+  const [travelFeeType, setTravelFeeType] = useState<"free" | "paid">("free");
+  const [travelFeeAmount, setTravelFeeAmount] = useState("");
   const [discountPercent, setDiscountPercent] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailability>({
@@ -97,7 +98,8 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
       setClientPreparation(service.client_preparation || "");
       setPortfolioLink(service.portfolio_link || "");
       setRequiresBooking(service.requires_booking || false);
-      setBookingAdvancePercent(service.booking_advance_percent?.toString() || "");
+      setTravelFeeType(service.travel_fee_type || "free");
+      setTravelFeeAmount(service.travel_fee_amount?.toString() || "");
       setDiscountPercent(service.discount_percent?.toString() || "");
       setIsActive(service.is_active ?? true);
       
@@ -166,7 +168,8 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
           client_preparation: clientPreparation,
           portfolio_link: portfolioLink || null,
           requires_booking: requiresBooking,
-          booking_advance_percent: bookingAdvancePercent ? parseFloat(bookingAdvancePercent) : null,
+          travel_fee_type: travelFeeType,
+          travel_fee_amount: travelFeeType === "paid" ? parseFloat(travelFeeAmount) || 0 : 0,
           discount_percent: discountPercent ? parseFloat(discountPercent) : null,
           is_active: isActive,
           weekly_availability: weeklyAvailability as any,
@@ -378,17 +381,49 @@ export const EditServiceDialog = ({ shopId, service, open, onOpenChange }: EditS
             </div>
 
             {requiresBooking && (
-              <div>
-                <Label htmlFor="bookingAdvancePercent">Acompte (%)</Label>
-                <Input
-                  id="bookingAdvancePercent"
-                  type="number"
-                  value={bookingAdvancePercent}
-                  onChange={(e) => setBookingAdvancePercent(e.target.value)}
-                  placeholder="30"
-                  min="0"
-                  max="100"
-                />
+              <div className="col-span-2 space-y-4 p-4 border rounded-lg">
+                <div className="space-y-2">
+                  <Label>Frais de déplacement</Label>
+                  <div className="flex gap-4">
+                    <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "free" ? "border-primary bg-primary/5" : ""}`}>
+                      <input
+                        type="radio"
+                        name="travelFeeEdit"
+                        checked={travelFeeType === "free"}
+                        onChange={() => setTravelFeeType("free")}
+                        className="sr-only"
+                      />
+                      <span className="text-sm font-medium">Gratuit</span>
+                    </label>
+                    <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "paid" ? "border-primary bg-primary/5" : ""}`}>
+                      <input
+                        type="radio"
+                        name="travelFeeEdit"
+                        checked={travelFeeType === "paid"}
+                        onChange={() => setTravelFeeType("paid")}
+                        className="sr-only"
+                      />
+                      <span className="text-sm font-medium">Payant</span>
+                    </label>
+                  </div>
+                </div>
+
+                {travelFeeType === "paid" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="travelFeeAmount">Montant des frais de déplacement (FCFA)</Label>
+                    <Input
+                      id="travelFeeAmount"
+                      type="number"
+                      min="0"
+                      value={travelFeeAmount}
+                      onChange={(e) => setTravelFeeAmount(e.target.value)}
+                      placeholder="Ex: 2500"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Ce montant sera payé par le client à la réservation via Paystack.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -178,9 +178,9 @@ export const ServiceCard = ({ service, viewMode = "cards" }: ServiceCardProps) =
           <p className="text-sm text-muted-foreground truncate">{service.description}</p>
           <div className="flex items-center justify-between mt-2">
             <span className="font-bold text-lg">{service.price.toLocaleString()} FCFA</span>
-            {service.booking_advance_percent > 0 && (
+            {service.travel_fee_type === "paid" && service.travel_fee_amount > 0 && (
               <Badge variant="outline">
-                Avance: {service.booking_advance_percent}%
+                Déplacement: {service.travel_fee_amount.toLocaleString()} FCFA
               </Badge>
             )}
           </div>

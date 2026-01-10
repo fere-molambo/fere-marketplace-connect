@@ -17,9 +17,7 @@ export default function Users() {
   const { data: users, isLoading, error, refetch } = useQuery({
     queryKey: ["users", searchQuery],
     queryFn: async () => {
-      console.log("🔍 Fetching users...");
-      
-      // 1ère requête : récupérer tous les profils avec recherche
+      // Fetch all profiles with search filter
       let profilesQuery = supabase
         .from("profiles")
         .select("*")
@@ -31,24 +29,20 @@ export default function Users() {
         );
       }
 
-      // 2ème requête : récupérer les rôles (filtrés par RLS selon le rôle de l'utilisateur)
+      // Fetch user roles (filtered by RLS based on current user's role)
       const rolesQuery = supabase
         .from("user_roles")
         .select("user_id, role");
 
-      // Exécuter les deux requêtes en parallèle
       const [
         { data: profiles, error: profilesError },
         { data: roles, error: rolesError }
       ] = await Promise.all([profilesQuery, rolesQuery]);
 
-      console.log("📊 Profiles result:", { profiles, profilesError });
-      console.log("🎭 Roles result:", { roles, rolesError });
-
       if (profilesError) throw profilesError;
       if (rolesError) throw rolesError;
 
-      // Recomposer les utilisateurs avec leurs rôles côté client
+      // Combine profiles with their roles on client side
       const usersWithRoles = (profiles || []).map((profile) => ({
         ...profile,
         roles: (roles || [])
@@ -56,21 +50,11 @@ export default function Users() {
           .map((r) => ({ role: r.role })),
       }));
 
-      console.log("👥 Users with roles count:", usersWithRoles.length);
-      console.log("🎭 First user roles:", usersWithRoles?.[0]?.roles);
-
       return usersWithRoles;
     },
   });
 
-  useEffect(() => {
-    if (error) {
-      console.error("❌ Query error:", error);
-    }
-  }, [error]);
-
   const handleRefresh = () => {
-    console.log("🔄 Manual refresh triggered");
     queryClient.invalidateQueries({ queryKey: ["users"] });
     refetch();
   };

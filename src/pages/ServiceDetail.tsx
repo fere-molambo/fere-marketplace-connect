@@ -247,10 +247,13 @@ const ServiceDetail = () => {
                 <Calendar className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-sm">Réservation requise</p>
-                  {service.booking_advance_percent > 0 && (
+                  {service.travel_fee_type === "paid" && service.travel_fee_amount > 0 && (
                     <p className="text-sm text-muted-foreground">
-                      Acompte de {service.booking_advance_percent}% à la réservation
+                      Frais de déplacement : {service.travel_fee_amount?.toLocaleString()} FCFA (payable en ligne)
                     </p>
+                  )}
+                  {service.travel_fee_type === "free" && (
+                    <p className="text-sm text-green-600">Déplacement gratuit</p>
                   )}
                 </div>
               </div>

@@ -69,8 +69,6 @@ export default function PaymentCallback() {
 
         // Handle token purchase - get data from payment_transactions table
         if (isTokenPurchase && data.status === 'success') {
-          console.log('[PaymentCallback] Token purchase detected, processing...');
-          
           try {
             // Get transaction data from DB
             const { data: txData, error: txError } = await supabase
@@ -79,40 +77,26 @@ export default function PaymentCallback() {
               .eq('reference', reference)
               .single();
 
-            console.log('[PaymentCallback] Transaction data:', txData, 'Error:', txError);
+            if (txError) throw new Error('Transaction non trouvée');
 
-            if (txError) {
-              console.error('[PaymentCallback] Error fetching transaction:', txError);
-              throw new Error('Transaction non trouvée');
-            }
-
-            // Check if tokens were already credited by looking at token_transactions
+            // Check if tokens were already credited
             const { data: existingTokenTx } = await supabase
               .from('token_transactions')
               .select('id')
               .eq('payment_reference', reference)
               .maybeSingle();
 
-            console.log('[PaymentCallback] Existing token transaction:', existingTokenTx);
-
             if (!existingTokenTx) {
-              console.log('[PaymentCallback] Crediting tokens:', txData.amount, 'to user:', txData.user_id);
-              
               // Credit tokens using RPC function
-              const { data: newBalance, error: tokenError } = await supabase.rpc('add_tokens', {
+              const { error: tokenError } = await supabase.rpc('add_tokens', {
                 p_user_id: txData.user_id,
                 p_amount: txData.amount,
                 p_payment_reference: reference
               });
               
               if (tokenError) {
-                console.error('[PaymentCallback] Error adding tokens:', tokenError);
                 throw new Error('Erreur lors du crédit des tokens: ' + tokenError.message);
               }
-              
-              console.log('[PaymentCallback] Tokens credited successfully! New balance:', newBalance);
-            } else {
-              console.log('[PaymentCallback] Tokens already credited for this reference');
             }
 
             // Check if user is vendor (has a shop)
@@ -132,7 +116,6 @@ export default function PaymentCallback() {
             });
             return;
           } catch (tokenErr: any) {
-            console.error('[PaymentCallback] Token credit error:', tokenErr);
             setResult({
               status: 'error',
               reference: reference,
@@ -160,7 +143,6 @@ export default function PaymentCallback() {
         sessionStorage.removeItem('paystack_user_id');
 
       } catch (error: any) {
-        console.error('Payment verification error:', error);
         setResult({
           status: 'error',
           reference: reference,

@@ -22,7 +22,8 @@ interface PublicServiceCardProps {
     price_type: string;
     discount_percent: number | null;
     requires_booking: boolean;
-    booking_advance_percent: number | null;
+    travel_fee_type?: string | null;
+    travel_fee_amount?: number | null;
     duration?: number | null;
     shops: {
       id: string;

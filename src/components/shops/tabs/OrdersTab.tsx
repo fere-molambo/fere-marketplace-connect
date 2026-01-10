@@ -37,8 +37,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           schema: 'public',
           table: 'orders'
         },
-        (payload) => {
-          console.log('[Realtime] Vendor orders change detected:', payload);
+        () => {
           queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
         }
       )
@@ -53,8 +52,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           schema: 'public',
           table: 'service_bookings'
         },
-        (payload) => {
-          console.log('[Realtime] Vendor bookings change detected:', payload);
+        () => {
           queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
         }
       )
@@ -364,16 +362,19 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                             // Update delivery request to mark return as received
                             await supabase
                               .from("delivery_requests")
-                              .update({
-                                return_status: "returned",
-                              })
+                              .update({ return_status: "returned" })
                               .eq("order_id", item.order?.id);
                             
-                            // TODO: Restore product stock
+                            // Restore product stock
+                            const currentQty = item.product?.quantity_available ?? 0;
+                            await supabase
+                              .from("products")
+                              .update({ quantity_available: currentQty + item.quantity })
+                              .eq("id", item.product_id);
+                            
                             queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
-                            toast.success("Retour confirmé");
-                          } catch (error) {
-                            console.error(error);
+                            toast.success("Retour confirmé - Stock restauré");
+                          } catch {
                             toast.error("Erreur lors de la confirmation");
                           }
                         }}

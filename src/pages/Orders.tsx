@@ -33,15 +33,12 @@ export default function Orders() {
           schema: 'public',
           table: 'orders'
         },
-        (payload) => {
-          console.log('[Realtime] Admin orders change detected:', payload);
+        () => {
           queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
           queryClient.invalidateQueries({ queryKey: ["admin-bookings"] });
         }
       )
-      .subscribe((status) => {
-        console.log('[Realtime] Admin orders subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);

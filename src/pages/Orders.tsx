@@ -126,6 +126,20 @@ export default function Orders() {
     },
   });
 
+  // Fetch refunds for cancellations
+  const { data: refunds = [] } = useQuery({
+    queryKey: ["admin-cancellation-refunds"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("refunds")
+        .select("id, cancellation_id, net_refund, status, refund_status")
+        .not("cancellation_id", "is", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Stats
   const totalOrders = orders.length;
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
@@ -287,6 +301,7 @@ export default function Orders() {
             <Card>
               <CancellationsTable
                 cancellations={cancellations}
+                refunds={refunds}
                 onViewOrder={(orderId) => {
                   const order = orders.find((o: any) => o.id === orderId);
                   if (order) setSelectedOrder(order);

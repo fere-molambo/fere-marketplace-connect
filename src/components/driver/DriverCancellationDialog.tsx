@@ -119,8 +119,15 @@ export function DriverCancellationDialog({
 
       // 5. For cash - if client didn't pay delivery, create penalty
       if (!isOnlinePayment && !clientPaidDelivery) {
-        // TODO: Implement penalty system for next order
-        console.log("Penalty should be applied to client's next order");
+        const deliveryFee = delivery.delivery_fee || 0;
+        await supabase.from("client_penalties").insert({
+          user_id: delivery.order.user_id,
+          amount: deliveryFee,
+          reason: "Frais de livraison non payés lors du refus de colis",
+          source_order_id: delivery.order_id,
+          source_delivery_id: delivery.id,
+          status: "pending",
+        });
       }
 
       return { clientPaidDelivery };

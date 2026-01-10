@@ -72,6 +72,24 @@ export default function Checkout() {
     },
   });
 
+  // Fetch pending penalties for the user
+  const { data: pendingPenalties = [] } = useQuery({
+    queryKey: ["client-pending-penalties", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("client_penalties")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "pending");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const totalPenaltyAmount = pendingPenalties.reduce((sum, p: any) => sum + (p.amount || 0), 0);
+
   // Fetch selected delivery address
   const { data: selectedAddress } = useQuery({
     queryKey: ["delivery-address", selectedAddressId],
@@ -154,7 +172,7 @@ export default function Checkout() {
 
   // Calculate totals
   const totalDelivery = Object.values(deliveryFeePerShop).reduce((sum, fee) => sum + fee, 0);
-  const grandTotal = totalAmount + totalDelivery;
+  const grandTotal = totalAmount + totalDelivery + totalPenaltyAmount;
 
   // Check if cash payment is allowed
   const maxCashAmount = platformSettings?.max_cash_order_amount || 20000;
@@ -173,7 +191,10 @@ export default function Checkout() {
       for (const [shopId, shopItems] of Object.entries(itemsByShop)) {
         const shopSubtotal = shopItems.reduce((sum, item) => sum + item.totalPrice, 0);
         const shopDeliveryFee = deliveryFeePerShop[shopId];
-        const shopTotal = shopSubtotal + shopDeliveryFee;
+        // Add penalty to first order only
+        const isFirstOrder = createdOrders.length === 0;
+        const shopPenalty = isFirstOrder ? totalPenaltyAmount : 0;
+        const shopTotal = shopSubtotal + shopDeliveryFee + shopPenalty;
 
         const tvaRate = (platformSettings?.tva_rate || 18) / 100;
         const shopTva = Math.round(shopSubtotal * tvaRate);
@@ -269,6 +290,19 @@ export default function Checkout() {
         }
 
         createdOrders.push(order);
+        
+        // Mark penalties as applied on first order
+        if (isFirstOrder && pendingPenalties.length > 0) {
+          const penaltyIds = pendingPenalties.map((p: any) => p.id);
+          await supabase
+            .from("client_penalties")
+            .update({
+              status: "applied",
+              applied_to_order_id: order.id,
+              applied_at: new Date().toISOString(),
+            })
+            .in("id", penaltyIds);
+        }
       }
 
       return { orders: createdOrders, paymentGroupId };
@@ -358,6 +392,18 @@ export default function Checkout() {
             <AlertDescription>
               Votre panier contient des produits de {shopCount} boutiques différentes.
               Chaque boutique recevra sa propre commande avec sa livraison dédiée.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Penalty warning */}
+        {totalPenaltyAmount > 0 && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Pénalité en attente</AlertTitle>
+            <AlertDescription>
+              Une pénalité de {totalPenaltyAmount.toLocaleString()} FCFA sera ajoutée à votre commande
+              (frais de livraison non payés lors d'une précédente annulation).
             </AlertDescription>
           </Alert>
         )}

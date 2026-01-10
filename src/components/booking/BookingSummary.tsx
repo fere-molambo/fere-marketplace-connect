@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, Clock, MapPin, CreditCard, Loader2 } from "lucide-react";
+import { Calendar, Clock, MapPin, Banknote, Car, CreditCard, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -12,13 +12,8 @@ interface BookingSummaryProps {
   selectedTime: string | null;
   duration: number | null;
   addressLabel?: string;
-  basePrice: number;
-  tvaAmount: number;
-  tvaRate: number;
-  commissionAmount: number;
-  commissionRate: number;
-  totalPrice: number;
-  paymentMethod: "online" | "cash";
+  servicePrice: number;
+  travelFee: number;
   onSubmit: () => void;
   isLoading: boolean;
   isDisabled: boolean;
@@ -31,13 +26,8 @@ export function BookingSummary({
   selectedTime,
   duration,
   addressLabel,
-  basePrice,
-  tvaAmount,
-  tvaRate,
-  commissionAmount,
-  commissionRate,
-  totalPrice,
-  paymentMethod,
+  servicePrice,
+  travelFee,
   onSubmit,
   isLoading,
   isDisabled,
@@ -51,6 +41,8 @@ export function BookingSummary({
     const mins = minutes % 60;
     return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
   };
+
+  const hasTravelFee = travelFee > 0;
 
   return (
     <Card>
@@ -98,21 +90,41 @@ export function BookingSummary({
           </div>
         )}
 
-        {/* Payment method */}
-        <div className="flex items-center gap-2 text-sm">
-          <CreditCard className="h-4 w-4 text-primary" />
-          <span>
-            {paymentMethod === "online" ? "Paiement en ligne (100%)" : "Paiement à la réalisation"}
-          </span>
-        </div>
-
         <Separator />
 
-        {/* Price breakdown - simplified for client */}
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between font-semibold text-base">
-            <span>Total à payer</span>
-            <span className="text-primary">{formatPrice(totalPrice)}</span>
+        {/* Price breakdown - Simplified */}
+        <div className="space-y-3">
+          {/* Service price - paid in cash */}
+          <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2">
+                <Banknote className="h-4 w-4" />
+                Prix du service
+              </span>
+              <span className="font-semibold">{formatPrice(servicePrice)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              À payer en espèces le jour J
+            </p>
+          </div>
+
+          {/* Travel fee */}
+          <div className={`p-3 rounded-lg space-y-1 ${hasTravelFee ? 'bg-primary/10 border border-primary/20' : 'bg-green-50'}`}>
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2">
+                <Car className="h-4 w-4" />
+                Frais de déplacement
+              </span>
+              <span className={`font-semibold ${hasTravelFee ? 'text-primary' : 'text-green-600'}`}>
+                {hasTravelFee ? formatPrice(travelFee) : "Gratuit"}
+              </span>
+            </div>
+            {hasTravelFee && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <CreditCard className="h-3 w-3" />
+                À payer maintenant en ligne
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
@@ -124,8 +136,8 @@ export function BookingSummary({
           disabled={isDisabled || isLoading}
         >
           {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          {paymentMethod === "online" 
-            ? `Payer ${formatPrice(totalPrice)}`
+          {hasTravelFee 
+            ? `Payer ${formatPrice(travelFee)} et réserver`
             : "Confirmer la réservation"
           }
         </Button>

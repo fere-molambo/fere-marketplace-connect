@@ -41,7 +41,7 @@ export function BookingsTable({ bookings, onViewDetails, onMessage }: BookingsTa
             <TableHead>Date RDV</TableHead>
             <TableHead>Heure</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">Avance</TableHead>
+            <TableHead className="text-right">Déplacement</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead>Paiement</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -80,7 +80,9 @@ export function BookingsTable({ bookings, onViewDetails, onMessage }: BookingsTa
                   {formatCurrency(booking.total_price)}
                 </TableCell>
                 <TableCell className="text-right text-green-600">
-                  {formatCurrency(booking.advance_paid || 0)}
+                  {(booking as any).travel_fee > 0 
+                    ? formatCurrency((booking as any).travel_fee) 
+                    : "Gratuit"}
                 </TableCell>
                 <TableCell>
                   <OrderStatusBadge status={booking.status || "pending"} />

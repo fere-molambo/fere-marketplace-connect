@@ -123,12 +123,41 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "reserved": return "Réservé";
+      case "on_the_way": return "En route";
+      case "arrived": return "Arrivé";
+      case "completed": return "Réalisé";
+      case "cancelled": return "Annulé";
+      // Legacy statuses
       case "pending": return "En attente";
       case "confirmed": return "Confirmée";
       case "in_progress": return "En cours";
-      case "completed": return "Terminée";
-      case "cancelled": return "Annulée";
       default: return status;
+    }
+  };
+
+  const handleValidateTravelFee = async () => {
+    if (!bookingData.travel_fee || !bookingData.travel_fee_paid) return;
+    // Travel fee already paid at booking - create pending payout for vendor
+    try {
+      const { data: shop } = await supabase
+        .from("services")
+        .select("shop_id, shops(owner_id)")
+        .eq("id", bookingData.service_id)
+        .single();
+      
+      if (shop?.shops?.owner_id) {
+        await supabase.from("pending_payouts").insert({
+          recipient_id: shop.shops.owner_id,
+          recipient_type: "vendor",
+          booking_id: bookingData.id,
+          amount: bookingData.travel_fee,
+          status: "pending",
+          eligible_at: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.error("Error creating travel fee payout:", error);
     }
   };
 
@@ -136,9 +165,9 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
   const totalPrice = bookingData.total_price || 0;
   const commissionAmount = bookingData.commission_amount || 0;
   const tvaAmount = bookingData.tva_amount || 0;
-  const advancePaid = bookingData.advance_paid || 0;
+  const travelFee = bookingData.travel_fee || 0;
+  const travelFeePaid = bookingData.travel_fee_paid || false;
   const vendorNet = totalPrice - commissionAmount - tvaAmount;
-  const remainingToPay = totalPrice - advancePaid;
 
   // Build Google Maps link from delivery address
   const deliveryAddress = bookingData.delivery_address;
@@ -193,12 +222,55 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
             </p>
           </div>
 
-          {/* Boutons d'action selon le statut */}
+          {/* Boutons d'action selon le nouveau workflow simplifié */}
           <div className="space-y-2">
+            {/* RESERVED -> ON_THE_WAY */}
+            {bookingData.status === "reserved" && (
+              <Button 
+                className="w-full" 
+                onClick={() => handleStatusUpdate("on_the_way", { vendor_on_the_way_at: new Date().toISOString() })}
+                disabled={isUpdating}
+              >
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Je suis en route
+              </Button>
+            )}
+            
+            {/* ON_THE_WAY -> ARRIVED */}
+            {bookingData.status === "on_the_way" && (
+              <Button 
+                className="w-full" 
+                onClick={async () => {
+                  await handleStatusUpdate("arrived", { vendor_arrived_at: new Date().toISOString() });
+                  // Validate travel fee payment if applicable
+                  if (bookingData.travel_fee_paid) {
+                    await handleValidateTravelFee();
+                  }
+                }}
+                disabled={isUpdating}
+              >
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                Je suis arrivé
+              </Button>
+            )}
+            
+            {/* ARRIVED -> COMPLETED */}
+            {bookingData.status === "arrived" && (
+              <Button 
+                className="w-full" 
+                onClick={() => handleStatusUpdate("completed")}
+                disabled={isUpdating}
+              >
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                Service terminé
+              </Button>
+            )}
+
+            {/* Legacy status support */}
             {bookingData.status === "pending" && (
               <Button 
                 className="w-full" 
-                onClick={() => handleStatusUpdate("confirmed", { vendor_confirmed_at: new Date().toISOString() })}
+                onClick={() => handleStatusUpdate("reserved", { vendor_confirmed_at: new Date().toISOString() })}
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
@@ -208,35 +280,26 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
             {bookingData.status === "confirmed" && (
               <Button 
                 className="w-full" 
-                onClick={() => handleStatusUpdate("in_progress")}
+                onClick={() => handleStatusUpdate("on_the_way", { vendor_on_the_way_at: new Date().toISOString() })}
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                Marquer en cours
+                Je suis en route
               </Button>
             )}
             {bookingData.status === "in_progress" && (
               <Button 
                 className="w-full" 
-                onClick={() => handleStatusUpdate("completed")}
+                onClick={() => handleStatusUpdate("arrived", { vendor_arrived_at: new Date().toISOString() })}
                 disabled={isUpdating}
               >
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                Marquer comme terminé
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                Je suis arrivé
               </Button>
             )}
-            {bookingData.status === "completed" && bookingData.payment_status !== "paid" && bookingData.payment_method === "cash" && (
-              <Button 
-                className="w-full" 
-                variant="default"
-                onClick={handlePaymentStatusUpdate}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleDollarSign className="mr-2 h-4 w-4" />}
-                Confirmer le paiement cash reçu
-              </Button>
-            )}
-            {bookingData.status !== "cancelled" && bookingData.status !== "completed" && (
+            
+            {/* Cancellation button - available before completion */}
+            {!["cancelled", "completed"].includes(bookingData.status) && (
               <Button 
                 className="w-full" 
                 variant="destructive"
@@ -309,31 +372,47 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
           {/* Récapitulatif financier - simplifié pour le vendeur */}
           <div>
             <h3 className="text-sm font-semibold mb-2">Récapitulatif financier</h3>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
+              {/* Service price - to collect in cash */}
+              <div className="p-3 bg-orange-50 rounded-lg">
+                <div className="flex justify-between font-medium text-orange-700">
+                  <span className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4" />
+                    À encaisser en espèces
+                  </span>
+                  <span>{formatCurrency(totalPrice)}</span>
+                </div>
+                <p className="text-xs text-orange-600 mt-1">Le client paie le service en cash le jour J</p>
+              </div>
+
+              {/* Travel fee - if applicable */}
+              {travelFee > 0 && (
+                <div className={`p-3 rounded-lg ${travelFeePaid ? 'bg-green-50' : 'bg-yellow-50'}`}>
+                  <div className={`flex justify-between font-medium ${travelFeePaid ? 'text-green-700' : 'text-yellow-700'}`}>
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Frais de déplacement
+                    </span>
+                    <span>{formatCurrency(travelFee)}</span>
+                  </div>
+                  <p className={`text-xs mt-1 ${travelFeePaid ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {travelFeePaid 
+                      ? "✓ Payé en ligne - vous recevrez ce montant après votre arrivée"
+                      : "⏳ En attente de paiement par le client"}
+                  </p>
+                </div>
+              )}
+              
+              <Separator />
+              
+              {/* Net vendor earnings */}
               <div className="flex justify-between font-semibold text-lg text-green-600">
-                <span>💰 Vous recevrez (net)</span>
+                <span>💰 Vous conserverez (net)</span>
                 <span>{formatCurrency(vendorNet)}</span>
               </div>
-              
-              <Separator className="my-3" />
-              
-              {advancePaid > 0 && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Avance déjà payée</span>
-                  <span>{formatCurrency(advancePaid)}</span>
-                </div>
-              )}
-              {remainingToPay > 0 && bookingData.payment_method === "cash" && (
-                <div className="flex justify-between text-orange-600 font-medium">
-                  <span>À encaisser sur place</span>
-                  <span>{formatCurrency(remainingToPay)}</span>
-                </div>
-              )}
-              {bookingData.payment_status === "paid" && (
-                <div className="flex justify-between text-green-600">
-                  <span>✓ Paiement complet reçu</span>
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Commission plateforme ({((commissionAmount / totalPrice) * 100).toFixed(0)}%) déduite de vos tokens
+              </p>
             </div>
           </div>
 

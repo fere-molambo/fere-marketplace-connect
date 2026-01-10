@@ -1837,10 +1837,13 @@ export type Database = {
           slot_id: string | null
           status: string | null
           total_price: number
+          travel_fee: number | null
+          travel_fee_paid: boolean | null
           tva_amount: number | null
           updated_at: string | null
           vendor_arrived_at: string | null
           vendor_confirmed_at: string | null
+          vendor_on_the_way_at: string | null
         }
         Insert: {
           advance_paid?: number | null
@@ -1862,10 +1865,13 @@ export type Database = {
           slot_id?: string | null
           status?: string | null
           total_price: number
+          travel_fee?: number | null
+          travel_fee_paid?: boolean | null
           tva_amount?: number | null
           updated_at?: string | null
           vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
+          vendor_on_the_way_at?: string | null
         }
         Update: {
           advance_paid?: number | null
@@ -1887,10 +1893,13 @@ export type Database = {
           slot_id?: string | null
           status?: string | null
           total_price?: number
+          travel_fee?: number | null
+          travel_fee_paid?: boolean | null
           tva_amount?: number | null
           updated_at?: string | null
           vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
+          vendor_on_the_way_at?: string | null
         }
         Relationships: [
           {
@@ -1981,6 +1990,8 @@ export type Database = {
           price_type: string
           requires_booking: boolean | null
           shop_id: string
+          travel_fee_amount: number | null
+          travel_fee_type: string | null
           updated_at: string | null
           video_url: string | null
           weekly_availability: Json | null
@@ -2006,6 +2017,8 @@ export type Database = {
           price_type: string
           requires_booking?: boolean | null
           shop_id: string
+          travel_fee_amount?: number | null
+          travel_fee_type?: string | null
           updated_at?: string | null
           video_url?: string | null
           weekly_availability?: Json | null
@@ -2031,6 +2044,8 @@ export type Database = {
           price_type?: string
           requires_booking?: boolean | null
           shop_id?: string
+          travel_fee_amount?: number | null
+          travel_fee_type?: string | null
           updated_at?: string | null
           video_url?: string | null
           weekly_availability?: Json | null

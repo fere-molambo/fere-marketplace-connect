@@ -33,7 +33,8 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [minAutoPrice, setMinAutoPrice] = useState("");
   const [autoValidation, setAutoValidation] = useState(true);
   const [requiresBooking, setRequiresBooking] = useState(false);
-  const [bookingAdvance, setBookingAdvance] = useState("0");
+  const [travelFeeType, setTravelFeeType] = useState<"free" | "paid">("free");
+  const [travelFeeAmount, setTravelFeeAmount] = useState("");
   const [discount, setDiscount] = useState("0");
   const [isActive, setIsActive] = useState(true);
   
@@ -108,7 +109,8 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
         min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
         auto_validation: autoValidation,
         requires_booking: requiresBooking,
-        booking_advance_percent: requiresBooking ? parseFloat(bookingAdvance) : null,
+        travel_fee_type: travelFeeType,
+        travel_fee_amount: travelFeeType === "paid" ? parseFloat(travelFeeAmount) || 0 : 0,
         discount_percent: parseFloat(discount),
         is_active: isActive,
         main_media_url: mainMedia,
@@ -315,16 +317,49 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               </div>
 
               {requiresBooking && (
-                <div className="space-y-2">
-                  <Label htmlFor="booking-advance">Montant d'avance (%)</Label>
-                  <Input
-                    id="booking-advance"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={bookingAdvance}
-                    onChange={(e) => setBookingAdvance(e.target.value)}
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Frais de déplacement</Label>
+                    <div className="flex gap-4">
+                      <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "free" ? "border-primary bg-primary/5" : ""}`}>
+                        <input
+                          type="radio"
+                          name="travelFee"
+                          checked={travelFeeType === "free"}
+                          onChange={() => setTravelFeeType("free")}
+                          className="sr-only"
+                        />
+                        <span className="text-sm font-medium">Gratuit</span>
+                      </label>
+                      <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "paid" ? "border-primary bg-primary/5" : ""}`}>
+                        <input
+                          type="radio"
+                          name="travelFee"
+                          checked={travelFeeType === "paid"}
+                          onChange={() => setTravelFeeType("paid")}
+                          className="sr-only"
+                        />
+                        <span className="text-sm font-medium">Payant</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {travelFeeType === "paid" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="travel-fee-amount">Montant des frais de déplacement (FCFA)</Label>
+                      <Input
+                        id="travel-fee-amount"
+                        type="number"
+                        min="0"
+                        value={travelFeeAmount}
+                        onChange={(e) => setTravelFeeAmount(e.target.value)}
+                        placeholder="Ex: 2500"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Ce montant sera payé par le client à la réservation via Paystack.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

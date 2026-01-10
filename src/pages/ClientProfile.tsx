@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag, Truck, Coins } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag, Truck, Coins, RefreshCcw } from "lucide-react";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { ClientOrderDetailSheet } from "@/components/orders/ClientOrderDetailSheet";
@@ -24,6 +24,7 @@ import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManag
 import { DriverProfileSection } from "@/components/driver/DriverProfileSection";
 import { DriverDeliveriesSection } from "@/components/driver/DriverDeliveriesSection";
 import { DriverTokensSection } from "@/components/driver/DriverTokensSection";
+import { RefundsSection } from "@/components/client/RefundsSection";
 
 export default function ClientProfile() {
   const navigate = useNavigate();
@@ -374,6 +375,12 @@ export default function ClientProfile() {
               <TabsTrigger value="orders" className="gap-2">
                 <ShoppingBag className="h-4 w-4" />
                 Commandes
+              </TabsTrigger>
+            )}
+            {!isLivreur && (
+              <TabsTrigger value="refunds" className="gap-2">
+                <RefreshCcw className="h-4 w-4" />
+                Remboursements
               </TabsTrigger>
             )}
             {isLivreur && (
@@ -755,6 +762,13 @@ export default function ClientProfile() {
           {isLivreur && (
             <TabsContent value="deliveries">
               <DriverDeliveriesSection userId={user.id} />
+            </TabsContent>
+          )}
+
+          {/* Refunds Tab */}
+          {!isLivreur && (
+            <TabsContent value="refunds">
+              {user && <RefundsSection userId={user.id} />}
             </TabsContent>
           )}
 

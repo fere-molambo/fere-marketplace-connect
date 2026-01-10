@@ -1,21 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play, MapPin, Eye, AlertTriangle, Banknote, XCircle } from "lucide-react";
+import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play, MapPin, AlertTriangle, Banknote, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
+import { DriverCancellationDialog } from "./DriverCancellationDialog";
 interface DriverDeliveriesSectionProps {
   userId: string;
 }
 
 export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps) {
   const queryClient = useQueryClient();
+  const [selectedDeliveryForAction, setSelectedDeliveryForAction] = useState<any>(null);
+  const [showCancellationDialog, setShowCancellationDialog] = useState(false);
 
   // Realtime subscription for delivery updates
   useEffect(() => {
@@ -223,10 +225,8 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
       case "en_route_client":
         return { label: "Arrivé chez client", nextStatus: "arrived", icon: MapPin, description: "Vous êtes arrivé" };
       case "arrived":
-        // Pour cash, on affiche des boutons spéciaux
-        if (paymentMethod === "cash") {
-          return { label: "Vérification client", nextStatus: null, icon: Eye, showPaymentOptions: true };
-        }
+        // Afficher le dialog d'options
+        return { label: "Vérification client", nextStatus: null, icon: AlertTriangle, showPaymentOptions: true };
         return { label: "Confirmer livraison", nextStatus: "delivered", icon: CheckCircle, description: "Client a accepté" };
       default:
         return null;
@@ -431,33 +431,18 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     )}
                     
-                    {/* Boutons spéciaux pour paiement cash au statut arrived */}
-                    {nextAction?.showPaymentOptions && delivery.order?.payment_method === 'cash' ? (
-                      <div className="space-y-2">
-                        <Button 
-                          onClick={() => updateStatus.mutate({ 
-                            requestId: delivery.id, 
-                            newStatus: "delivered" 
-                          })}
-                          disabled={updateStatus.isPending}
-                          className="w-full bg-green-600 hover:bg-green-700"
-                        >
-                          {updateStatus.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Banknote className="h-4 w-4 mr-2" />
-                          )}
-                          Livraison payée (cash reçu)
-                        </Button>
-                        <Button 
-                          variant="destructive"
-                          className="w-full"
-                          onClick={() => toast.info("Fonctionnalité d'annulation à implémenter")}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Client refuse / Annuler
-                        </Button>
-                      </div>
+                    {/* Boutons au statut arrived - utiliser le dialog */}
+                    {delivery.status === 'arrived' ? (
+                      <Button 
+                        onClick={() => {
+                          setSelectedDeliveryForAction(delivery);
+                          setShowCancellationDialog(true);
+                        }}
+                        className="w-full"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Gérer la livraison
+                      </Button>
                     ) : nextAction && nextAction.nextStatus && (
                       <Button
                         onClick={() => updateStatus.mutate({ 
@@ -490,6 +475,16 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
           )}
         </CardContent>
       </Card>
+
+      {/* Driver Cancellation Dialog */}
+      {selectedDeliveryForAction && (
+        <DriverCancellationDialog
+          open={showCancellationDialog}
+          onOpenChange={setShowCancellationDialog}
+          delivery={selectedDeliveryForAction}
+          userId={userId}
+        />
+      )}
     </div>
   );
 }

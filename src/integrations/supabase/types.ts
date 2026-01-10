@@ -356,6 +356,7 @@ export type Database = {
           order_id: string | null
           original_delivery_id: string | null
           picked_up_at: string | null
+          pickup_point: Json | null
           pickup_points: Json | null
           return_status: string | null
           started_at: string | null
@@ -381,6 +382,7 @@ export type Database = {
           order_id?: string | null
           original_delivery_id?: string | null
           picked_up_at?: string | null
+          pickup_point?: Json | null
           pickup_points?: Json | null
           return_status?: string | null
           started_at?: string | null
@@ -406,6 +408,7 @@ export type Database = {
           order_id?: string | null
           original_delivery_id?: string | null
           picked_up_at?: string | null
+          pickup_point?: Json | null
           pickup_points?: Json | null
           return_status?: string | null
           started_at?: string | null
@@ -913,9 +916,11 @@ export type Database = {
           is_multi_vendor: boolean | null
           notes: string | null
           order_number: string
+          payment_group_id: string | null
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
+          shop_id: string | null
           source_warehouse_id: string | null
           status: string | null
           subtotal: number
@@ -937,9 +942,11 @@ export type Database = {
           is_multi_vendor?: boolean | null
           notes?: string | null
           order_number: string
+          payment_group_id?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          shop_id?: string | null
           source_warehouse_id?: string | null
           status?: string | null
           subtotal: number
@@ -961,9 +968,11 @@ export type Database = {
           is_multi_vendor?: boolean | null
           notes?: string | null
           order_number?: string
+          payment_group_id?: string | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          shop_id?: string | null
           source_warehouse_id?: string | null
           status?: string | null
           subtotal?: number
@@ -985,6 +994,13 @@ export type Database = {
             columns: ["delivery_address_id"]
             isOneToOne: false
             referencedRelation: "delivery_addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
             referencedColumns: ["id"]
           },
           {
@@ -1568,9 +1584,11 @@ export type Database = {
           net_refund: number
           order_id: string | null
           original_payment_reference: string | null
+          paystack_refund_id: string | null
           paystack_refund_reference: string | null
           processed_at: string | null
           processed_by: string | null
+          refund_status: string | null
           status: string | null
           transaction_fee_deducted: number | null
           user_id: string
@@ -1585,9 +1603,11 @@ export type Database = {
           net_refund: number
           order_id?: string | null
           original_payment_reference?: string | null
+          paystack_refund_id?: string | null
           paystack_refund_reference?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          refund_status?: string | null
           status?: string | null
           transaction_fee_deducted?: number | null
           user_id: string
@@ -1602,9 +1622,11 @@ export type Database = {
           net_refund?: number
           order_id?: string | null
           original_payment_reference?: string | null
+          paystack_refund_id?: string | null
           paystack_refund_reference?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          refund_status?: string | null
           status?: string | null
           transaction_fee_deducted?: number | null
           user_id?: string

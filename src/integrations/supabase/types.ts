@@ -1971,7 +1971,6 @@ export type Database = {
       services: {
         Row: {
           auto_validation: boolean | null
-          booking_advance_percent: number | null
           client_preparation: string | null
           created_at: string | null
           description: string | null
@@ -1998,7 +1997,6 @@ export type Database = {
         }
         Insert: {
           auto_validation?: boolean | null
-          booking_advance_percent?: number | null
           client_preparation?: string | null
           created_at?: string | null
           description?: string | null
@@ -2025,7 +2023,6 @@ export type Database = {
         }
         Update: {
           auto_validation?: boolean | null
-          booking_advance_percent?: number | null
           client_preparation?: string | null
           created_at?: string | null
           description?: string | null

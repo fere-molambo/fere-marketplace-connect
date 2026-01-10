@@ -213,6 +213,90 @@ export type Database = {
           },
         ]
       }
+      client_penalties: {
+        Row: {
+          amount: number
+          applied_at: string | null
+          applied_to_order_id: string | null
+          created_at: string | null
+          id: string
+          reason: string
+          source_delivery_id: string | null
+          source_order_id: string | null
+          status: string
+          user_id: string
+          waived_at: string | null
+          waived_by: string | null
+          waived_reason: string | null
+        }
+        Insert: {
+          amount: number
+          applied_at?: string | null
+          applied_to_order_id?: string | null
+          created_at?: string | null
+          id?: string
+          reason: string
+          source_delivery_id?: string | null
+          source_order_id?: string | null
+          status?: string
+          user_id: string
+          waived_at?: string | null
+          waived_by?: string | null
+          waived_reason?: string | null
+        }
+        Update: {
+          amount?: number
+          applied_at?: string | null
+          applied_to_order_id?: string | null
+          created_at?: string | null
+          id?: string
+          reason?: string
+          source_delivery_id?: string | null
+          source_order_id?: string | null
+          status?: string
+          user_id?: string
+          waived_at?: string | null
+          waived_by?: string | null
+          waived_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_penalties_applied_to_order_id_fkey"
+            columns: ["applied_to_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_penalties_source_delivery_id_fkey"
+            columns: ["source_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_penalties_source_order_id_fkey"
+            columns: ["source_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_penalties_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_penalties_waived_by_fkey"
+            columns: ["waived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string

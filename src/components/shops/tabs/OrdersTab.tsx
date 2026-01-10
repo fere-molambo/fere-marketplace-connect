@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Package, Calendar, Eye, MessageSquare, Truck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface OrdersTabProps {
   shopId: string;
@@ -101,19 +102,25 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
       if (orderIds.length > 0) {
         const { data: deliveryRequests } = await supabase
           .from("delivery_requests")
-          .select("order_id, status")
+          .select("order_id, status, return_status, is_return")
           .in("order_id", orderIds);
         
         // Map delivery status to each order item
         return data?.map(item => ({
           ...item,
-          deliveryStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id)?.status
+          deliveryStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id && !dr.is_return)?.status,
+          returnStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id)?.return_status,
         })) || [];
       }
       
       return data || [];
     },
   });
+
+  // Get items pending return
+  const returningItems = orderItems.filter((item: any) => 
+    item.returnStatus === "returning" || item.returnStatus === "en_route_vendor"
+  );
 
   // Fetch service bookings for this shop with delivery address
   const { data: bookings = [], isLoading: loadingBookings } = useQuery({
@@ -169,6 +176,12 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
           <Calendar className="h-4 w-4" />
           Réservations ({bookings.length})
         </TabsTrigger>
+        {returningItems.length > 0 && (
+          <TabsTrigger value="returns" className="gap-2">
+            <Truck className="h-4 w-4" />
+            Retours ({returningItems.length})
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="orders">
@@ -289,6 +302,84 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                           <MessageSquare className="h-4 w-4" />
                         </Button>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="returns">
+        <Card>
+          <CardHeader>
+            <CardTitle>Retours en cours</CardTitle>
+            <CardDescription>
+              Produits en cours de retour suite à une annulation client
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {returningItems.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucun retour en attente
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {returningItems.map((item: any) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg bg-amber-50/50 border-amber-200"
+                  >
+                    <div className="flex items-center gap-4">
+                      {item.product?.main_media_url && (
+                        <img
+                          src={item.product.main_media_url}
+                          alt={item.product.name}
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      )}
+                      <div>
+                        <p className="font-medium">{item.product?.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.order?.order_number} • {item.quantity} unité(s)
+                        </p>
+                        <p className="text-sm text-amber-600">
+                          {item.returnStatus === "en_route_vendor" 
+                            ? "Livreur en route vers vous" 
+                            : "Retour initié"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                        <Truck className="h-3 w-3 mr-1" />
+                        {item.returnStatus === "en_route_vendor" ? "En route" : "En attente"}
+                      </Badge>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            // Update delivery request to mark return as received
+                            await supabase
+                              .from("delivery_requests")
+                              .update({
+                                return_status: "returned",
+                              })
+                              .eq("order_id", item.order?.id);
+                            
+                            // TODO: Restore product stock
+                            queryClient.invalidateQueries({ queryKey: ["shop-order-items", shopId] });
+                            toast.success("Retour confirmé");
+                          } catch (error) {
+                            console.error(error);
+                            toast.error("Erreur lors de la confirmation");
+                          }
+                        }}
+                      >
+                        Confirmer réception
+                      </Button>
                     </div>
                   </div>
                 ))}

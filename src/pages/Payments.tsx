@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Wallet, Clock, CheckCircle, RefreshCcw, Settings, AlertCircle } from "lucide-react";
+import { Loader2, Wallet, Clock, CheckCircle, RefreshCcw, Settings, AlertCircle, Play, Eye, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
@@ -354,31 +354,99 @@ export default function Payments() {
                     <TableHead>Montant</TableHead>
                     <TableHead>Net remboursé</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Statut</TableHead>
+                    <TableHead>Statut Paystack</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {refunds.map((refund: any) => (
-                    <TableRow key={refund.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{refund.user?.nom_complet || "—"}</p>
-                          <p className="text-xs text-muted-foreground">{refund.user?.contact}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {refund.order?.order_number || refund.booking?.services?.name || "—"}
-                      </TableCell>
-                      <TableCell>{formatCurrency(refund.amount)}</TableCell>
-                      <TableCell className="font-medium text-green-600">
-                        {formatCurrency(refund.net_refund)}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(refund.created_at), "dd/MM/yyyy", { locale: fr })}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(refund.status)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {refunds.map((refund: any) => {
+                    const canInitiate = refund.status === "pending" && !refund.paystack_refund_id && refund.original_payment_reference;
+                    const canVerify = refund.paystack_refund_id && refund.refund_status !== "processed";
+                    
+                    return (
+                      <TableRow key={refund.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{refund.user?.nom_complet || "—"}</p>
+                            <p className="text-xs text-muted-foreground">{refund.user?.contact}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {refund.order?.order_number || refund.booking?.services?.name || "—"}
+                        </TableCell>
+                        <TableCell>{formatCurrency(refund.amount)}</TableCell>
+                        <TableCell className="font-medium text-green-600">
+                          {formatCurrency(refund.net_refund)}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(refund.created_at), "dd/MM/yyyy", { locale: fr })}
+                        </TableCell>
+                        <TableCell>
+                          {refund.refund_status ? (
+                            <Badge variant={refund.refund_status === "processed" ? "default" : "outline"}>
+                              {refund.refund_status === "processed" ? "Traité" : 
+                               refund.refund_status === "pending" ? "En attente" :
+                               refund.refund_status === "failed" ? "Échoué" : refund.refund_status}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {canInitiate && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={processingId === refund.id}
+                                onClick={async () => {
+                                  setProcessingId(refund.id);
+                                  try {
+                                    const res = await supabase.functions.invoke("process-refund", {
+                                      body: { action: "initiate", refundId: refund.id },
+                                    });
+                                    if (res.error) throw res.error;
+                                    toast.success("Remboursement initié sur Paystack");
+                                    queryClient.invalidateQueries({ queryKey: ["refunds"] });
+                                  } catch (e: any) {
+                                    toast.error("Erreur: " + e.message);
+                                  } finally {
+                                    setProcessingId(null);
+                                  }
+                                }}
+                              >
+                                {processingId === refund.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                              </Button>
+                            )}
+                            {canVerify && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={processingId === refund.id}
+                                onClick={async () => {
+                                  setProcessingId(refund.id);
+                                  try {
+                                    const res = await supabase.functions.invoke("process-refund", {
+                                      body: { action: "verify", refundId: refund.id },
+                                    });
+                                    if (res.error) throw res.error;
+                                    toast.success("Statut mis à jour");
+                                    queryClient.invalidateQueries({ queryKey: ["refunds"] });
+                                  } catch (e: any) {
+                                    toast.error("Erreur: " + e.message);
+                                  } finally {
+                                    setProcessingId(null);
+                                  }
+                                }}
+                              >
+                                {processingId === refund.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>

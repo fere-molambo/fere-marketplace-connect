@@ -287,6 +287,7 @@ export default function Checkout() {
 
         if (deliveryError) {
           console.error("Error creating delivery request:", deliveryError);
+          throw new Error(`Échec de création de la demande de livraison: ${deliveryError.message}`);
         }
 
         createdOrders.push(order);

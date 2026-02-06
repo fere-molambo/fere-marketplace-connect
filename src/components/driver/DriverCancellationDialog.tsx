@@ -83,7 +83,8 @@ export function DriverCancellationDialog({
           status: "cancelled",
           return_status: "returning",
         })
-        .eq("id", delivery.id);
+        .eq("id", delivery.id)
+        .eq("driver_id", userId);
 
       if (deliveryError) throw deliveryError;
 

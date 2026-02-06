@@ -101,7 +101,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .select(`
           *, 
           delivery_zones (name, city),
-          order:orders!order_id (id, payment_method, payment_status)
+          order:orders!order_id (id, payment_method, payment_status, user_id, subtotal, total_amount, payment_reference)
         `)
         .eq("driver_id", userId)
         .neq("status", "pending")
@@ -227,7 +227,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
       case "arrived":
         // Afficher le dialog d'options
         return { label: "Vérification client", nextStatus: null, icon: AlertTriangle, showPaymentOptions: true };
-        return { label: "Confirmer livraison", nextStatus: "delivered", icon: CheckCircle, description: "Client a accepté" };
       default:
         return null;
     }

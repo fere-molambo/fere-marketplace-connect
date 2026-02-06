@@ -270,7 +270,7 @@ export default function Checkout() {
           .from("delivery_requests")
           .insert({
             order_id: order.id,
-            zone_id: null,
+            zone_id: firstItem.product.shops.delivery_zone_id || null,
             status: "pending",
             pickup_point: pickupPoint,
             pickup_points: [pickupPoint], // Keep for backward compatibility

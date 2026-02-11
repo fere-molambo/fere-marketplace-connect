@@ -216,6 +216,26 @@ export function RequestCancellationDialog({
         if (deliveryError) {
           console.error("Error cancelling deliveries:", deliveryError);
         }
+
+        // Si paiement en ligne, créer un enregistrement de remboursement
+        if (order.payment_method === "online" && order.payment_status === "paid") {
+          const dlvFeeKept = statusInfo.refundType === "product_only";
+          const prodAmount = order.subtotal || 0;
+          const dlvFee = order.delivery_fee || 0;
+          const netRefund = dlvFeeKept ? prodAmount : prodAmount + dlvFee;
+
+          await supabase.from("refunds").insert({
+            order_id: order.id,
+            user_id: user.id,
+            amount: order.total_amount,
+            net_refund: netRefund,
+            transaction_fee_deducted: dlvFeeKept ? dlvFee : 0,
+            original_payment_reference: order.payment_reference,
+            status: "pending",
+            refund_status: "pending",
+            cancellation_id: cancellation.id,
+          });
+        }
       } else if (type === "booking" && bookingId) {
         const { data: updatedBooking, error: bookingError } = await supabase
           .from("service_bookings")

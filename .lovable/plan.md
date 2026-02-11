@@ -1,57 +1,75 @@
 
 
-# Plan : Corriger la jointure refunds-profiles dans la page Paiements
+# Plan : Corriger les mises a jour de statut livreur et les regles d'annulation client
 
-## Probleme
+## Problemes identifies
 
-La requete Supabase sur la table `refunds` echoue avec une erreur 400 :
-`Could not find a relationship between 'refunds' and 'profiles' in the schema cache`
+### 1. Erreur "en route vers client"
+Le trigger `sync_order_status_from_delivery` s'execute avec les permissions de l'utilisateur appelant (le livreur). Il tente de faire un `UPDATE` sur la table `orders`, mais le livreur n'est pas le proprietaire de la commande. La politique RLS de `orders` bloque cette mise a jour. Meme si cela ne genere pas une erreur PostgreSQL visible, PostgREST peut interpreter le resultat comme un echec silencieux qui perturbe la transaction.
 
-La colonne `user_id` de `refunds` a une cle etrangere vers `auth.users`, pas vers `profiles`. PostgREST ne peut donc pas resoudre la jointure `profiles!user_id`.
+**Solution** : Modifier le trigger `sync_order_status_from_delivery` pour le rendre `SECURITY DEFINER`, comme c'est deja le cas pour `handle_delivery_completed`. Cela permet au trigger de mettre a jour les commandes independamment du role de l'utilisateur.
 
-## Solution
+### 2. Annulation client apres "colis recupere"
+Le client ne doit PAS pouvoir annuler apres que le livreur a marque "colis recupere". Seul le livreur peut gerer l'annulation au stade "arrive chez client". Actuellement, le bouton d'annulation reste visible pour le client dans certains cas.
 
-Modifier la requete refunds dans `src/pages/Payments.tsx` pour :
-1. Retirer la jointure `profiles` de la requete refunds
-2. Recuperer les refunds sans les donnees utilisateur
-3. Ajouter une requete separee pour charger les profils des utilisateurs concernes
-4. Fusionner les donnees cote client
+**Solution** : Modifier la logique `canCancelOrder` dans `ClientOrderDetailSheet.tsx` et `SubDeliveryCard.tsx` pour desactiver l'annulation quand le statut de livraison est `picked_up`, `en_route_client` ou `arrived`.
 
-### Details techniques
+### 3. Informations financieres pour le livreur
+Au stade "arrive", le livreur doit voir clairement combien il recevra pour cette livraison. C'est deja partiellement affiche mais peut etre ameliore dans le dialog de confirmation.
 
-**Fichier `src/pages/Payments.tsx`** (lignes 68-84) :
+## Modifications techniques
 
-Remplacer la requete refunds par deux etapes :
+### Fichier 1 : Migration SQL
+- Modifier `sync_order_status_from_delivery` pour ajouter `SECURITY DEFINER` et `SET search_path TO 'public'`
 
-```typescript
-// Etape 1 : charger les refunds sans jointure profiles
-const { data, error } = await supabase
-  .from("refunds")
-  .select(`
-    *,
-    order:orders(order_number),
-    booking:service_bookings(id, services(name))
-  `)
-  .order("created_at", { ascending: false })
-  .limit(50);
-
-// Etape 2 : charger les profils des user_id uniques
-const userIds = [...new Set(data.map(r => r.user_id).filter(Boolean))];
-let profiles = [];
-if (userIds.length > 0) {
-  const { data: profilesData } = await supabase
-    .from("profiles")
-    .select("id, nom_complet, contact")
-    .in("id", userIds);
-  profiles = profilesData || [];
-}
-
-// Etape 3 : fusionner
-return data.map(refund => ({
-  ...refund,
-  user: profiles.find(p => p.id === refund.user_id) || null,
-}));
+```sql
+CREATE OR REPLACE FUNCTION public.sync_order_status_from_delivery()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+-- (meme corps de fonction)
+$function$;
 ```
 
-Aucune autre modification necessaire - le reste du code utilise deja `refund.user?.nom_complet` qui fonctionnera avec cette structure.
+### Fichier 2 : `src/components/orders/ClientOrderDetailSheet.tsx`
+- Modifier `canCancelOrder()` (ligne 163) pour verifier que AUCUNE livraison n'a le statut `picked_up`, `en_route_client` ou `arrived`
+- Ajouter un message informatif quand l'annulation est bloquee (ex: "Le colis a ete recupere. Contactez le livreur.")
+
+```typescript
+const canCancelOrder = () => {
+  if (order.status === "cancelled" || order.status === "delivered") return false;
+  if (order.delivery_type === "delivery") {
+    // Bloquer l'annulation si une livraison est en cours (apres pickup)
+    const hasPickedUp = deliveryRequests.some((dr: any) =>
+      ["picked_up", "en_route_client", "arrived"].includes(dr.status)
+    );
+    if (hasPickedUp) return false;
+    return deliveryRequests.some((dr: any) =>
+      !["delivered", "cancelled"].includes(dr.status)
+    );
+  }
+  return true;
+};
+```
+
+- Ajouter un message contextuel quand le colis est recupere, informant le client que seul le livreur peut gerer
+
+### Fichier 3 : `src/components/orders/SubDeliveryCard.tsx`
+- Modifier `canCancel` pour exclure les statuts `picked_up`, `en_route_client`, `arrived`
+- Afficher un message d'information a la place du bouton
+
+```typescript
+const canCancel = deliveryRequest?.status &&
+  !["delivered", "cancelled", "picked_up", "en_route_client", "arrived"]
+    .includes(deliveryRequest.status);
+```
+
+### Fichier 4 : `src/components/driver/DriverCancellationDialog.tsx`
+- Ajouter l'affichage des gains du livreur (`delivery.driver_earnings`) dans le dialog
+- Le livreur doit voir clairement : "Vos gains pour cette livraison : X FCFA"
+
+### Fichier 5 : `src/components/driver/DriverDeliveriesSection.tsx`
+- Afficher plus clairement les gains au stade "arrived" avec un encadre visible
 

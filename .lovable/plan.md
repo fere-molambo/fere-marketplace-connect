@@ -1,52 +1,49 @@
 
-# Plan : Corrections interface livreur, statut commande et remboursements
 
-## Problemes identifies
+# Plan : Corriger l'affichage des remboursements et ameliorer la page Transactions
 
-Il y a 4 problemes distincts a corriger :
+## Probleme principal
 
-1. **Commande bloquee en "pending"** : Le statut de la commande n'a jamais ete mis a jour vers "cancelled" (la politique RLS bloquait au moment de l'annulation). C'est pourquoi l'apercu affiche "En attente" alors que le detail montre la livraison annulee. Il faut corriger les donnees.
+L'onglet "Remboursements" de la page Paiements affiche 0 resultats malgre la presence d'un remboursement en base. La cause : la requete Supabase utilise `profiles!refunds_user_id_fkey` comme hint de jointure, mais cette cle etrangere pointe vers `auth.users` et non vers `profiles`. PostgREST ne peut pas resoudre la jointure et retourne un resultat vide.
 
-2. **Pas de refund cree** : La table `refunds` n'a aucune politique RLS permettant aux clients d'inserer. Le code dans `RequestCancellationDialog` ne peut donc pas creer de remboursement. Il faut ajouter une politique INSERT pour les clients.
+## Corrections
 
-3. **Historique livreur** : Les livraisons annulees et livrees sont completement exclues de l'interface du livreur. Il faut ajouter une section "Historique" montrant ces livraisons passees (sans boutons d'action).
+### 1. Corriger la jointure dans `src/pages/Payments.tsx`
 
-4. **Parametre Edge Function** : La page admin Paiements envoie `refundId` mais l'Edge Function attend `refund_id`. Les remboursements ne pourront jamais etre inities.
+Ligne 72 : remplacer `profiles!refunds_user_id_fkey` par `profiles!user_id` (hint par nom de colonne au lieu du nom de contrainte FK).
 
-## Corrections prevues
+```
+// Avant
+user:profiles!refunds_user_id_fkey(nom_complet, contact),
 
-### 1. Migration SQL
-
-- Corriger le statut de la commande existante : `UPDATE orders SET status = 'cancelled' WHERE id = '518f2358-...'`
-- Nettoyer les doublons de cancellations (5 enregistrements pour 1 commande, garder seulement le dernier)
-- Creer le record de remboursement manquant pour cette commande
-- Ajouter une politique RLS INSERT sur `refunds` permettant aux clients de creer des remboursements pour leurs propres commandes
-
-```sql
-CREATE POLICY "Users can create refunds for their orders"
-ON public.refunds FOR INSERT
-WITH CHECK (
-  user_id = auth.uid() AND (
-    EXISTS (SELECT 1 FROM orders WHERE orders.id = refunds.order_id AND orders.user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM service_bookings WHERE service_bookings.id = refunds.booking_id AND service_bookings.customer_id = auth.uid())
-  )
-);
+// Apres
+user:profiles!user_id(nom_complet, contact),
 ```
 
-### 2. Fichier `src/components/driver/DriverDeliveriesSection.tsx`
+### 2. Ameliorer `src/pages/Transactions.tsx`
 
-Ajouter une troisieme requete "delivery-history" qui recupere les livraisons avec statut `delivered` ou `cancelled` pour le livreur, et afficher une section "Historique" en bas (sans boutons d'action, uniquement informatif).
+Ajouter une colonne "Remboursement" dans le tableau des transactions :
 
-### 3. Fichier `src/pages/Payments.tsx`
+- Pour les transactions de type `order` avec statut `success`, verifier si un remboursement existe dans la table `refunds` pour le meme `related_id` (qui correspond a l'`order_id`).
+- Afficher un badge indiquant le statut du remboursement (En attente, En cours, Rembourse, ou rien).
+- Ajouter un bouton "Voir" qui redirige vers `/dashboard/payments` avec l'onglet Remboursements pre-selectionne.
 
-Corriger `refundId` en `refund_id` dans les deux appels a l'Edge Function (initiate et verify) :
-- Ligne 406 : `{ action: "initiate", refund_id: refund.id }`
-- Ligne 430 : `{ action: "verify", refund_id: refund.id }`
+Pour ce faire :
+- Enrichir la requete des transactions pour aussi fetcher les refunds lies : ajouter une sous-requete jointe `refund:refunds!order_id(id, status, refund_status, net_refund)` via `related_id`.
+- Comme `related_id` dans `payment_transactions` correspond a `order_id` dans `refunds`, et qu'il n'y a pas de FK directe, on fera une requete separee pour les refunds et on les matchera cote client par `order_id`/`related_id`.
+- Ajouter une colonne "Remb." avec un badge cliquable qui renvoie vers `/dashboard/payments?tab=refunds`.
 
-## Resultats attendus
+### 3. Details techniques
 
-- Le client voit sa commande avec le badge "Annule" dans l'apercu ET le detail
-- Le client voit son remboursement dans l'onglet "Remboursements" de son profil
-- Le livreur ne voit plus de boutons d'action pour les livraisons annulees, mais les garde dans un historique
-- L'admin voit le remboursement en attente dans le dashboard Paiements > Remboursements et peut le declencher via Paystack
-- Les futures annulations de commandes prepayees creent automatiquement un enregistrement de remboursement
+**Fichier `src/pages/Payments.tsx`** :
+- Corriger la ligne 72 (jointure FK)
+
+**Fichier `src/pages/Transactions.tsx`** :
+- Ajouter une requete `useQuery` pour charger les remboursements (`refunds` table, select `id, order_id, status, refund_status, net_refund`)
+- Ajouter une colonne "Remb." dans le tableau
+- Pour chaque transaction de type `order`/`service_booking` avec `status === 'success'`, chercher un refund correspondant par `related_id === refund.order_id`
+- Afficher un badge de statut de remboursement et un lien vers la page Paiements
+- Importer `useNavigate` et `RefreshCcw` icon
+
+**Fichier `src/pages/Payments.tsx` (onglet refunds)** :
+- Lire le parametre `tab` de l'URL pour pre-selectionner l'onglet si `?tab=refunds` est present

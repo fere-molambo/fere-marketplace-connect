@@ -1,75 +1,48 @@
 
 
-# Plan : Corriger les mises a jour de statut livreur et les regles d'annulation client
+# Plan : Ajouter les statuts manquants dans la contrainte de la table delivery_requests
 
-## Problemes identifies
+## Probleme
 
-### 1. Erreur "en route vers client"
-Le trigger `sync_order_status_from_delivery` s'execute avec les permissions de l'utilisateur appelant (le livreur). Il tente de faire un `UPDATE` sur la table `orders`, mais le livreur n'est pas le proprietaire de la commande. La politique RLS de `orders` bloque cette mise a jour. Meme si cela ne genere pas une erreur PostgreSQL visible, PostgREST peut interpreter le resultat comme un echec silencieux qui perturbe la transaction.
+L'erreur "Erreur lors de la mise a jour du statut" est causee par une **contrainte CHECK** sur la colonne `status` de la table `delivery_requests`. Cette contrainte n'autorise que 6 valeurs :
 
-**Solution** : Modifier le trigger `sync_order_status_from_delivery` pour le rendre `SECURITY DEFINER`, comme c'est deja le cas pour `handle_delivery_completed`. Cela permet au trigger de mettre a jour les commandes independamment du role de l'utilisateur.
+```text
+pending, assigned, in_progress, picked_up, delivered, cancelled
+```
 
-### 2. Annulation client apres "colis recupere"
-Le client ne doit PAS pouvoir annuler apres que le livreur a marque "colis recupere". Seul le livreur peut gerer l'annulation au stade "arrive chez client". Actuellement, le bouton d'annulation reste visible pour le client dans certains cas.
+Or le workflow 7 etapes utilise aussi `en_route_client` et `arrived`, qui sont rejetes par la base de donnees.
 
-**Solution** : Modifier la logique `canCancelOrder` dans `ClientOrderDetailSheet.tsx` et `SubDeliveryCard.tsx` pour desactiver l'annulation quand le statut de livraison est `picked_up`, `en_route_client` ou `arrived`.
+## Solution
 
-### 3. Informations financieres pour le livreur
-Au stade "arrive", le livreur doit voir clairement combien il recevra pour cette livraison. C'est deja partiellement affiche mais peut etre ameliore dans le dialog de confirmation.
+Creer une migration SQL qui :
 
-## Modifications techniques
-
-### Fichier 1 : Migration SQL
-- Modifier `sync_order_status_from_delivery` pour ajouter `SECURITY DEFINER` et `SET search_path TO 'public'`
+1. Supprime l'ancienne contrainte `delivery_requests_status_check`
+2. Recrée la contrainte avec les 8 statuts du workflow complet
 
 ```sql
-CREATE OR REPLACE FUNCTION public.sync_order_status_from_delivery()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $function$
--- (meme corps de fonction)
-$function$;
+ALTER TABLE delivery_requests DROP CONSTRAINT delivery_requests_status_check;
+
+ALTER TABLE delivery_requests ADD CONSTRAINT delivery_requests_status_check
+  CHECK (status = ANY (ARRAY[
+    'pending', 'assigned', 'in_progress', 'picked_up',
+    'en_route_client', 'arrived', 'delivered', 'cancelled'
+  ]));
 ```
 
-### Fichier 2 : `src/components/orders/ClientOrderDetailSheet.tsx`
-- Modifier `canCancelOrder()` (ligne 163) pour verifier que AUCUNE livraison n'a le statut `picked_up`, `en_route_client` ou `arrived`
-- Ajouter un message informatif quand l'annulation est bloquee (ex: "Le colis a ete recupere. Contactez le livreur.")
+Egalement ajouter `returning` dans la contrainte `return_status` si ce n'est pas deja present (le code l'utilise dans `DriverCancellationDialog`).
 
-```typescript
-const canCancelOrder = () => {
-  if (order.status === "cancelled" || order.status === "delivered") return false;
-  if (order.delivery_type === "delivery") {
-    // Bloquer l'annulation si une livraison est en cours (apres pickup)
-    const hasPickedUp = deliveryRequests.some((dr: any) =>
-      ["picked_up", "en_route_client", "arrived"].includes(dr.status)
-    );
-    if (hasPickedUp) return false;
-    return deliveryRequests.some((dr: any) =>
-      !["delivered", "cancelled"].includes(dr.status)
-    );
-  }
-  return true;
-};
+```sql
+ALTER TABLE delivery_requests DROP CONSTRAINT delivery_requests_return_status_check;
+
+ALTER TABLE delivery_requests ADD CONSTRAINT delivery_requests_return_status_check
+  CHECK (return_status IS NULL OR return_status = ANY (ARRAY[
+    'returning', 'en_route_vendor', 'arrived_vendor', 'returned'
+  ]));
 ```
 
-- Ajouter un message contextuel quand le colis est recupere, informant le client que seul le livreur peut gerer
+## Impact
 
-### Fichier 3 : `src/components/orders/SubDeliveryCard.tsx`
-- Modifier `canCancel` pour exclure les statuts `picked_up`, `en_route_client`, `arrived`
-- Afficher un message d'information a la place du bouton
-
-```typescript
-const canCancel = deliveryRequest?.status &&
-  !["delivered", "cancelled", "picked_up", "en_route_client", "arrived"]
-    .includes(deliveryRequest.status);
-```
-
-### Fichier 4 : `src/components/driver/DriverCancellationDialog.tsx`
-- Ajouter l'affichage des gains du livreur (`delivery.driver_earnings`) dans le dialog
-- Le livreur doit voir clairement : "Vos gains pour cette livraison : X FCFA"
-
-### Fichier 5 : `src/components/driver/DriverDeliveriesSection.tsx`
-- Afficher plus clairement les gains au stade "arrived" avec un encadre visible
+- Un seul fichier de migration SQL
+- Aucune modification du code frontend
+- Corrige immediatement l'erreur pour les livreurs
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +21,9 @@ import {
 
 export default function Payments() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const defaultTab = searchParams.get("tab") || "pending";
 
   // Fetch pending payouts
   const { data: pendingPayouts = [], isLoading: pendingLoading } = useQuery({
@@ -69,7 +72,7 @@ export default function Payments() {
         .from("refunds")
         .select(`
           *,
-          user:profiles!refunds_user_id_fkey(nom_complet, contact),
+          user:profiles!user_id(nom_complet, contact),
           order:orders(order_number),
           booking:service_bookings(id, services(name))
         `)
@@ -178,7 +181,7 @@ export default function Payments() {
         </Card>
       </div>
 
-      <Tabs defaultValue="pending" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="pending" className="gap-2">
             <Clock className="h-4 w-4" />

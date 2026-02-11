@@ -106,6 +106,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .eq("driver_id", userId)
         .neq("status", "pending")
         .neq("status", "delivered")
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];

@@ -439,17 +439,25 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     )}
 
-                    {/* Message vérification client (statut arrived) */}
+                    {/* Message vérification client + gains (statut arrived) */}
                     {delivery.status === 'arrived' && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                         <p className="text-amber-800 font-medium flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4" />
                           Client doit vérifier le colis
                         </p>
-                        <p className="text-sm text-amber-600 mt-1">
+                        <p className="text-sm text-amber-600">
                           Demandez au client de vérifier avant d'accepter.
                           Aucune annulation possible après acceptation.
                         </p>
+                        {delivery.driver_earnings > 0 && (
+                          <div className="p-2 bg-green-50 border border-green-200 rounded">
+                            <p className="text-green-700 font-semibold text-sm flex items-center gap-2">
+                              <Banknote className="h-4 w-4" />
+                              Vos gains : {delivery.driver_earnings.toLocaleString()} FCFA
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                     

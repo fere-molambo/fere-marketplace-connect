@@ -24,11 +24,11 @@ export function SubDeliveryCard({
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
 
-  // Check if cancellation is allowed
+  // Check if cancellation is allowed - client cannot cancel after pickup
   const canCancel = deliveryRequest?.status && 
-    !["delivered", "cancelled"].includes(deliveryRequest.status);
+    !["delivered", "cancelled", "picked_up", "en_route_client", "arrived"].includes(deliveryRequest.status);
 
-  const isPickedUp = deliveryRequest?.status && 
+  const isInDriverHands = deliveryRequest?.status && 
     ["picked_up", "en_route_client", "arrived"].includes(deliveryRequest.status);
 
   return (
@@ -84,14 +84,9 @@ export function SubDeliveryCard({
           paymentMethod={paymentMethod}
         />
 
-        {/* Cancel button */}
+        {/* Cancel button - only before pickup */}
         {canCancel && (
           <div className="pt-2 border-t">
-            {isPickedUp && (
-              <p className="text-xs text-amber-600 mb-2">
-                ⚠️ Colis déjà récupéré - frais de livraison non remboursables
-              </p>
-            )}
             <Button
               variant="outline"
               size="sm"
@@ -101,6 +96,15 @@ export function SubDeliveryCard({
               <XCircle className="mr-2 h-4 w-4" />
               Annuler cette livraison
             </Button>
+          </div>
+        )}
+
+        {/* Info message when delivery is in driver's hands */}
+        {isInDriverHands && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-amber-600 flex items-center gap-1">
+              ⚠️ Colis en cours de livraison. Seul le livreur peut gérer l'annulation à ce stade.
+            </p>
           </div>
         )}
 

@@ -8,14 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Receipt, Search, Filter, Coins, ShoppingBag, Briefcase } from "lucide-react";
+import { Receipt, Search, Filter, Coins, ShoppingBag, Briefcase, RefreshCcw } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 type TransactionType = "all" | "order" | "service_booking" | "tokens" | "commission_payout" | "subscription";
 
 export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState<TransactionType>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ["admin-transactions", typeFilter],
@@ -38,6 +40,62 @@ export default function Transactions() {
       return data;
     },
   });
+
+  // Fetch refunds to match with transactions
+  const { data: refunds = [] } = useQuery({
+    queryKey: ["transaction-refunds"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("refunds")
+        .select("id, order_id, booking_id, status, refund_status, net_refund")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const refundsByOrderId = new Map<string, (typeof refunds)[0]>();
+  refunds.forEach((r) => {
+    if (r.order_id) refundsByOrderId.set(r.order_id, r);
+    if (r.booking_id) refundsByOrderId.set(r.booking_id, r);
+  });
+
+  const getRefundBadge = (refund: (typeof refunds)[0]) => {
+    const status = refund.refund_status || refund.status;
+    switch (status) {
+      case "pending":
+        return (
+          <Badge variant="outline" className="gap-1 cursor-pointer bg-yellow-50 text-yellow-700 border-yellow-200" onClick={() => navigate("/dashboard/payments?tab=refunds")}>
+            <RefreshCcw className="h-3 w-3" />
+            En attente
+          </Badge>
+        );
+      case "processing":
+        return (
+          <Badge variant="outline" className="gap-1 cursor-pointer bg-blue-50 text-blue-700 border-blue-200" onClick={() => navigate("/dashboard/payments?tab=refunds")}>
+            <RefreshCcw className="h-3 w-3" />
+            En cours
+          </Badge>
+        );
+      case "processed":
+      case "completed":
+        return (
+          <Badge variant="outline" className="gap-1 cursor-pointer bg-green-50 text-green-700 border-green-200" onClick={() => navigate("/dashboard/payments?tab=refunds")}>
+            <RefreshCcw className="h-3 w-3" />
+            Remboursé
+          </Badge>
+        );
+      case "failed":
+        return (
+          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={() => navigate("/dashboard/payments?tab=refunds")}>
+            <RefreshCcw className="h-3 w-3" />
+            Échoué
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
 
   const { data: stats } = useQuery({
     queryKey: ["transaction-stats"],
@@ -222,6 +280,7 @@ export default function Transactions() {
                     <TableHead>Client</TableHead>
                     <TableHead className="text-right">Montant</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Remb.</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -242,6 +301,11 @@ export default function Transactions() {
                         {tx.amount.toLocaleString()} {tx.currency}
                       </TableCell>
                       <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                      <TableCell>
+                        {tx.status === "success" && tx.related_id && refundsByOrderId.has(tx.related_id)
+                          ? getRefundBadge(refundsByOrderId.get(tx.related_id)!)
+                          : null}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

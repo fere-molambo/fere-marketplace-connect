@@ -35,6 +35,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         (payload) => {
           queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
           queryClient.invalidateQueries({ queryKey: ["pending-deliveries"] });
+          queryClient.invalidateQueries({ queryKey: ["delivery-history"] });
           
           if (payload.eventType === 'UPDATE' && (payload.new as any)?.driver_id === userId) {
             toast.info("Statut de livraison mis à jour");
@@ -108,6 +109,27 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .neq("status", "delivered")
         .neq("status", "cancelled")
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!userId,
+  });
+
+  // Fetch driver's delivery history (delivered + cancelled)
+  const { data: deliveryHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["delivery-history", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("delivery_requests")
+        .select(`
+          *, 
+          delivery_zones (name, city),
+          order:orders!order_id (id, order_number, payment_method, payment_status, user_id, subtotal, total_amount)
+        `)
+        .eq("driver_id", userId)
+        .in("status", ["delivered", "cancelled"])
+        .order("created_at", { ascending: false })
+        .limit(20);
       if (error) throw error;
       return data || [];
     },
@@ -467,6 +489,71 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         <CheckCircle className="h-5 w-5" />
                         <span className="font-medium">Livraison terminée</span>
                       </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delivery History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            Historique
+          </CardTitle>
+          <CardDescription>
+            Livraisons terminées ou annulées
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingHistory ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : deliveryHistory.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">
+              Aucun historique de livraison
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {deliveryHistory.map((delivery) => {
+                const pickupPoints = delivery.pickup_points as any[] || [];
+                const deliveryPoint = delivery.delivery_point as any;
+                
+                return (
+                  <div key={delivery.id} className="p-4 rounded-lg border opacity-80 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        {getStatusBadge(delivery.status)}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(delivery.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
+                        </p>
+                        {delivery.order?.order_number && (
+                          <p className="text-xs text-muted-foreground">
+                            {delivery.order.order_number}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">
+                          {delivery.driver_earnings?.toLocaleString()} FCFA
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {pickupPoints.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {pickupPoints.map((p: any) => p.shop_name).join(", ")}
+                      </p>
+                    )}
+                    {deliveryPoint?.address && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        → {deliveryPoint.address}
+                      </p>
                     )}
                   </div>
                 );

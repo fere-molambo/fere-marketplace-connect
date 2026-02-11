@@ -403,7 +403,7 @@ export default function Payments() {
                                   setProcessingId(refund.id);
                                   try {
                                     const res = await supabase.functions.invoke("process-refund", {
-                                      body: { action: "initiate", refundId: refund.id },
+                                      body: { action: "initiate", refund_id: refund.id },
                                     });
                                     if (res.error) throw res.error;
                                     toast.success("Remboursement initié sur Paystack");
@@ -427,7 +427,7 @@ export default function Payments() {
                                   setProcessingId(refund.id);
                                   try {
                                     const res = await supabase.functions.invoke("process-refund", {
-                                      body: { action: "verify", refundId: refund.id },
+                                      body: { action: "verify", refund_id: refund.id },
                                     });
                                     if (res.error) throw res.error;
                                     toast.success("Statut mis à jour");

@@ -164,6 +164,11 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     if (order.status === "cancelled" || order.status === "delivered") return false;
     // For delivery orders, check if any delivery is still cancellable
     if (order.delivery_type === "delivery") {
+      // Block cancellation if any delivery has been picked up or beyond
+      const hasPickedUp = deliveryRequests.some((dr: any) =>
+        ["picked_up", "en_route_client", "arrived"].includes(dr.status)
+      );
+      if (hasPickedUp) return false;
       return deliveryRequests.some((dr: any) => 
         !["delivered", "cancelled"].includes(dr.status)
       );
@@ -171,6 +176,12 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     // For pickup, can cancel if not delivered/cancelled
     return true;
   };
+
+  // Check if delivery is in driver's hands (for informational message)
+  const isDeliveryInDriverHands = order.delivery_type === "delivery" && 
+    deliveryRequests.some((dr: any) => 
+      ["picked_up", "en_route_client", "arrived"].includes(dr.status)
+    );
 
   const openGoogleMapsDirections = (lat: number, lng: number) => {
     if (navigator.geolocation) {
@@ -295,6 +306,15 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                     <XCircle className="mr-2 h-4 w-4" />
                     Demander l'annulation
                   </Button>
+                )}
+
+                {/* Message when delivery is in driver's hands */}
+                {isDeliveryInDriverHands && !canCancelOrder() && singleDelivery.status !== "delivered" && singleDelivery.status !== "cancelled" && (
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-700">
+                      ⚠️ Le colis est entre les mains du livreur. Seul le livreur peut gérer l'annulation à ce stade.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

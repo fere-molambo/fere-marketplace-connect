@@ -165,6 +165,16 @@ export function DriverCancellationDialog({
 
         {step === "choice" && (
           <div className="space-y-4 pt-4">
+            {/* Driver earnings display */}
+            {delivery?.driver_earnings > 0 && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-800 text-sm font-medium flex items-center gap-2">
+                  <Banknote className="h-4 w-4" />
+                  Vos gains pour cette livraison : {new Intl.NumberFormat("fr-FR").format(delivery.driver_earnings)} FCFA
+                </p>
+              </div>
+            )}
+
             {/* Alerte vérification */}
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-amber-800 text-sm flex items-center gap-2">

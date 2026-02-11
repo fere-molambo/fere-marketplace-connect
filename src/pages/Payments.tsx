@@ -72,14 +72,27 @@ export default function Payments() {
         .from("refunds")
         .select(`
           *,
-          user:profiles!user_id(nom_complet, contact),
           order:orders(order_number),
           booking:service_bookings(id, services(name))
         `)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data;
+
+      const userIds = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
+      let profiles: any[] = [];
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nom_complet, contact")
+          .in("id", userIds);
+        profiles = profilesData || [];
+      }
+
+      return (data || []).map((refund: any) => ({
+        ...refund,
+        user: profiles.find((p: any) => p.id === refund.user_id) || null,
+      }));
     },
   });
 

@@ -27,7 +27,10 @@ export function DriverCancellationDialog({
   userId,
 }: DriverCancellationDialogProps) {
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<"choice" | "cancel_options">("choice");
+  const [step, setStep] = useState<"choice" | "cancel_options" | "cancel_confirmation">("choice");
+
+  // Diagnostic log
+  console.log("DriverCancellationDialog - payment_method:", delivery?.order?.payment_method, "isOnlinePayment:", delivery?.order?.payment_method === "online");
 
   const paymentMethod = delivery?.order?.payment_method;
   const isOnlinePayment = paymentMethod === "online";
@@ -204,7 +207,13 @@ export function DriverCancellationDialog({
             {/* Bouton annuler */}
             <Button
               variant="destructive"
-              onClick={() => setStep("cancel_options")}
+              onClick={() => {
+                if (isOnlinePayment) {
+                  setStep("cancel_confirmation");
+                } else {
+                  setStep("cancel_options");
+                }
+              }}
               disabled={isPending}
               className="w-full"
               size="lg"
@@ -215,6 +224,47 @@ export function DriverCancellationDialog({
           </div>
         )}
 
+        {/* Step pour commandes prépayées - confirmation directe */}
+        {step === "cancel_confirmation" && (
+          <div className="space-y-4 pt-4">
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-destructive text-sm font-medium flex items-center gap-2">
+                <Undo2 className="h-4 w-4" />
+                Vous devrez retourner le colis au vendeur
+              </p>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Le client sera remboursé du montant des produits. Les frais de livraison seront retenus.
+            </p>
+
+            <Button
+              variant="destructive"
+              onClick={() => cancelDelivery.mutate({ clientPaidDelivery: true })}
+              disabled={isPending}
+              className="w-full"
+              size="lg"
+            >
+              {cancelDelivery.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-2" />
+              )}
+              Confirmer l'annulation
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => setStep("choice")}
+              disabled={isPending}
+              className="w-full"
+            >
+              Retour
+            </Button>
+          </div>
+        )}
+
+        {/* Step pour commandes cash uniquement */}
         {step === "cancel_options" && (
           <div className="space-y-4 pt-4">
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
@@ -224,61 +274,37 @@ export function DriverCancellationDialog({
               </p>
             </div>
 
-            {isOnlinePayment ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Le client sera remboursé du montant des produits. Les frais de livraison seront retenus.
-                </p>
-                <Button
-                  variant="destructive"
-                  onClick={() => cancelDelivery.mutate({ clientPaidDelivery: true })}
-                  disabled={isPending}
-                  className="w-full"
-                  size="lg"
-                >
-                  {cancelDelivery.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <XCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Confirmer l'annulation
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Le client a-t-il payé les frais de livraison ?
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => cancelDelivery.mutate({ clientPaidDelivery: true })}
-                    disabled={isPending}
-                    className="flex-col h-auto py-4"
-                  >
-                    {cancelDelivery.isPending ? (
-                      <Loader2 className="h-5 w-5 animate-spin mb-1" />
-                    ) : (
-                      <Banknote className="h-5 w-5 mb-1 text-green-600" />
-                    )}
-                    <span className="text-xs">Annulé, livraison payée</span>
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => cancelDelivery.mutate({ clientPaidDelivery: false })}
-                    disabled={isPending}
-                    className="flex-col h-auto py-4"
-                  >
-                    {cancelDelivery.isPending ? (
-                      <Loader2 className="h-5 w-5 animate-spin mb-1" />
-                    ) : (
-                      <XCircle className="h-5 w-5 mb-1" />
-                    )}
-                    <span className="text-xs">Annulé, livraison non payée</span>
-                  </Button>
-                </div>
-              </>
-            )}
+            <p className="text-sm text-muted-foreground">
+              Le client a-t-il payé les frais de livraison ?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => cancelDelivery.mutate({ clientPaidDelivery: true })}
+                disabled={isPending}
+                className="flex-col h-auto py-4"
+              >
+                {cancelDelivery.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mb-1" />
+                ) : (
+                  <Banknote className="h-5 w-5 mb-1 text-green-600" />
+                )}
+                <span className="text-xs">Annulé, livraison payée</span>
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => cancelDelivery.mutate({ clientPaidDelivery: false })}
+                disabled={isPending}
+                className="flex-col h-auto py-4"
+              >
+                {cancelDelivery.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mb-1" />
+                ) : (
+                  <XCircle className="h-5 w-5 mb-1" />
+                )}
+                <span className="text-xs">Annulé, livraison non payée</span>
+              </Button>
+            </div>
 
             <Button
               variant="ghost"

@@ -1,34 +1,34 @@
 
 
-# Corriger le flux d'annulation pour les commandes prepayees
+# Plan : Corriger l'annulation livreur + ajuster l'UI prepaye vs cash
 
 ## Probleme
 
-Actuellement, quand le livreur clique sur "Client refuse - Annuler" pour une commande payee d'avance, il est toujours redirige vers un ecran intermediaire (`cancel_options`). Pour les commandes prepayees, cet ecran intermediaire n'est pas necessaire car la livraison est automatiquement consideree comme payee (le livreur a fait le deplacement).
+1. **Erreur invisible** : le toast affiche "Erreur lors de l'annulation" sans detail. Impossible de diagnostiquer le probleme exact sans voir le message d'erreur de la base de donnees.
+
+2. **UI prepaye pas encore correcte** : pour les commandes payees d'avance, le livreur voit encore un ecran intermediaire. Il devrait juste voir un bouton "Confirmer l'annulation" avec un message expliquant que les frais de livraison sont retenus et le client rembourse du montant produit uniquement.
+
+3. **UI cash correcte** : le livreur choisit entre "Annule, livraison payee" et "Annule, livraison non payee". Pas de mention de "penalite" cote livreur.
 
 ## Solution
 
-Modifier le bouton "Client refuse - Annuler" pour que, dans le cas d'une commande prepayee (`isOnlinePayment`), il lance directement l'annulation au lieu de naviguer vers l'ecran `cancel_options`.
+### Fichier modifie : `DriverCancellationDialog.tsx`
 
-### Modification dans `DriverCancellationDialog.tsx`
+1. **Ameliorer les messages d'erreur** : afficher le vrai message d'erreur dans le toast et la console pour chaque etape (cancellation, delivery update, order update, refund, penalty). Cela permettra de diagnostiquer immediatement si l'erreur persiste.
 
-**Bouton "Client refuse - Annuler" (lignes 204-214)** : changer le `onClick` pour appeler directement `cancelDelivery.mutate({ clientPaidDelivery: true })` quand `isOnlinePayment` est vrai, et garder `setStep("cancel_options")` uniquement pour les commandes cash.
+2. **Simplifier le flux prepaye** : quand `isOnlinePayment` est vrai et que le livreur clique sur "Client refuse - Annuler", passer directement a l'annulation sans ecran intermediaire (un seul clic au lieu de deux). Afficher juste un message d'information et le bouton de confirmation.
 
-```
-onClick={() => {
-  if (isOnlinePayment) {
-    cancelDelivery.mutate({ clientPaidDelivery: true });
-  } else {
-    setStep("cancel_options");
-  }
-}}
-```
+3. **Garder le flux cash tel quel** : deux boutons "Annule, livraison payee" / "Annule, livraison non payee" -- deja en place.
 
-Le livreur verra alors :
-- **Commande prepayee** : 2 boutons seulement - "Confirmer livraison" et "Client refuse - Annuler" (qui annule directement)
-- **Commande cash** : le bouton "Client refuse - Annuler" ouvre l'ecran avec les 2 choix "Annule, livraison payee" / "Annule, livraison non payee"
+4. **Toast de succes** : retirer la mention "Penalite appliquee au client" du message de succes visible par le livreur. Remplacer par "Commande annulee. Livraison non payee."
 
-## Fichier modifie
+## Details techniques
 
-`src/components/driver/DriverCancellationDialog.tsx` - une seule modification sur le `onClick` du bouton d'annulation (ligne 207).
+- Ligne 148-151 : enrichir `onError` avec `error.message` dans le toast
+- Ligne 137-141 : ajuster le message de succes pour le cas cash non paye (retirer "penalite")
+- Le flux prepaye (lignes 226-245) est deja simplifie avec un seul bouton -- pas de changement majeur necessaire
 
+## Impact
+- Le diagnostic de l'erreur persistante sera possible immediatement
+- L'experience livreur sera conforme aux regles metier
+- Aucune migration SQL necessaire

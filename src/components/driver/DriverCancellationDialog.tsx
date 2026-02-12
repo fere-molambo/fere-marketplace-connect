@@ -204,7 +204,13 @@ export function DriverCancellationDialog({
             {/* Bouton annuler */}
             <Button
               variant="destructive"
-              onClick={() => setStep("cancel_options")}
+              onClick={() => {
+                if (isOnlinePayment) {
+                  cancelDelivery.mutate({ clientPaidDelivery: true });
+                } else {
+                  setStep("cancel_options");
+                }
+              }}
               disabled={isPending}
               className="w-full"
               size="lg"

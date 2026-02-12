@@ -66,7 +66,7 @@ export function DriverCancellationDialog({
         .insert({
           order_id: delivery.order_id,
           cancelled_by: userId,
-          canceller_role: "livreur",
+          canceller_role: "driver",
           status_at_cancellation: delivery.status,
           custom_reason: "Annulation par livreur à la demande du client",
           delivery_fee_kept: clientPaidDelivery,
@@ -226,7 +226,7 @@ export function DriverCancellationDialog({
             {isOnlinePayment ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Le client sera remboursé du montant des produits (hors frais de livraison).
+                  Le client sera remboursé du montant des produits. Les frais de livraison seront retenus.
                 </p>
                 <Button
                   variant="destructive"
@@ -260,7 +260,7 @@ export function DriverCancellationDialog({
                     ) : (
                       <Banknote className="h-5 w-5 mb-1 text-green-600" />
                     )}
-                    <span className="text-xs">Oui, livraison payée</span>
+                    <span className="text-xs">Annulé, livraison payée</span>
                   </Button>
                   <Button
                     variant="destructive"
@@ -273,7 +273,7 @@ export function DriverCancellationDialog({
                     ) : (
                       <XCircle className="h-5 w-5 mb-1" />
                     )}
-                    <span className="text-xs">Non, pénalité client</span>
+                    <span className="text-xs">Annulé, livraison non payée</span>
                   </Button>
                 </div>
               </>

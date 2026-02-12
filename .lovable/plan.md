@@ -1,42 +1,34 @@
 
 
-# Plan : Corriger l'erreur d'annulation par le livreur + ajuster l'UI
+# Plan : Corriger l'annulation livreur + ajuster l'UI prepaye vs cash
 
 ## Probleme
 
-Deux problemes identifies :
+1. **Erreur invisible** : le toast affiche "Erreur lors de l'annulation" sans detail. Impossible de diagnostiquer le probleme exact sans voir le message d'erreur de la base de donnees.
 
-### 1. Erreur base de donnees (bloquant)
-La table `cancellations` a une contrainte CHECK sur `canceller_role` qui n'accepte que : `client`, `driver`, `vendor`, `admin`. Or le code envoie `"livreur"` -- d'ou l'erreur.
+2. **UI prepaye pas encore correcte** : pour les commandes payees d'avance, le livreur voit encore un ecran intermediaire. Il devrait juste voir un bouton "Confirmer l'annulation" avec un message expliquant que les frais de livraison sont retenus et le client rembourse du montant produit uniquement.
 
-### 2. Logique UI a ajuster
-Pour les commandes prepayees (en ligne), le livreur ne devrait pas voir "Oui, livraison payee" ni "penalite". L'annulation est directe : les frais de livraison sont retenus, le client est rembourse du montant produit seulement, pas de penalite.
+3. **UI cash correcte** : le livreur choisit entre "Annule, livraison payee" et "Annule, livraison non payee". Pas de mention de "penalite" cote livreur.
 
 ## Solution
 
-### Migration SQL (1 fichier)
-Aucun changement de contrainte necessaire -- il suffit de corriger la valeur envoyee dans le code (`"livreur"` vers `"driver"`).
+### Fichier modifie : `DriverCancellationDialog.tsx`
 
-### Modification de `DriverCancellationDialog.tsx`
+1. **Ameliorer les messages d'erreur** : afficher le vrai message d'erreur dans le toast et la console pour chaque etape (cancellation, delivery update, order update, refund, penalty). Cela permettra de diagnostiquer immediatement si l'erreur persiste.
 
-1. **Ligne 69** : changer `canceller_role: "livreur"` en `canceller_role: "driver"`
+2. **Simplifier le flux prepaye** : quand `isOnlinePayment` est vrai et que le livreur clique sur "Client refuse - Annuler", passer directement a l'annulation sans ecran intermediaire (un seul clic au lieu de deux). Afficher juste un message d'information et le bouton de confirmation.
 
-2. **Flux prepaye (online)** : simplifier pour que le bouton "Confirmer l'annulation" appelle directement `cancelDelivery({ clientPaidDelivery: true })` sans choix supplementaire. Le texte expliquera que les frais de livraison sont retenus et le client sera rembourse du montant produit.
+3. **Garder le flux cash tel quel** : deux boutons "Annule, livraison payee" / "Annule, livraison non payee" -- deja en place.
 
-3. **Flux cash** : garder les 2 boutons mais renommer :
-   - "Annule, livraison payee" (icone billet)
-   - "Annule, livraison non payee" (icone X)
-   - Retirer le texte "penalite client" visible par le livreur
+4. **Toast de succes** : retirer la mention "Penalite appliquee au client" du message de succes visible par le livreur. Remplacer par "Commande annulee. Livraison non payee."
 
 ## Details techniques
 
-Fichier modifie : `src/components/driver/DriverCancellationDialog.tsx`
-- Corriger `canceller_role` de `"livreur"` a `"driver"` (ligne 69)
-- Ajuster le texte et les boutons du step `cancel_options` pour les 2 cas (prepaye vs cash)
-- Aucune migration SQL necessaire
+- Ligne 148-151 : enrichir `onError` avec `error.message` dans le toast
+- Ligne 137-141 : ajuster le message de succes pour le cas cash non paye (retirer "penalite")
+- Le flux prepaye (lignes 226-245) est deja simplifie avec un seul bouton -- pas de changement majeur necessaire
 
 ## Impact
-- Corrige immediatement l'erreur pour la commande ORD-20260212-DCB804FD
-- Simplifie l'experience livreur pour les commandes prepayees
-- Garde la logique cash avec choix livraison payee/non payee
-
+- Le diagnostic de l'erreur persistante sera possible immediatement
+- L'experience livreur sera conforme aux regles metier
+- Aucune migration SQL necessaire

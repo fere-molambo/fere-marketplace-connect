@@ -135,19 +135,20 @@ export function DriverCancellationDialog({
     },
     onSuccess: ({ clientPaidDelivery }) => {
       const message = isOnlinePayment
-        ? "Commande annulée. Remboursement en cours de traitement (hors frais de livraison)."
+        ? "Commande annulée. Remboursement en cours (hors frais de livraison)."
         : clientPaidDelivery
-          ? "Commande annulée. Client a payé la livraison."
-          : "Commande annulée. Pénalité appliquée au client.";
+          ? "Commande annulée. Livraison payée."
+          : "Commande annulée. Livraison non payée.";
       
       toast.success(message, { duration: 5000 });
       queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
       onOpenChange(false);
       setStep("choice");
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const msg = error?.message || error?.details || "Erreur inconnue";
       console.error("Cancel delivery error:", error);
-      toast.error("Erreur lors de l'annulation");
+      toast.error(`Erreur lors de l'annulation : ${msg}`, { duration: 8000 });
     },
   });
 

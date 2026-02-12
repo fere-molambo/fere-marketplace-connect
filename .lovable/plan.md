@@ -1,64 +1,42 @@
 
-# Plan : Corriger l'annulation par le livreur (erreurs RLS)
+
+# Plan : Corriger l'erreur d'annulation par le livreur + ajuster l'UI
 
 ## Probleme
 
-Quand le livreur tente d'annuler une commande au stade "arrive", la mutation echoue silencieusement a cause de politiques RLS trop restrictives sur 3 tables :
+Deux problemes identifies :
 
-1. **orders** : le UPDATE n'est autorise que si `auth.uid() = user_id` (le client). Le livreur ne peut pas mettre a jour le statut de la commande.
-2. **refunds** : le INSERT exige `user_id = auth.uid()` et que la commande appartienne a l'utilisateur. Le livreur insere un remboursement pour le client, pas pour lui-meme.
-3. **client_penalties** : seuls les admins peuvent inserer des penalites.
+### 1. Erreur base de donnees (bloquant)
+La table `cancellations` a une contrainte CHECK sur `canceller_role` qui n'accepte que : `client`, `driver`, `vendor`, `admin`. Or le code envoie `"livreur"` -- d'ou l'erreur.
+
+### 2. Logique UI a ajuster
+Pour les commandes prepayees (en ligne), le livreur ne devrait pas voir "Oui, livraison payee" ni "penalite". L'annulation est directe : les frais de livraison sont retenus, le client est rembourse du montant produit seulement, pas de penalite.
 
 ## Solution
 
-Ajouter des politiques RLS specifiques pour les livreurs via une migration SQL.
+### Migration SQL (1 fichier)
+Aucun changement de contrainte necessaire -- il suffit de corriger la valeur envoyee dans le code (`"livreur"` vers `"driver"`).
 
-### Migration SQL
+### Modification de `DriverCancellationDialog.tsx`
 
-```sql
--- 1. Permettre aux livreurs de mettre a jour les commandes qu'ils livrent
-CREATE POLICY "Drivers can update orders they deliver"
-  ON orders FOR UPDATE
-  USING (
-    has_role(auth.uid(), 'livreur') AND
-    EXISTS (
-      SELECT 1 FROM delivery_requests
-      WHERE delivery_requests.order_id = orders.id
-      AND delivery_requests.driver_id = auth.uid()
-    )
-  );
+1. **Ligne 69** : changer `canceller_role: "livreur"` en `canceller_role: "driver"`
 
--- 2. Permettre aux livreurs de creer des remboursements pour les commandes qu'ils livrent
-CREATE POLICY "Drivers can create refunds for deliveries"
-  ON refunds FOR INSERT
-  WITH CHECK (
-    has_role(auth.uid(), 'livreur') AND
-    EXISTS (
-      SELECT 1 FROM delivery_requests
-      WHERE delivery_requests.order_id = refunds.order_id
-      AND delivery_requests.driver_id = auth.uid()
-    )
-  );
+2. **Flux prepaye (online)** : simplifier pour que le bouton "Confirmer l'annulation" appelle directement `cancelDelivery({ clientPaidDelivery: true })` sans choix supplementaire. Le texte expliquera que les frais de livraison sont retenus et le client sera rembourse du montant produit.
 
--- 3. Permettre aux livreurs de creer des penalites pour les commandes qu'ils livrent
-CREATE POLICY "Drivers can create penalties for deliveries"
-  ON client_penalties FOR INSERT
-  WITH CHECK (
-    has_role(auth.uid(), 'livreur') AND
-    EXISTS (
-      SELECT 1 FROM delivery_requests
-      WHERE delivery_requests.order_id = client_penalties.source_order_id
-      AND delivery_requests.driver_id = auth.uid()
-    )
-  );
-```
+3. **Flux cash** : garder les 2 boutons mais renommer :
+   - "Annule, livraison payee" (icone billet)
+   - "Annule, livraison non payee" (icone X)
+   - Retirer le texte "penalite client" visible par le livreur
 
-### Aucune modification de code frontend
+## Details techniques
 
-Le code dans `DriverCancellationDialog.tsx` est deja correct. Seules les permissions de la base de donnees bloquent l'execution.
+Fichier modifie : `src/components/driver/DriverCancellationDialog.tsx`
+- Corriger `canceller_role` de `"livreur"` a `"driver"` (ligne 69)
+- Ajuster le texte et les boutons du step `cancel_options` pour les 2 cas (prepaye vs cash)
+- Aucune migration SQL necessaire
 
 ## Impact
+- Corrige immediatement l'erreur pour la commande ORD-20260212-DCB804FD
+- Simplifie l'experience livreur pour les commandes prepayees
+- Garde la logique cash avec choix livraison payee/non payee
 
-- Un seul fichier de migration SQL
-- Pas de changement cote frontend
-- Les livreurs pourront annuler les commandes qu'ils livrent et creer les enregistrements financiers associes

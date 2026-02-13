@@ -411,7 +411,7 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
                 <span>{formatCurrency(vendorNet)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Commission plateforme ({((commissionAmount / totalPrice) * 100).toFixed(0)}%) déduite de vos tokens
+                Commission plateforme ({((commissionAmount / totalPrice) * 100).toFixed(0)}%) appliquée
               </p>
             </div>
           </div>

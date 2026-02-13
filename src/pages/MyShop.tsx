@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ShopImageUpload } from "@/components/shops/ShopImageUpload";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Store, Coins } from "lucide-react";
+import { Store } from "lucide-react";
 import { CreateShopDialog } from "@/components/shops/CreateShopDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
@@ -14,7 +14,7 @@ import { MarketingTab } from "@/components/shops/tabs/MarketingTab";
 import { ReviewsTab } from "@/components/shops/tabs/ReviewsTab";
 import { StatsTab } from "@/components/shops/tabs/StatsTab";
 import { ConfigTab } from "@/components/shops/tabs/ConfigTab";
-import { VendorTokensSection } from "@/components/shops/VendorTokensSection";
+
 import { useState } from "react";
 
 export default function MyShop() {
@@ -110,10 +110,6 @@ export default function MyShop() {
             <TabsTrigger value="infos" className="text-xs sm:text-sm">Infos</TabsTrigger>
             <TabsTrigger value="products" className="text-xs sm:text-sm">Produits</TabsTrigger>
             <TabsTrigger value="orders" className="text-xs sm:text-sm">Commandes</TabsTrigger>
-            <TabsTrigger value="tokens" className="text-xs sm:text-sm gap-1">
-              <Coins className="h-3 w-3" />
-              Tokens
-            </TabsTrigger>
             <TabsTrigger value="marketing" className="text-xs sm:text-sm">Marketing</TabsTrigger>
             <TabsTrigger value="reviews" className="text-xs sm:text-sm">Avis</TabsTrigger>
             <TabsTrigger value="stats" className="text-xs sm:text-sm">Stats</TabsTrigger>
@@ -134,9 +130,6 @@ export default function MyShop() {
             <OrdersTab shopId={shop.id} />
           </TabsContent>
 
-          <TabsContent value="tokens" className="space-y-4 mt-4">
-            <VendorTokensSection />
-          </TabsContent>
 
           <TabsContent value="marketing" className="space-y-4 mt-4">
             <MarketingTab shopId={shop.id} />

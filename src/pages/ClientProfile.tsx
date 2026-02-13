@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag, Truck, Coins, RefreshCcw } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Upload, FileText, Eye, ShoppingBag, Truck, RefreshCcw } from "lucide-react";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { ClientOrderDetailSheet } from "@/components/orders/ClientOrderDetailSheet";
@@ -23,7 +23,7 @@ import { fr } from "date-fns/locale";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
 import { DriverProfileSection } from "@/components/driver/DriverProfileSection";
 import { DriverDeliveriesSection } from "@/components/driver/DriverDeliveriesSection";
-import { DriverTokensSection } from "@/components/driver/DriverTokensSection";
+
 import { RefundsSection } from "@/components/client/RefundsSection";
 
 export default function ClientProfile() {
@@ -389,10 +389,6 @@ export default function ClientProfile() {
                 <TabsTrigger value="deliveries" className="gap-2">
                   <MapPin className="h-4 w-4" />
                   Livraisons
-                </TabsTrigger>
-                <TabsTrigger value="tokens" className="gap-2">
-                  <Coins className="h-4 w-4" />
-                  Tokens
                 </TabsTrigger>
               </>
             )}
@@ -769,12 +765,6 @@ export default function ClientProfile() {
             </TabsContent>
           )}
 
-          {/* Driver Tokens Tab */}
-          {isLivreur && (
-            <TabsContent value="tokens">
-              <DriverTokensSection />
-            </TabsContent>
-          )}
         </Tabs>
       </main>
 

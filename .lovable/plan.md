@@ -1,43 +1,31 @@
 
-# Plan : Nettoyage des tokens + verification de bout en bout
 
-## Ce qui reste a nettoyer
+# Plan : Nettoyage complet des donnees de test
 
-Les references aux tokens sont encore presentes dans 3 endroits :
+Suppression de toutes les donnees transactionnelles pour repartir de zero, en preservant les utilisateurs, boutiques, produits et configurations.
 
-### 1. `src/pages/ClientProfile.tsx` - Onglet "Tokens" du livreur
-- Ligne 26 : import de `DriverTokensSection`
-- Ligne 17 : import de `Coins` icon
-- Lignes 393-396 : TabsTrigger "Tokens"
-- Lignes 772-777 : TabsContent avec `<DriverTokensSection />`
-- **Action** : Supprimer l'import, le TabsTrigger et le TabsContent
+## Tables a vider (dans l'ordre pour respecter les contraintes)
 
-### 2. `src/pages/MyShop.tsx` - Onglet "Tokens" du vendeur
-- Ligne 6 : import de `Coins` icon
-- Ligne 17 : import de `VendorTokensSection`
-- Lignes 113-116 : TabsTrigger "Tokens"
-- Lignes 137-139 : TabsContent avec `<VendorTokensSection />`
-- **Action** : Supprimer l'import, le TabsTrigger et le TabsContent
+1. `pending_payouts` - versements en attente
+2. `refunds` - remboursements
+3. `client_penalties` - penalites (ancien systeme)
+4. `cancellations` - annulations
+5. `delivery_requests` - demandes de livraison
+6. `order_items` - articles des commandes
+7. `orders` - commandes
+8. `service_bookings` - reservations de services
+9. `payment_transactions` - transactions de paiement
 
-### 3. `src/components/orders/BookingDetailSheet.tsx` - Mention "tokens" dans le texte
-- Ligne 414 : texte "deduite de vos tokens"
-- **Action** : Remplacer par "Commission plateforme (...%) appliquee"
+## Ce qui est preserve
 
-## Tests a effectuer apres nettoyage
+- Profils utilisateurs et roles
+- Boutiques, produits, services
+- Zones de livraison
+- Adresses de livraison
+- Configuration plateforme
+- Categories, FAQ, conversations
 
-### Navigation et affichage
-1. Verifier que la page profil livreur n'affiche plus l'onglet "Tokens"
-2. Verifier que la page "Ma Boutique" vendeur n'affiche plus l'onglet "Tokens"
-3. Verifier que le BookingDetailSheet ne mentionne plus les tokens
+## Methode
 
-### Verification des vues par role
-4. **Client** : Profil > Commandes montre les commandes avec statut et paiement corrects
-5. **Livreur** : Profil > Livraisons montre les livraisons avec gains et message d'attente au statut "arrived"
-6. **Vendeur** : Ma Boutique > Commandes montre les commandes recues
-7. **Admin** : Dashboard Paiements montre les versements en attente et les remboursements
+Une seule requete SQL executee via l'outil de migration (DELETE statements dans le bon ordre).
 
-## Fichiers modifies
-
-1. `src/pages/ClientProfile.tsx` - Suppression onglet tokens livreur
-2. `src/pages/MyShop.tsx` - Suppression onglet tokens vendeur
-3. `src/components/orders/BookingDetailSheet.tsx` - Correction texte "tokens"

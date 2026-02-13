@@ -45,7 +45,23 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["delivery-requests", order.id] });
-          queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["client-orders", user?.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${order.id}`
+        },
+        (payload) => {
+          const newStatus = (payload.new as any)?.status;
+          if (newStatus === 'cancelled') {
+            queryClient.invalidateQueries({ queryKey: ["client-orders", user?.id] });
+            onOpenChange(false);
+          }
         }
       )
       .subscribe();
@@ -53,7 +69,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [order?.id, queryClient]);
+  }, [order?.id, queryClient, user?.id, onOpenChange]);
 
   // Fetch shops info for pickup orders
   const { data: shopsInfo = [] } = useQuery({

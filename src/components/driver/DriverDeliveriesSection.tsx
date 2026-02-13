@@ -599,7 +599,9 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         )}
                       </div>
                       <div className="text-right space-y-1">
-                        {delivery.driver_earnings > 0 && (
+                        {delivery.driver_earnings > 0 && 
+                         (delivery.status === "delivered" || 
+                          (delivery.status === "cancelled" && delivery.cancellation_info?.delivery_fee_kept)) && (
                           <p className="font-semibold text-green-600">
                             +{delivery.driver_earnings?.toLocaleString()} FCFA
                           </p>

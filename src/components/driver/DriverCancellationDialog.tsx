@@ -63,7 +63,7 @@ export function DriverCancellationDialog({
   // Cancel delivery mutation
   const cancelDelivery = useMutation({
     mutationFn: async ({ clientPaidDelivery }: { clientPaidDelivery: boolean }) => {
-      // 1. Create cancellation record
+      // 1. Create cancellation record FIRST
       const { data: cancellation, error: cancelError } = await supabase
         .from("cancellations")
         .insert({
@@ -79,7 +79,18 @@ export function DriverCancellationDialog({
 
       if (cancelError) throw cancelError;
 
-      // 2. Update delivery request to returning
+      // 2. Update order BEFORE delivery (so trigger doesn't overwrite)
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({
+          status: "cancelled",
+          cancellation_id: cancellation.id,
+        })
+        .eq("id", delivery.order_id);
+
+      if (orderError) throw orderError;
+
+      // 3. Update delivery request status
       const { error: deliveryError } = await supabase
         .from("delivery_requests")
         .update({
@@ -91,24 +102,13 @@ export function DriverCancellationDialog({
 
       if (deliveryError) throw deliveryError;
 
-      // 3. Update order status
-      const { error: orderError } = await supabase
-        .from("orders")
-        .update({
-          status: "cancelled",
-          cancellation_id: cancellation.id,
-        })
-        .eq("id", delivery.order_id);
-
-      if (orderError) throw orderError;
-
-      // 4. If online payment, create refund record (without delivery fee)
+      // 4. If online payment, create refund record (product value only)
       if (isOnlinePayment) {
         const order = delivery.order;
-        const refundAmount = order.subtotal; // Product value only
+        const refundAmount = order.subtotal;
         const deliveryFeeKept = delivery.delivery_fee || 0;
 
-        await supabase.from("refunds").insert({
+        const { error: refundError } = await supabase.from("refunds").insert({
           order_id: delivery.order_id,
           user_id: order.user_id,
           amount: order.total_amount,
@@ -119,12 +119,18 @@ export function DriverCancellationDialog({
           refund_status: "pending",
           cancellation_id: cancellation.id,
         });
+
+        if (refundError) {
+          console.error("Refund creation error:", refundError);
+          // Don't throw - cancellation is already done
+          toast.error("Attention : erreur lors de la création du remboursement. L'admin devra le créer manuellement.", { duration: 8000 });
+        }
       }
 
       // 5. For cash - if client didn't pay delivery, create penalty
       if (!isOnlinePayment && !clientPaidDelivery) {
         const deliveryFee = delivery.delivery_fee || 0;
-        await supabase.from("client_penalties").insert({
+        const { error: penaltyError } = await supabase.from("client_penalties").insert({
           user_id: delivery.order.user_id,
           amount: deliveryFee,
           reason: "Frais de livraison non payés lors du refus de colis",
@@ -132,6 +138,11 @@ export function DriverCancellationDialog({
           source_delivery_id: delivery.id,
           status: "pending",
         });
+
+        if (penaltyError) {
+          console.error("Penalty creation error:", penaltyError);
+          toast.error("Attention : erreur lors de l'enregistrement des frais. L'admin devra intervenir.", { duration: 8000 });
+        }
       }
 
       return { clientPaidDelivery };
@@ -145,6 +156,7 @@ export function DriverCancellationDialog({
       
       toast.success(message, { duration: 5000 });
       queryClient.invalidateQueries({ queryKey: ["my-deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-history"] });
       onOpenChange(false);
       setStep("choice");
     },

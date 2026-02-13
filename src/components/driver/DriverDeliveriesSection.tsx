@@ -115,7 +115,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     enabled: !!userId,
   });
 
-  // Fetch driver's delivery history (delivered + cancelled)
+  // Fetch driver's delivery history (delivered + cancelled) with cancellation details
   const { data: deliveryHistory = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ["delivery-history", userId],
     queryFn: async () => {
@@ -129,9 +129,46 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .eq("driver_id", userId)
         .in("status", ["delivered", "cancelled"])
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
       if (error) throw error;
-      return data || [];
+
+      // Fetch cancellation details for cancelled deliveries
+      const cancelledOrderIds = (data || [])
+        .filter(d => d.status === "cancelled" && d.order_id)
+        .map(d => d.order_id);
+      
+      let cancellationsMap: Record<string, any> = {};
+      if (cancelledOrderIds.length > 0) {
+        const { data: cancellations } = await supabase
+          .from("cancellations")
+          .select("order_id, status_at_cancellation, custom_reason, delivery_fee_kept, canceller_role, reason_id, cancellation_reasons:reason_id(label)")
+          .in("order_id", cancelledOrderIds);
+        
+        (cancellations || []).forEach((c: any) => {
+          if (c.order_id) cancellationsMap[c.order_id] = c;
+        });
+      }
+
+      // Fetch payout info for driver
+      const deliveryIds = (data || []).map(d => d.id);
+      let payoutsMap: Record<string, any> = {};
+      if (deliveryIds.length > 0) {
+        const { data: payouts } = await supabase
+          .from("pending_payouts")
+          .select("delivery_request_id, status, amount")
+          .in("delivery_request_id", deliveryIds)
+          .eq("recipient_id", userId);
+        
+        (payouts || []).forEach((p: any) => {
+          if (p.delivery_request_id) payoutsMap[p.delivery_request_id] = p;
+        });
+      }
+
+      return (data || []).map(d => ({
+        ...d,
+        cancellation_info: cancellationsMap[d.order_id] || null,
+        payout_info: payoutsMap[d.id] || null,
+      }));
     },
     enabled: !!userId,
   });
@@ -528,16 +565,48 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
             </p>
           ) : (
             <div className="space-y-3">
+              {/* Daily total */}
+              {(() => {
+                const today = new Date().toDateString();
+                const todayEarnings = deliveryHistory
+                  .filter(d => {
+                    const date = new Date(d.delivered_at || d.updated_at || d.created_at).toDateString();
+                    return date === today && (d.status === "delivered" || (d.status === "cancelled" && d.cancellation_info?.delivery_fee_kept));
+                  })
+                  .reduce((sum, d) => sum + (d.driver_earnings || 0), 0);
+                
+                return todayEarnings > 0 ? (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-2">
+                    <p className="text-green-800 font-semibold text-sm flex items-center gap-2">
+                      <Banknote className="h-4 w-4" />
+                      Total du jour : {todayEarnings.toLocaleString()} FCFA
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+
               {deliveryHistory.map((delivery) => {
                 const pickupPoints = delivery.pickup_points as any[] || [];
                 const deliveryPoint = delivery.delivery_point as any;
+                const paymentMethod = delivery.order?.payment_method;
+                const cancellation = delivery.cancellation_info;
+                const payout = delivery.payout_info;
+                const statusLabels: Record<string, string> = {
+                  assigned: "Acceptée", in_progress: "Vers pickup", picked_up: "Récupérée",
+                  en_route_client: "Vers client", arrived: "Arrivé chez client",
+                };
                 
                 return (
-                  <div key={delivery.id} className="p-4 rounded-lg border opacity-80 space-y-2">
+                  <div key={delivery.id} className="p-4 rounded-lg border space-y-2">
                     <div className="flex items-start justify-between">
-                      <div>
-                        {getStatusBadge(delivery.status)}
-                        <p className="text-xs text-muted-foreground mt-1">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getStatusBadge(delivery.status)}
+                          <Badge variant="outline" className="text-xs">
+                            {paymentMethod === "cash" ? "Cash" : "Prépayé"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
                           {format(new Date(delivery.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
                         </p>
                         {delivery.order?.order_number && (
@@ -546,12 +615,37 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                           </p>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">
-                          {delivery.driver_earnings?.toLocaleString()} FCFA
-                        </p>
+                      <div className="text-right space-y-1">
+                        {delivery.driver_earnings > 0 && (
+                          <p className="font-semibold text-green-600">
+                            +{delivery.driver_earnings?.toLocaleString()} FCFA
+                          </p>
+                        )}
+                        {payout && (
+                          <Badge variant={payout.status === "paid" ? "default" : "secondary"} className="text-xs">
+                            {payout.status === "paid" ? "Payé" : payout.status === "processing" ? "En cours" : "En attente"}
+                          </Badge>
+                        )}
                       </div>
                     </div>
+
+                    {/* Cancellation details */}
+                    {delivery.status === "cancelled" && cancellation && (
+                      <div className="p-2 bg-red-50 border border-red-100 rounded text-xs space-y-1">
+                        <p className="text-red-700 font-medium">
+                          Annulée à l'étape : {statusLabels[cancellation.status_at_cancellation] || cancellation.status_at_cancellation}
+                        </p>
+                        {cancellation.cancellation_reasons?.label && (
+                          <p className="text-red-600">Motif : {cancellation.cancellation_reasons.label}</p>
+                        )}
+                        {cancellation.custom_reason && (
+                          <p className="text-red-600">{cancellation.custom_reason}</p>
+                        )}
+                        <p className="text-muted-foreground">
+                          Livraison {cancellation.delivery_fee_kept ? "payée" : "non payée"}
+                        </p>
+                      </div>
+                    )}
                     
                     {pickupPoints.length > 0 && (
                       <p className="text-xs text-muted-foreground">

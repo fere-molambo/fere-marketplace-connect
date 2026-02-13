@@ -245,14 +245,28 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
               )}
             </div>
 
-            {/* Timeline de suivi */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Suivi de votre commande</h3>
-              <OrderTimeline status={order.status} />
-            </div>
+            {/* Cancelled order info */}
+            {order.status === "cancelled" && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-800 font-medium text-sm">Commande annulée</p>
+                {order.payment_method === "online" && (
+                  <p className="text-sm text-red-600 mt-1">
+                    Un remboursement du montant des produits est en cours de traitement. Les frais de livraison sont retenus.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Timeline de suivi - hide for cancelled */}
+            {order.status !== "cancelled" && (
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Suivi de votre commande</h3>
+                <OrderTimeline status={order.status} />
+              </div>
+            )}
 
             {/* SINGLE ZONE DELIVERY - Original display */}
-            {order.delivery_type === "delivery" && !isMultiZone && singleDelivery && (
+            {order.delivery_type === "delivery" && !isMultiZone && singleDelivery && order.status !== "cancelled" && (
               <div>
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Truck className="h-4 w-4" />
@@ -320,7 +334,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
             )}
 
             {/* MULTI-ZONE DELIVERY - Sub-deliveries cards */}
-            {order.delivery_type === "delivery" && isMultiZone && (
+            {order.delivery_type === "delivery" && isMultiZone && order.status !== "cancelled" && (
               <div>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Truck className="h-4 w-4" />

@@ -9,11 +9,13 @@ import { OrderTimeline } from "./OrderTimeline";
 import { DeliveryProgressTracker } from "./DeliveryProgressTracker";
 import { SubDeliveryCard } from "./SubDeliveryCard";
 import { RequestCancellationDialog } from "./RequestCancellationDialog";
-import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink, Banknote, CreditCard, Bell, XCircle } from "lucide-react";
+import { MapPin, Phone, Store, Truck, Package, Navigation, Clock, ExternalLink, CreditCard, Bell, XCircle, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface ClientOrderDetailSheetProps {
   order: any;
@@ -23,6 +25,7 @@ interface ClientOrderDetailSheetProps {
 
 export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrderDetailSheetProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [showCancellationDialog, setShowCancellationDialog] = useState(false);
   const [selectedDeliveryForCancel, setSelectedDeliveryForCancel] = useState<any>(null);
 
@@ -42,6 +45,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["delivery-requests", order.id] });
+          queryClient.invalidateQueries({ queryKey: ["client-orders"] });
         }
       )
       .subscribe();
@@ -74,7 +78,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     enabled: !!order?.id && order?.delivery_type === "pickup",
   });
 
-  // Fetch ALL delivery requests for this order (supports multi-zone)
+  // Fetch ALL delivery requests for this order
   const { data: deliveryRequests = [] } = useQuery({
     queryKey: ["delivery-requests", order?.id],
     queryFn: async () => {
@@ -113,7 +117,6 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
       
       if (error) throw error;
       
-      // Create a map: shop_id -> shop
       const map: Record<string, any> = {};
       data?.forEach((shop) => {
         map[shop.id] = shop;
@@ -121,6 +124,112 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
       return map;
     },
     enabled: !!order?.id,
+  });
+
+  // Pay balance mutation
+  const payBalance = useMutation({
+    mutationFn: async () => {
+      if (!user || !order) throw new Error("Non authentifié");
+      
+      const balanceAmount = order.balance_amount || order.subtotal;
+      
+      const response = await supabase.functions.invoke("paystack-payment", {
+        body: {
+          action: "initialize",
+          amount: balanceAmount,
+          email: user.email,
+          payment_type: "order_balance",
+          related_id: order.id,
+          metadata: {
+            order_number: order.order_number,
+            is_balance_payment: true,
+          },
+          callback_url: `${window.location.origin}/payment/callback`,
+        },
+      });
+
+      if (response.data?.authorization_url) {
+        window.location.href = response.data.authorization_url;
+      } else {
+        throw new Error("Erreur d'initialisation du paiement du solde");
+      }
+    },
+    onError: (error) => {
+      console.error("Balance payment error:", error);
+      toast.error("Erreur lors de l'initialisation du paiement");
+    },
+  });
+
+  // Cancel at arrival mutation
+  const cancelAtArrival = useMutation({
+    mutationFn: async () => {
+      if (!user || !order) throw new Error("Non authentifié");
+      
+      const delivery = singleDelivery || deliveryRequests[0];
+      if (!delivery) throw new Error("Aucune livraison trouvée");
+
+      // Create cancellation record
+      const { data: cancellation, error: cancelError } = await supabase
+        .from("cancellations")
+        .insert({
+          order_id: order.id,
+          cancelled_by: user.id,
+          canceller_role: "client",
+          status_at_cancellation: delivery.status,
+          custom_reason: "Annulation par le client après vérification du colis",
+          delivery_fee_kept: true,
+        })
+        .select()
+        .single();
+
+      if (cancelError) throw cancelError;
+
+      // Update order
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({
+          status: "cancelled",
+          cancellation_id: cancellation.id,
+        })
+        .eq("id", order.id);
+
+      if (orderError) throw orderError;
+
+      // Update delivery - initiate return
+      const { error: deliveryError } = await supabase
+        .from("delivery_requests")
+        .update({
+          status: "cancelled",
+          return_status: "returning",
+        })
+        .eq("id", delivery.id);
+
+      if (deliveryError) throw deliveryError;
+
+      // Create payout for driver from the advance (delivery_fee + product_commission)
+      // The platform keeps the delivery commission
+      const driverPayout = (delivery.delivery_fee || 0) + (order.commission_amount || 0);
+      if (driverPayout > 0 && delivery.driver_id) {
+        await supabase.from("pending_payouts").insert({
+          recipient_id: delivery.driver_id,
+          recipient_type: "driver",
+          amount: driverPayout,
+          order_id: order.id,
+          delivery_request_id: delivery.id,
+          eligible_at: new Date().toISOString(),
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Commande annulée. Le livreur retournera le colis au vendeur.");
+      queryClient.invalidateQueries({ queryKey: ["delivery-requests", order.id] });
+      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      console.error("Cancel at arrival error:", error);
+      toast.error("Erreur lors de l'annulation");
+    },
   });
 
   if (!order) return null;
@@ -138,7 +247,6 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
       const shop = shopsMap[item.shop_id];
       const zoneId = shop?.delivery_zone_id;
       
-      // Find matching delivery request
       const matchingDelivery = deliveryRequests.find((dr: any) => dr.zone_id === zoneId);
       const key = matchingDelivery?.id || 'unknown';
       
@@ -160,28 +268,23 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
 
-  const canCancelOrder = () => {
+  // Can cancel only before pickup
+  const canCancelBeforePickup = () => {
     if (order.status === "cancelled" || order.status === "delivered") return false;
-    // For delivery orders, check if any delivery is still cancellable
+    if (order.balance_payment_status === "paid") return false;
     if (order.delivery_type === "delivery") {
-      // Block cancellation if any delivery has been picked up or beyond
       const hasPickedUp = deliveryRequests.some((dr: any) =>
-        ["picked_up", "en_route_client", "arrived"].includes(dr.status)
+        ["picked_up", "en_route_client", "arrived", "delivered"].includes(dr.status)
       );
-      if (hasPickedUp) return false;
-      return deliveryRequests.some((dr: any) => 
-        !["delivered", "cancelled"].includes(dr.status)
-      );
+      return !hasPickedUp;
     }
-    // For pickup, can cancel if not delivered/cancelled
     return true;
   };
 
-  // Check if delivery is in driver's hands (for informational message)
-  const isDeliveryInDriverHands = order.delivery_type === "delivery" && 
-    deliveryRequests.some((dr: any) => 
-      ["picked_up", "en_route_client", "arrived"].includes(dr.status)
-    );
+  // Check if driver has arrived and balance not yet paid
+  const isDriverArrived = order.delivery_type === "delivery" && 
+    deliveryRequests.some((dr: any) => dr.status === "arrived") &&
+    order.balance_payment_status !== "paid";
 
   const openGoogleMapsDirections = (lat: number, lng: number) => {
     if (navigator.geolocation) {
@@ -229,31 +332,21 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
               {isMultiZone && (
                 <Badge variant="secondary">Multi-zones</Badge>
               )}
-              {/* Mode de paiement */}
-              {order.payment_method === "cash" ? (
-                <Badge variant="secondary">
-                  <Banknote className="mr-1 h-3 w-3" />Cash à la livraison
-                </Badge>
-              ) : order.advance_percent && order.advance_percent < 100 ? (
-                <Badge variant="secondary">
-                  <CreditCard className="mr-1 h-3 w-3" />{order.advance_percent}% payé
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  <CreditCard className="mr-1 h-3 w-3" />Payé intégralement
-                </Badge>
-              )}
+              <Badge variant="secondary">
+                <CreditCard className="mr-1 h-3 w-3" />
+                {order.balance_payment_status === "paid" ? "Payé intégralement" : "Acompte payé"}
+              </Badge>
             </div>
 
             {/* Cancelled order info */}
             {order.status === "cancelled" && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-red-800 font-medium text-sm">Commande annulée</p>
-                {order.payment_method === "online" && (
-                  <p className="text-sm text-red-600 mt-1">
-                    Un remboursement du montant des produits est en cours de traitement. Les frais de livraison sont retenus.
-                  </p>
-                )}
+                <p className="text-sm text-red-600 mt-1">
+                  {order.advance_paid > 0 
+                    ? "L'admin traitera le remboursement de votre acompte selon les conditions d'annulation."
+                    : "Aucun montant à rembourser."}
+                </p>
               </div>
             )}
 
@@ -265,27 +358,56 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
               </div>
             )}
 
-            {/* SINGLE ZONE DELIVERY - Original display */}
+            {/* Driver arrived - Action buttons for client */}
+            {isDriverArrived && (
+              <div className="p-4 bg-primary/5 border-2 border-primary/30 rounded-lg space-y-3">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  <p className="font-semibold text-primary">Le livreur est arrivé !</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Vérifiez votre colis. Si tout est conforme, payez le solde pour finaliser la livraison.
+                </p>
+
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => payBalance.mutate()}
+                    disabled={payBalance.isPending || cancelAtArrival.isPending}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    size="lg"
+                  >
+                    {payBalance.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Colis vérifié, payer {formatCurrency(order.balance_amount || order.subtotal)}
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    onClick={() => cancelAtArrival.mutate()}
+                    disabled={payBalance.isPending || cancelAtArrival.isPending}
+                    className="w-full"
+                  >
+                    {cancelAtArrival.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <XCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Annuler la commande
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* SINGLE ZONE DELIVERY */}
             {order.delivery_type === "delivery" && !isMultiZone && singleDelivery && order.status !== "cancelled" && (
               <div>
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Truck className="h-4 w-4" />
                   Suivi de livraison
                 </h3>
-                
-                {/* Alerte si livreur est arrivé */}
-                {singleDelivery.status === 'arrived' && (
-                  <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-3">
-                    <p className="font-medium text-primary flex items-center gap-2">
-                      <Bell className="h-4 w-4" />
-                      Le livreur est arrivé !
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Vérifiez votre commande avant d'accepter.
-                      Aucune annulation possible après acceptation.
-                    </p>
-                  </div>
-                )}
                 
                 {/* Tracker visuel 7 étapes */}
                 <DeliveryProgressTracker 
@@ -310,30 +432,30 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                   </div>
                 )}
 
-                {/* Bouton Annulation - Commande simple */}
-                {canCancelOrder() && singleDelivery.status !== "delivered" && (
+                {/* Cancel button - only before pickup */}
+                {canCancelBeforePickup() && singleDelivery.status !== "delivered" && (
                   <Button
                     variant="outline"
                     className="w-full mt-4 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleCancelClick()}
                   >
                     <XCircle className="mr-2 h-4 w-4" />
-                    Demander l'annulation
+                    Annuler la commande
                   </Button>
                 )}
 
-                {/* Message when delivery is in driver's hands */}
-                {isDeliveryInDriverHands && !canCancelOrder() && singleDelivery.status !== "delivered" && singleDelivery.status !== "cancelled" && (
-                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-700">
-                      ⚠️ Le colis est entre les mains du livreur. Seul le livreur peut gérer l'annulation à ce stade.
+                {/* Info message when colis picked up but not arrived yet */}
+                {["picked_up", "en_route_client"].includes(singleDelivery.status) && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Le colis est en cours de livraison. Vous pourrez vérifier et payer à l'arrivée du livreur.
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* MULTI-ZONE DELIVERY - Sub-deliveries cards */}
+            {/* MULTI-ZONE DELIVERY */}
             {order.delivery_type === "delivery" && isMultiZone && order.status !== "cancelled" && (
               <div>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -341,7 +463,6 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                   Vos sous-livraisons ({deliveryRequests.length})
                 </h3>
                 
-                {/* Adresse de livraison */}
                 {order.delivery_addresses && (
                   <div className="p-3 bg-muted rounded-lg mb-4">
                     <p className="font-medium text-sm">{order.delivery_addresses.label}</p>
@@ -410,7 +531,6 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                         </a>
                       )}
                       
-                      {/* Boutons navigation */}
                       <div className="flex gap-2 pt-2">
                         {shop.google_maps_link ? (
                           <Button
@@ -438,15 +558,14 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                   ))}
                 </div>
 
-                {/* Bouton Annulation - Pickup */}
-                {canCancelOrder() && (
+                {canCancelBeforePickup() && (
                   <Button
                     variant="outline"
                     className="w-full mt-4 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleCancelClick()}
                   >
                     <XCircle className="mr-2 h-4 w-4" />
-                    Demander l'annulation
+                    Annuler la commande
                   </Button>
                 )}
               </div>
@@ -454,7 +573,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
 
             <Separator />
 
-            {/* Produits - Only show for single zone or pickup */}
+            {/* Produits */}
             {(!isMultiZone || order.delivery_type === "pickup") && (
               <>
                 <div>
@@ -503,7 +622,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
               <h3 className="text-sm font-semibold mb-2">Récapitulatif</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sous-total</span>
+                  <span className="text-muted-foreground">Sous-total produits</span>
                   <span>{formatCurrency(order.subtotal)}</span>
                 </div>
                 {(order.delivery_fee || 0) > 0 && (
@@ -513,18 +632,19 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                   </div>
                 )}
                 <Separator />
-                <div className="flex justify-between font-semibold text-base">
-                  <span>Total TTC</span>
-                  <span>{formatCurrency(order.total_amount)}</span>
-                </div>
                 <div className="flex justify-between text-green-600">
-                  <span>Payé</span>
+                  <span>Acompte payé</span>
                   <span>{formatCurrency(order.advance_paid || 0)}</span>
                 </div>
-                {(order.remaining_amount || 0) > 0 && (
+                {order.balance_payment_status === "paid" ? (
+                  <div className="flex justify-between text-green-600">
+                    <span>Solde payé</span>
+                    <span>{formatCurrency(order.balance_amount || order.subtotal)}</span>
+                  </div>
+                ) : order.status !== "cancelled" && (
                   <div className="flex justify-between text-orange-600 font-medium">
-                    <span>Reste à payer</span>
-                    <span>{formatCurrency(order.remaining_amount)}</span>
+                    <span>Solde à payer à la livraison</span>
+                    <span>{formatCurrency(order.balance_amount || order.subtotal)}</span>
                   </div>
                 )}
               </div>
@@ -546,7 +666,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
         </SheetContent>
       </Sheet>
 
-      {/* Cancellation Dialog */}
+      {/* Cancellation Dialog - only for pre-pickup cancellation */}
       <RequestCancellationDialog
         open={showCancellationDialog}
         onOpenChange={setShowCancellationDialog}

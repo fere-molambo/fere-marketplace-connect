@@ -988,7 +988,11 @@ export type Database = {
       }
       orders: {
         Row: {
+          advance_amount: number | null
           advance_paid: number | null
+          balance_amount: number | null
+          balance_payment_reference: string | null
+          balance_payment_status: string | null
           cancellation_id: string | null
           commission_amount: number
           created_at: string | null
@@ -1014,7 +1018,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          advance_amount?: number | null
           advance_paid?: number | null
+          balance_amount?: number | null
+          balance_payment_reference?: string | null
+          balance_payment_status?: string | null
           cancellation_id?: string | null
           commission_amount: number
           created_at?: string | null
@@ -1040,7 +1048,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          advance_amount?: number | null
           advance_paid?: number | null
+          balance_amount?: number | null
+          balance_payment_reference?: string | null
+          balance_payment_status?: string | null
           cancellation_id?: string | null
           commission_amount?: number
           created_at?: string | null
@@ -2953,6 +2965,7 @@ export type Database = {
         | "subscription"
         | "commission_payout"
         | "tokens"
+        | "order_balance"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
       statut_legal_type: "particulier" | "entreprise"
@@ -3119,6 +3132,7 @@ export const Constants = {
         "subscription",
         "commission_payout",
         "tokens",
+        "order_balance",
       ],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],

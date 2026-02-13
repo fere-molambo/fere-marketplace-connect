@@ -13,7 +13,7 @@ interface InitializePaymentRequest {
   action: 'initialize';
   amount: number;
   email: string;
-  payment_type: 'order' | 'service_booking' | 'subscription' | 'commission_payout';
+  payment_type: 'order' | 'service_booking' | 'subscription' | 'commission_payout' | 'tokens' | 'order_balance';
   related_id?: string;
   metadata?: Record<string, unknown>;
   callback_url?: string;
@@ -103,7 +103,7 @@ async function handleInitialize(
       status: 'pending',
       payment_type,
       related_id: related_id || null,
-      metadata: metadata || {},
+      metadata: { ...metadata, payment_type },
     });
 
   if (insertError) {

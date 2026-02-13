@@ -14,7 +14,6 @@ interface PaymentResult {
   currency?: string;
   message?: string;
   paymentType?: string;
-  isVendor?: boolean;
 }
 
 export default function PaymentCallback() {
@@ -27,7 +26,6 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // Get reference from URL or session storage
       const reference = searchParams.get('reference') || 
                        searchParams.get('trxref') || 
                        sessionStorage.getItem('paystack_reference');
@@ -41,20 +39,6 @@ export default function PaymentCallback() {
         return;
       }
 
-      // Handle cash payments - don't call Paystack
-      if (reference.startsWith('CASH-')) {
-        setResult({
-          status: 'success',
-          reference: reference,
-          message: 'Commande enregistrée - Paiement à la livraison',
-          paymentType: 'order',
-        });
-        return;
-      }
-
-      // Detect token purchase from reference prefix (more reliable than sessionStorage)
-      const isTokenPurchase = reference.startsWith('TOK-');
-
       try {
         const { data, error } = await supabase.functions.invoke('paystack-payment', {
           body: {
@@ -67,66 +51,8 @@ export default function PaymentCallback() {
           throw new Error(error.message);
         }
 
-        // Handle token purchase - get data from payment_transactions table
-        if (isTokenPurchase && data.status === 'success') {
-          try {
-            // Get transaction data from DB
-            const { data: txData, error: txError } = await supabase
-              .from('payment_transactions')
-              .select('user_id, amount, status')
-              .eq('reference', reference)
-              .single();
-
-            if (txError) throw new Error('Transaction non trouvée');
-
-            // Check if tokens were already credited
-            const { data: existingTokenTx } = await supabase
-              .from('token_transactions')
-              .select('id')
-              .eq('payment_reference', reference)
-              .maybeSingle();
-
-            if (!existingTokenTx) {
-              // Credit tokens using RPC function
-              const { error: tokenError } = await supabase.rpc('add_tokens', {
-                p_user_id: txData.user_id,
-                p_amount: txData.amount,
-                p_payment_reference: reference
-              });
-              
-              if (tokenError) {
-                throw new Error('Erreur lors du crédit des tokens: ' + tokenError.message);
-              }
-            }
-
-            // Check if user is vendor (has a shop)
-            const { data: shopData } = await supabase
-              .from('shops')
-              .select('id')
-              .eq('owner_id', txData.user_id)
-              .limit(1);
-
-            setResult({
-              status: 'success',
-              reference: reference,
-              amount: txData.amount,
-              currency: 'XOF',
-              paymentType: 'tokens',
-              isVendor: shopData && shopData.length > 0,
-            });
-            return;
-          } catch (tokenErr: any) {
-            setResult({
-              status: 'error',
-              reference: reference,
-              message: tokenErr.message || 'Erreur lors du crédit des tokens',
-            });
-            return;
-          }
-        }
-
-        // Default handling for other payment types
-        const paymentType = sessionStorage.getItem('paystack_payment_type') || 'order';
+        const paymentType = data.metadata?.payment_type || 
+                           sessionStorage.getItem('paystack_payment_type') || 'order';
         
         setResult({
           status: data.status as PaymentStatus,
@@ -172,18 +98,15 @@ export default function PaymentCallback() {
 
   const getStatusTitle = () => {
     switch (result.status) {
-      case 'loading':
-        return 'Vérification du paiement...';
+      case 'loading': return 'Vérification du paiement...';
       case 'success':
-        return 'Paiement réussi !';
-      case 'failed':
-        return 'Paiement échoué';
-      case 'abandoned':
-        return 'Paiement abandonné';
-      case 'error':
-        return 'Erreur';
-      default:
-        return '';
+        return result.paymentType === 'order_balance' 
+          ? 'Solde payé avec succès !' 
+          : 'Acompte payé avec succès !';
+      case 'failed': return 'Paiement échoué';
+      case 'abandoned': return 'Paiement abandonné';
+      case 'error': return 'Erreur';
+      default: return '';
     }
   };
 
@@ -192,11 +115,10 @@ export default function PaymentCallback() {
       case 'loading':
         return 'Veuillez patienter pendant que nous vérifions votre paiement...';
       case 'success':
-        // Handle cash payments with different message
-        if (result.reference?.startsWith('CASH-')) {
-          return 'Votre commande a été enregistrée avec succès. Vous paierez à la livraison ou au retrait.';
+        if (result.paymentType === 'order_balance') {
+          return `Votre solde de ${result.amount?.toLocaleString()} ${result.currency} a été payé. La commande est maintenant livrée !`;
         }
-        return `Votre paiement de ${result.amount?.toLocaleString()} ${result.currency} a été effectué avec succès.`;
+        return `Votre acompte de ${result.amount?.toLocaleString()} ${result.currency} a été payé. Vous paierez le solde à la livraison.`;
       case 'failed':
         return 'Votre paiement n\'a pas pu être traité. Veuillez réessayer.';
       case 'abandoned':
@@ -209,35 +131,7 @@ export default function PaymentCallback() {
   };
 
   const handleContinue = () => {
-    // Use result.paymentType which was set during verification
-    const paymentType = result.paymentType || sessionStorage.getItem('paystack_payment_type');
-    
-    // Clear storage
-    sessionStorage.removeItem('paystack_payment_type');
-    sessionStorage.removeItem('paystack_reference');
-    
-    // Navigate based on payment type
-    switch (paymentType) {
-      case 'order':
-        navigate('/mon-profil?tab=orders');
-        break;
-      case 'service_booking':
-        navigate('/mon-profil?tab=orders');
-        break;
-      case 'tokens':
-        // Redirect based on whether user is vendor or driver
-        if (result.isVendor) {
-          navigate('/dashboard/my-shop?tab=tokens');
-        } else {
-          navigate('/mon-profil?tab=tokens');
-        }
-        break;
-      case 'subscription':
-        navigate('/mon-abonnement');
-        break;
-      default:
-        navigate('/mon-profil?tab=orders');
-    }
+    navigate('/mon-profil?tab=orders');
   };
 
   return (
@@ -263,7 +157,7 @@ export default function PaymentCallback() {
           {result.status !== 'loading' && (
             <div className="flex flex-col gap-2">
               <Button onClick={handleContinue} className="w-full">
-                Continuer
+                Voir mes commandes
               </Button>
               <Button variant="outline" onClick={() => navigate('/')} className="w-full">
                 Retour à l'accueil

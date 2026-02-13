@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Store, Package, Truck } from "lucide-react";
+import { Store, Package, Truck, Info } from "lucide-react";
 import { CartItem } from "@/contexts/CartContext";
 
 interface ShopGroup {
@@ -17,9 +17,20 @@ interface ShopGroup {
 interface OrdersByVendorSummaryProps {
   itemsByShop: Record<string, CartItem[]>;
   deliveryFeePerShop: Record<string, number>;
+  advanceAmount: number;
+  balanceAmount: number;
+  deliveryCommission: number;
+  productCommission: number;
 }
 
-export function OrdersByVendorSummary({ itemsByShop, deliveryFeePerShop }: OrdersByVendorSummaryProps) {
+export function OrdersByVendorSummary({ 
+  itemsByShop, 
+  deliveryFeePerShop,
+  advanceAmount,
+  balanceAmount,
+  deliveryCommission,
+  productCommission,
+}: OrdersByVendorSummaryProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
@@ -40,7 +51,8 @@ export function OrdersByVendorSummary({ itemsByShop, deliveryFeePerShop }: Order
     };
   });
 
-  const grandTotal = shopGroups.reduce((sum, group) => sum + group.total, 0);
+  const totalDelivery = shopGroups.reduce((sum, g) => sum + g.deliveryFee, 0);
+  const totalProducts = shopGroups.reduce((sum, g) => sum + g.subtotal, 0);
 
   return (
     <div className="space-y-4">
@@ -69,20 +81,16 @@ export function OrdersByVendorSummary({ itemsByShop, deliveryFeePerShop }: Order
               </CardTitle>
             </CardHeader>
             <CardContent className="py-2 px-4 space-y-2">
-              {/* Produits */}
-              <div className="space-y-1">
-                {group.items.map((item) => (
-                  <div key={item.productId} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Package className="h-3 w-3" />
-                      {item.product.name} x{item.quantity}
-                    </span>
-                    <span>{formatCurrency(item.totalPrice)}</span>
-                  </div>
-                ))}
-              </div>
+              {group.items.map((item) => (
+                <div key={item.productId} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Package className="h-3 w-3" />
+                    {item.product.name} x{item.quantity}
+                  </span>
+                  <span>{formatCurrency(item.totalPrice)}</span>
+                </div>
+              ))}
               
-              {/* Livraison */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Truck className="h-3 w-3" />
@@ -90,28 +98,59 @@ export function OrdersByVendorSummary({ itemsByShop, deliveryFeePerShop }: Order
                 </span>
                 <span>{formatCurrency(group.deliveryFee)}</span>
               </div>
-
-              <Separator className="my-2" />
-              
-              {/* Total commande */}
-              <div className="flex justify-between font-medium text-sm">
-                <span>Total commande</span>
-                <span>{formatCurrency(group.total)}</span>
-              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {shopGroups.length > 1 && (
-        <>
-          <Separator />
-          <div className="flex justify-between font-bold">
-            <span>Total général ({shopGroups.length} commandes)</span>
-            <span>{formatCurrency(grandTotal)}</span>
-          </div>
-        </>
-      )}
+      <Separator />
+
+      {/* Détail des montants */}
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Sous-total produits</span>
+          <span>{formatCurrency(totalProducts)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Frais de livraison</span>
+          <span>{formatCurrency(totalDelivery)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">Commission livraison</span>
+          <span>{formatCurrency(deliveryCommission)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">Commission produit</span>
+          <span>{formatCurrency(productCommission)}</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Acompte */}
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <div className="flex justify-between font-bold text-primary">
+          <span>Acompte à payer maintenant</span>
+          <span>{formatCurrency(advanceAmount)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Livraison + commissions
+        </p>
+      </div>
+
+      {/* Solde */}
+      <div className="p-3 bg-muted rounded-lg">
+        <div className="flex justify-between font-medium">
+          <span className="flex items-center gap-1">
+            <Info className="h-3 w-3" />
+            Solde à payer à la livraison
+          </span>
+          <span>{formatCurrency(balanceAmount)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Montant des produits (+ frais Paystack)
+        </p>
+      </div>
     </div>
   );
 }

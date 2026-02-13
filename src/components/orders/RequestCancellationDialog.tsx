@@ -215,7 +215,7 @@ export function RequestCancellationDialog({
         }
 
         // Create refund record if advance was paid (online payment)
-        if (order.payment_method === "online" && ["paid", "partial"].includes(order.payment_status)) {
+        if (["paid", "partial"].includes(order.payment_status)) {
           const paidAmount = order.advance_amount || 0;
           const netRefund = statusInfo.refundType === "full" ? paidAmount : 0;
 

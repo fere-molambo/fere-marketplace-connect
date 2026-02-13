@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play, MapPin, AlertTriangle, Banknote, XCircle } from "lucide-react";
+import { Loader2, Package, Phone, Navigation, CheckCircle, Truck, Play, MapPin, Banknote, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DriverCancellationDialog } from "./DriverCancellationDialog";
+
 interface DriverDeliveriesSectionProps {
   userId: string;
 }
@@ -17,7 +18,7 @@ interface DriverDeliveriesSectionProps {
 export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps) {
   const queryClient = useQueryClient();
   const [selectedDeliveryForAction, setSelectedDeliveryForAction] = useState<any>(null);
-  const [showCancellationDialog, setShowCancellationDialog] = useState(false);
+  const [showWaitingDialog, setShowWaitingDialog] = useState(false);
 
   // Realtime subscription for delivery updates
   useEffect(() => {
@@ -38,7 +39,14 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
           queryClient.invalidateQueries({ queryKey: ["delivery-history"] });
           
           if (payload.eventType === 'UPDATE' && (payload.new as any)?.driver_id === userId) {
-            toast.info("Statut de livraison mis à jour");
+            const newStatus = (payload.new as any)?.status;
+            if (newStatus === 'delivered') {
+              toast.success("Livraison terminée ! Le client a payé le solde.");
+            } else if (newStatus === 'cancelled') {
+              toast.info("Commande annulée par le client. Retour du colis à initier.");
+            } else {
+              toast.info("Statut de livraison mis à jour");
+            }
           }
         }
       )
@@ -64,12 +72,11 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     enabled: !!userId,
   });
 
-  // Fetch pending deliveries in driver's zones (available to accept)
+  // Fetch pending deliveries in driver's zones
   const { data: pendingDeliveries = [], isLoading: isLoadingPending } = useQuery({
     queryKey: ["pending-deliveries", userId, driverZones],
     queryFn: async () => {
       if (driverZones.length === 0) {
-        // Also fetch deliveries with null zone (generic requests)
         const { data, error } = await supabase
           .from("delivery_requests")
           .select(`*, delivery_zones (name, city)`)
@@ -80,7 +87,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         return data || [];
       }
       
-      // Fetch pending deliveries in driver's zones OR with null zone_id
       const { data, error } = await supabase
         .from("delivery_requests")
         .select(`*, delivery_zones (name, city)`)
@@ -102,7 +108,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .select(`
           *, 
           delivery_zones (name, city),
-          order:orders!order_id (id, payment_method, payment_status, user_id, subtotal, total_amount, payment_reference)
+          order:orders!order_id (id, payment_method, payment_status, user_id, subtotal, total_amount, balance_payment_status)
         `)
         .eq("driver_id", userId)
         .neq("status", "pending")
@@ -115,7 +121,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     enabled: !!userId,
   });
 
-  // Fetch driver's delivery history (delivered + cancelled) with cancellation details
+  // Fetch driver's delivery history
   const { data: deliveryHistory = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ["delivery-history", userId],
     queryFn: async () => {
@@ -132,7 +138,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .limit(50);
       if (error) throw error;
 
-      // Fetch cancellation details for cancelled deliveries
+      // Fetch cancellation details
       const cancelledOrderIds = (data || [])
         .filter(d => d.status === "cancelled" && d.order_id)
         .map(d => d.order_id);
@@ -149,7 +155,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         });
       }
 
-      // Fetch payout info for driver
+      // Fetch payout info
       const deliveryIds = (data || []).map(d => d.id);
       let payoutsMap: Record<string, any> = {};
       if (deliveryIds.length > 0) {
@@ -175,7 +181,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
 
   const isLoading = isLoadingPending || isLoadingMine;
 
-  // Accept delivery mutation - le trigger DB sync automatiquement orders.status
+  // Accept delivery mutation
   const acceptDelivery = useMutation({
     mutationFn: async (requestId: string) => {
       const { error } = await supabase
@@ -189,7 +195,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .eq("status", "pending");
       
       if (error) throw error;
-      // Le trigger sync_order_status_from_delivery met à jour orders.status automatiquement
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-deliveries"] });
@@ -202,7 +207,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     },
   });
 
-  // Update status mutation - avec les nouveaux statuts du workflow 7 étapes
+  // Update status mutation
   const updateStatus = useMutation({
     mutationFn: async ({ requestId, newStatus }: { requestId: string; newStatus: string }) => {
       const updates: Record<string, any> = { status: newStatus };
@@ -215,8 +220,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         updates.en_route_client_at = new Date().toISOString();
       } else if (newStatus === "arrived") {
         updates.arrived_at_client_at = new Date().toISOString();
-      } else if (newStatus === "delivered") {
-        updates.delivered_at = new Date().toISOString();
       }
       
       const { error } = await supabase
@@ -266,27 +269,24 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
   };
 
   const openNavigation = (lat: number, lng: number) => {
-    // Use OpenStreetMap for navigation
     const url = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=;${lat},${lng}`;
     window.open(url, "_blank");
   };
 
-  // Nouveau workflow 7 étapes
-  const getNextStatusAction = (status: string, delivery: any) => {
-    const paymentMethod = delivery.order?.payment_method;
-    
+  // Next status action - no more "delivered" from driver side
+  const getNextStatusAction = (status: string) => {
     switch (status) {
       case "assigned":
-        return { label: "Démarrer vers vendeur", nextStatus: "in_progress", icon: Play, description: "En route vers la boutique" };
+        return { label: "Démarrer vers vendeur", nextStatus: "in_progress", icon: Play };
       case "in_progress":
-        return { label: "Colis récupéré", nextStatus: "picked_up", icon: Package, description: "Colis récupéré chez le vendeur" };
+        return { label: "Colis récupéré", nextStatus: "picked_up", icon: Package };
       case "picked_up":
-        return { label: "En route vers client", nextStatus: "en_route_client", icon: Truck, description: "Départ vers le client" };
+        return { label: "En route vers client", nextStatus: "en_route_client", icon: Truck };
       case "en_route_client":
-        return { label: "Arrivé chez client", nextStatus: "arrived", icon: MapPin, description: "Vous êtes arrivé" };
+        return { label: "Arrivé chez client", nextStatus: "arrived", icon: MapPin };
       case "arrived":
-        // Afficher le dialog d'options
-        return { label: "Vérification client", nextStatus: null, icon: AlertTriangle, showPaymentOptions: true };
+        // Driver waits for client to pay - no action
+        return null;
       default:
         return null;
     }
@@ -343,7 +343,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     </div>
                     
-                    {/* Pickup Points */}
                     <div className="text-sm">
                       <p className="font-medium">Collecte ({pickupPoints.length} point(s)):</p>
                       {pickupPoints.slice(0, 2).map((point: any, idx: number) => (
@@ -356,7 +355,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       )}
                     </div>
                     
-                    {/* Delivery Point */}
                     {deliveryPoint && (
                       <div className="text-sm">
                         <p className="font-medium">Livraison:</p>
@@ -405,7 +403,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
               {myDeliveries.map((delivery) => {
                 const pickupPoints = delivery.pickup_points as any[] || [];
                 const deliveryPoint = delivery.delivery_point as any;
-                const nextAction = getNextStatusAction(delivery.status, delivery);
+                const nextAction = getNextStatusAction(delivery.status);
                 
                 return (
                   <div key={delivery.id} className="p-4 rounded-lg border space-y-3">
@@ -476,16 +474,16 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     )}
 
-                    {/* Message vérification client + gains (statut arrived) */}
+                    {/* Waiting for client at arrived status */}
                     {delivery.status === 'arrived' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                         <p className="text-amber-800 font-medium flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          Client doit vérifier le colis
+                          <Clock className="h-4 w-4" />
+                          En attente de vérification par le client
                         </p>
                         <p className="text-sm text-amber-600">
-                          Demandez au client de vérifier avant d'accepter.
-                          Aucune annulation possible après acceptation.
+                          Le client doit vérifier le colis et payer le solde via Paystack.
+                          La livraison sera automatiquement marquée comme terminée.
                         </p>
                         {delivery.driver_earnings > 0 && (
                           <div className="p-2 bg-green-50 border border-green-200 rounded">
@@ -498,19 +496,8 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     )}
                     
-                    {/* Boutons au statut arrived - utiliser le dialog */}
-                    {delivery.status === 'arrived' ? (
-                      <Button 
-                        onClick={() => {
-                          setSelectedDeliveryForAction(delivery);
-                          setShowCancellationDialog(true);
-                        }}
-                        className="w-full"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Gérer la livraison
-                      </Button>
-                    ) : nextAction && nextAction.nextStatus && (
+                    {/* Action button - not at arrived (client handles that) */}
+                    {nextAction && nextAction.nextStatus && (
                       <Button
                         onClick={() => updateStatus.mutate({ 
                           requestId: delivery.id, 
@@ -518,7 +505,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         })}
                         disabled={updateStatus.isPending}
                         className="w-full"
-                        variant={nextAction.nextStatus === "delivered" ? "default" : "outline"}
+                        variant="outline"
                       >
                         {updateStatus.isPending ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -588,7 +575,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
               {deliveryHistory.map((delivery) => {
                 const pickupPoints = delivery.pickup_points as any[] || [];
                 const deliveryPoint = delivery.delivery_point as any;
-                const paymentMethod = delivery.order?.payment_method;
                 const cancellation = delivery.cancellation_info;
                 const payout = delivery.payout_info;
                 const statusLabels: Record<string, string> = {
@@ -602,9 +588,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           {getStatusBadge(delivery.status)}
-                          <Badge variant="outline" className="text-xs">
-                            {paymentMethod === "cash" ? "Cash" : "Prépayé"}
-                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(delivery.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
@@ -641,9 +624,6 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         {cancellation.custom_reason && (
                           <p className="text-red-600">{cancellation.custom_reason}</p>
                         )}
-                        <p className="text-muted-foreground">
-                          Livraison {cancellation.delivery_fee_kept ? "payée" : "non payée"}
-                        </p>
                       </div>
                     )}
                     
@@ -665,11 +645,11 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         </CardContent>
       </Card>
 
-      {/* Driver Cancellation Dialog */}
+      {/* Waiting Dialog (informational only) */}
       {selectedDeliveryForAction && (
         <DriverCancellationDialog
-          open={showCancellationDialog}
-          onOpenChange={setShowCancellationDialog}
+          open={showWaitingDialog}
+          onOpenChange={setShowWaitingDialog}
           delivery={selectedDeliveryForAction}
           userId={userId}
         />

@@ -10,9 +10,8 @@ import { Footer } from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Info } from "lucide-react";
 import { DeliveryAddressSelector } from "@/components/checkout/DeliveryAddressSelector";
-import { PaymentMethodSelector } from "@/components/checkout/PaymentMethodSelector";
 import { OrdersByVendorSummary } from "@/components/checkout/OrdersByVendorSummary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -22,7 +21,6 @@ export default function Checkout() {
   const { items, clearCart, totalAmount } = useCart();
   
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"online" | "cash">("online");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   // Redirect if not logged in
@@ -45,7 +43,7 @@ export default function Checkout() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings")
-        .select("tva_rate, delivery_base_fee, delivery_fee_per_km, delivery_discount_per_km, delivery_commission_fere, delivery_commission_driver, max_cash_order_amount")
+        .select("tva_rate, delivery_base_fee, delivery_fee_per_km, delivery_discount_per_km, delivery_commission_fere, delivery_commission_driver")
         .single();
       if (error) throw error;
       return data as {
@@ -55,7 +53,6 @@ export default function Checkout() {
         delivery_discount_per_km: number;
         delivery_commission_fere: number;
         delivery_commission_driver: number;
-        max_cash_order_amount: number;
       };
     },
   });
@@ -71,24 +68,6 @@ export default function Checkout() {
       return data;
     },
   });
-
-  // Fetch pending penalties for the user
-  const { data: pendingPenalties = [] } = useQuery({
-    queryKey: ["client-pending-penalties", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("client_penalties")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "pending");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id,
-  });
-
-  const totalPenaltyAmount = pendingPenalties.reduce((sum, p: any) => sum + (p.amount || 0), 0);
 
   // Fetch selected delivery address
   const { data: selectedAddress } = useQuery({
@@ -151,7 +130,6 @@ export default function Checkout() {
     const fees: Record<string, number> = {};
     const baseFee = platformSettings?.delivery_base_fee || 500;
     
-    // Distribute delivery fee equally among shops for simplicity
     const perShopFee = Math.ceil((totalDeliveryFee || baseFee * shopCount) / shopCount);
     
     Object.keys(itemsByShop).forEach(shopId => {
@@ -170,13 +148,20 @@ export default function Checkout() {
     return globalCommission?.commission_rate || 10;
   };
 
-  // Calculate totals
+  // Calculate totals for the two-step payment
   const totalDelivery = Object.values(deliveryFeePerShop).reduce((sum, fee) => sum + fee, 0);
-  const grandTotal = totalAmount + totalDelivery + totalPenaltyAmount;
+  const deliveryCommissionFere = Math.round(totalDelivery * ((platformSettings?.delivery_commission_fere || 20) / 100));
+  const totalProductCommission = Object.entries(itemsByShop).reduce((sum, [_, shopItems]) => {
+    return sum + shopItems.reduce((s, item) => {
+      const rate = getCommissionRate((item.product as any).category_id) / 100;
+      return s + Math.round(item.totalPrice * rate);
+    }, 0);
+  }, 0);
 
-  // Check if cash payment is allowed
-  const maxCashAmount = platformSettings?.max_cash_order_amount || 20000;
-  const isCashAllowed = grandTotal <= maxCashAmount;
+  // Advance = delivery_fee + delivery_commission + product_commission
+  const advanceAmount = totalDelivery + deliveryCommissionFere + totalProductCommission;
+  // Balance = subtotal (product price) - paid at delivery
+  const balanceAmount = totalAmount;
 
   // Create orders mutation (1 order per vendor)
   const createOrders = useMutation({
@@ -191,10 +176,7 @@ export default function Checkout() {
       for (const [shopId, shopItems] of Object.entries(itemsByShop)) {
         const shopSubtotal = shopItems.reduce((sum, item) => sum + item.totalPrice, 0);
         const shopDeliveryFee = deliveryFeePerShop[shopId];
-        // Add penalty to first order only
-        const isFirstOrder = createdOrders.length === 0;
-        const shopPenalty = isFirstOrder ? totalPenaltyAmount : 0;
-        const shopTotal = shopSubtotal + shopDeliveryFee + shopPenalty;
+        const shopTotal = shopSubtotal + shopDeliveryFee;
 
         const tvaRate = (platformSettings?.tva_rate || 18) / 100;
         const shopTva = Math.round(shopSubtotal * tvaRate);
@@ -203,6 +185,11 @@ export default function Checkout() {
           const rate = getCommissionRate((item.product as any).category_id) / 100;
           return sum + Math.round(item.totalPrice * rate);
         }, 0);
+
+        // Calculate per-shop advance & balance
+        const shopDeliveryCommission = Math.round(shopDeliveryFee * ((platformSettings?.delivery_commission_fere || 20) / 100));
+        const shopAdvance = shopDeliveryFee + shopDeliveryCommission + shopCommission;
+        const shopBalance = shopSubtotal;
 
         // Generate order number
         const { data: orderNumber, error: orderNumError } = await supabase.rpc("generate_order_number");
@@ -222,9 +209,12 @@ export default function Checkout() {
             tva_amount: shopTva,
             commission_amount: shopCommission,
             total_amount: shopTotal,
-            advance_paid: paymentMethod === "online" ? shopTotal : 0,
-            payment_method: paymentMethod,
+            advance_amount: shopAdvance,
+            balance_amount: shopBalance,
+            advance_paid: 0,
+            payment_method: "advance",
             payment_status: "pending",
+            balance_payment_status: "pending",
             payment_group_id: paymentGroupId,
           })
           .select()
@@ -253,7 +243,7 @@ export default function Checkout() {
 
         if (itemsError) throw itemsError;
 
-        // Create delivery request (1 pickup point per order)
+        // Create delivery request
         const firstItem = shopItems[0];
         const driverEarningsPercent = (deliverySettings?.delivery_commission_driver || 80) / 100;
         const driverEarnings = Math.round(shopDeliveryFee * driverEarningsPercent);
@@ -273,7 +263,7 @@ export default function Checkout() {
             zone_id: firstItem.product.shops.delivery_zone_id || null,
             status: "pending",
             pickup_point: pickupPoint,
-            pickup_points: [pickupPoint], // Keep for backward compatibility
+            pickup_points: [pickupPoint],
             delivery_point: {
               lat: selectedAddress.geolocation_lat,
               lng: selectedAddress.geolocation_lng,
@@ -291,57 +281,38 @@ export default function Checkout() {
         }
 
         createdOrders.push(order);
-        
-        // Mark penalties as applied on first order
-        if (isFirstOrder && pendingPenalties.length > 0) {
-          const penaltyIds = pendingPenalties.map((p: any) => p.id);
-          await supabase
-            .from("client_penalties")
-            .update({
-              status: "applied",
-              applied_to_order_id: order.id,
-              applied_at: new Date().toISOString(),
-            })
-            .in("id", penaltyIds);
-        }
       }
 
       return { orders: createdOrders, paymentGroupId };
     },
     onSuccess: async ({ orders, paymentGroupId }) => {
-      if (paymentMethod === "online") {
-        // Initialize single Paystack payment for total amount
-        try {
-          const response = await supabase.functions.invoke("paystack-payment", {
-            body: {
-              action: "initialize",
-              amount: grandTotal,
-              email: user?.email,
-              payment_type: "order",
-              related_id: orders[0].id, // Use first order as reference
-              metadata: {
-                payment_group_id: paymentGroupId,
-                order_numbers: orders.map((o: any) => o.order_number).join(", "),
-                order_count: orders.length,
-              },
-              callback_url: `${window.location.origin}/payment/callback`,
+      // Initialize Paystack payment for the advance amount only
+      try {
+        const response = await supabase.functions.invoke("paystack-payment", {
+          body: {
+            action: "initialize",
+            amount: advanceAmount,
+            email: user?.email,
+            payment_type: "order",
+            related_id: orders[0].id,
+            metadata: {
+              payment_group_id: paymentGroupId,
+              order_numbers: orders.map((o: any) => o.order_number).join(", "),
+              order_count: orders.length,
+              is_advance: true,
             },
-          });
+            callback_url: `${window.location.origin}/payment/callback`,
+          },
+        });
 
-          if (response.data?.authorization_url) {
-            clearCart();
-            window.location.href = response.data.authorization_url;
-          } else {
-            throw new Error("Erreur d'initialisation du paiement");
-          }
-        } catch (error) {
-          toast.error("Erreur lors de l'initialisation du paiement");
+        if (response.data?.authorization_url) {
+          clearCart();
+          window.location.href = response.data.authorization_url;
+        } else {
+          throw new Error("Erreur d'initialisation du paiement");
         }
-      } else {
-        // Cash payment
-        clearCart();
-        toast.success(`${orders.length} commande(s) créée(s) avec succès!`);
-        navigate(`/payment/callback?reference=CASH-${paymentGroupId}&status=success`);
+      } catch (error) {
+        toast.error("Erreur lors de l'initialisation du paiement");
       }
     },
     onError: (error) => {
@@ -354,10 +325,6 @@ export default function Checkout() {
   const handleSubmit = () => {
     if (!selectedAddressId) {
       toast.error("Veuillez sélectionner une adresse de livraison");
-      return;
-    }
-    if (paymentMethod === "cash" && !isCashAllowed) {
-      toast.error(`Le paiement cash est limité à ${maxCashAmount.toLocaleString()} FCFA`);
       return;
     }
     setIsCreatingOrder(true);
@@ -397,17 +364,15 @@ export default function Checkout() {
           </Alert>
         )}
 
-        {/* Penalty warning */}
-        {totalPenaltyAmount > 0 && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Pénalité en attente</AlertTitle>
-            <AlertDescription>
-              Une pénalité de {totalPenaltyAmount.toLocaleString()} FCFA sera ajoutée à votre commande
-              (frais de livraison non payés lors d'une précédente annulation).
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Payment info - two-step system */}
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Paiement en 2 étapes</AlertTitle>
+          <AlertDescription>
+            Vous payez d'abord un acompte (frais de livraison + commissions). 
+            Le solde (montant des produits) sera payé à la livraison, après vérification de votre colis.
+          </AlertDescription>
+        </Alert>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left column - Options */}
@@ -433,25 +398,6 @@ export default function Checkout() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Payment Method */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">2. Mode de paiement</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PaymentMethodSelector
-                  value={paymentMethod}
-                  onChange={setPaymentMethod}
-                />
-                {paymentMethod === "cash" && !isCashAllowed && (
-                  <p className="text-destructive text-sm mt-2">
-                    Le paiement cash est limité à {maxCashAmount.toLocaleString()} FCFA.
-                    Votre total de {grandTotal.toLocaleString()} FCFA dépasse cette limite.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
           </div>
 
           {/* Right column - Summary */}
@@ -464,11 +410,15 @@ export default function Checkout() {
                 <OrdersByVendorSummary
                   itemsByShop={itemsByShop}
                   deliveryFeePerShop={deliveryFeePerShop}
+                  advanceAmount={advanceAmount}
+                  balanceAmount={balanceAmount}
+                  deliveryCommission={deliveryCommissionFere}
+                  productCommission={totalProductCommission}
                 />
 
                 <Button
                   onClick={handleSubmit}
-                  disabled={isCreatingOrder || createOrders.isPending || !selectedAddressId || (paymentMethod === "cash" && !isCashAllowed)}
+                  disabled={isCreatingOrder || createOrders.isPending || !selectedAddressId}
                   className="w-full"
                   size="lg"
                 >
@@ -477,10 +427,8 @@ export default function Checkout() {
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Création en cours...
                     </>
-                  ) : paymentMethod === "online" ? (
-                    `Payer ${grandTotal.toLocaleString()} FCFA`
                   ) : (
-                    `Commander (${grandTotal.toLocaleString()} FCFA)`
+                    `Payer l'acompte : ${advanceAmount.toLocaleString()} FCFA`
                   )}
                 </Button>
               </CardContent>

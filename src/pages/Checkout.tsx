@@ -158,10 +158,13 @@ export default function Checkout() {
     }, 0);
   }, 0);
 
-  // Advance = delivery_fee + delivery_commission + product_commission
-  const advanceAmount = totalDelivery + deliveryCommissionFere + totalProductCommission;
-  // Balance = subtotal (product price) - paid at delivery
-  const balanceAmount = totalAmount;
+  // Paystack fees (1%) on both advance and balance
+  const advanceRaw = totalDelivery + deliveryCommissionFere + totalProductCommission;
+  const advancePaystackFees = Math.ceil(advanceRaw * 0.01);
+  const advanceAmount = advanceRaw + advancePaystackFees;
+
+  const balancePaystackFees = Math.ceil(totalAmount * 0.01);
+  const balanceAmount = totalAmount + balancePaystackFees;
 
   // Create orders mutation (1 order per vendor)
   const createOrders = useMutation({
@@ -188,8 +191,11 @@ export default function Checkout() {
 
         // Calculate per-shop advance & balance
         const shopDeliveryCommission = Math.round(shopDeliveryFee * ((platformSettings?.delivery_commission_fere || 20) / 100));
-        const shopAdvance = shopDeliveryFee + shopDeliveryCommission + shopCommission;
-        const shopBalance = shopSubtotal;
+        const shopAdvanceRaw = shopDeliveryFee + shopDeliveryCommission + shopCommission;
+        const shopAdvancePaystackFees = Math.ceil(shopAdvanceRaw * 0.01);
+        const shopAdvance = shopAdvanceRaw + shopAdvancePaystackFees;
+        const shopBalancePaystackFees = Math.ceil(shopSubtotal * 0.01);
+        const shopBalance = shopSubtotal + shopBalancePaystackFees;
 
         // Generate order number
         const { data: orderNumber, error: orderNumError } = await supabase.rpc("generate_order_number");
@@ -414,6 +420,8 @@ export default function Checkout() {
                   balanceAmount={balanceAmount}
                   deliveryCommission={deliveryCommissionFere}
                   productCommission={totalProductCommission}
+                  advancePaystackFees={advancePaystackFees}
+                  balancePaystackFees={balancePaystackFees}
                 />
 
                 <Button

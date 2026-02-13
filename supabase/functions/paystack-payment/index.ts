@@ -84,7 +84,23 @@ async function handleInitialize(
     throw new Error('Invalid authentication');
   }
 
-  const { amount, email, payment_type, related_id, metadata, callback_url } = body;
+  const { amount: clientAmount, email, payment_type, related_id, metadata, callback_url } = body;
+
+  // For order_balance payments, use the server-side balance_amount from the order
+  let amount = clientAmount;
+  if (payment_type === 'order_balance' && related_id) {
+    const { data: order, error: orderError } = await supabaseClient
+      .from('orders')
+      .select('balance_amount')
+      .eq('id', related_id)
+      .single();
+    
+    if (orderError || !order) {
+      throw new Error('Order not found for balance payment');
+    }
+    amount = order.balance_amount;
+    console.log(`order_balance: using server-side amount ${amount} (client sent ${clientAmount})`);
+  }
 
   if (!amount || amount <= 0) {
     throw new Error('Invalid amount');

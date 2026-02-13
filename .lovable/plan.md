@@ -1,31 +1,30 @@
 
+# Fix : Les versements en attente n'apparaissent pas
 
-# Plan : Nettoyage complet des donnees de test
+## Cause
 
-Suppression de toutes les donnees transactionnelles pour repartir de zero, en preservant les utilisateurs, boutiques, produits et configurations.
+L'erreur PostgREST est :
+```
+Could not find a relationship between 'pending_payouts' and 'profiles'
+using the hint 'pending_payouts_recipient_id_fkey'
+```
 
-## Tables a vider (dans l'ordre pour respecter les contraintes)
+La colonne `recipient_id` de `pending_payouts` pointe vers `auth.users`, pas vers `profiles`. PostgREST ne peut donc pas faire la jointure automatique demandee par le code.
 
-1. `pending_payouts` - versements en attente
-2. `refunds` - remboursements
-3. `client_penalties` - penalites (ancien systeme)
-4. `cancellations` - annulations
-5. `delivery_requests` - demandes de livraison
-6. `order_items` - articles des commandes
-7. `orders` - commandes
-8. `service_bookings` - reservations de services
-9. `payment_transactions` - transactions de paiement
+C'est exactement le meme probleme que celui deja corrige pour les remboursements (refunds).
 
-## Ce qui est preserve
+## Solution
 
-- Profils utilisateurs et roles
-- Boutiques, produits, services
-- Zones de livraison
-- Adresses de livraison
-- Configuration plateforme
-- Categories, FAQ, conversations
+Modifier `src/pages/Payments.tsx` pour utiliser la meme approche en deux etapes :
+1. Recuperer les `pending_payouts` sans jointure sur `profiles`
+2. Collecter les `recipient_id` uniques et faire un second appel pour chercher les profils
+3. Fusionner les donnees cote client
 
-## Methode
+### Fichier modifie
 
-Une seule requete SQL executee via l'outil de migration (DELETE statements dans le bon ordre).
+**`src/pages/Payments.tsx`** - Modifier les deux requetes (pending et completed) :
 
+- **Requete "pending-payouts"** (lignes 30-42) : Retirer la jointure `recipient:profiles!pending_payouts_recipient_id_fkey(...)` et ajouter un fetch secondaire des profils par `recipient_id`
+- **Requete "completed-payouts"** (lignes 45-57) : Meme correction
+
+Le reste du code (affichage, actions) reste identique car la structure des donnees fusionnees sera compatible avec `payout.recipient?.nom_complet`.

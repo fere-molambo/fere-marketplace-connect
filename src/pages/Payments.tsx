@@ -33,14 +33,27 @@ export default function Payments() {
         .from("pending_payouts")
         .select(`
           *,
-          recipient:profiles!pending_payouts_recipient_id_fkey(nom_complet, contact),
           order:orders(order_number),
           booking:service_bookings(id, services(name))
         `)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      const recipientIds = [...new Set((data || []).map((p: any) => p.recipient_id).filter(Boolean))];
+      let profiles: any[] = [];
+      if (recipientIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nom_complet, contact")
+          .in("id", recipientIds);
+        profiles = profilesData || [];
+      }
+
+      return (data || []).map((payout: any) => ({
+        ...payout,
+        recipient: profiles.find((p: any) => p.id === payout.recipient_id) || null,
+      }));
     },
   });
 
@@ -52,7 +65,6 @@ export default function Payments() {
         .from("pending_payouts")
         .select(`
           *,
-          recipient:profiles!pending_payouts_recipient_id_fkey(nom_complet, contact),
           order:orders(order_number),
           booking:service_bookings(id, services(name))
         `)
@@ -60,7 +72,21 @@ export default function Payments() {
         .order("processed_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data;
+
+      const recipientIds = [...new Set((data || []).map((p: any) => p.recipient_id).filter(Boolean))];
+      let profiles: any[] = [];
+      if (recipientIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nom_complet, contact")
+          .in("id", recipientIds);
+        profiles = profilesData || [];
+      }
+
+      return (data || []).map((payout: any) => ({
+        ...payout,
+        recipient: profiles.find((p: any) => p.id === payout.recipient_id) || null,
+      }));
     },
   });
 

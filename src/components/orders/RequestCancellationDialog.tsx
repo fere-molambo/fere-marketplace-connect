@@ -153,14 +153,11 @@ export function RequestCancellationDialog({
       // Upload attachment if present
       const attachmentUrl = await uploadAttachment();
 
-      // Calculate refund amounts
-      const productAmount = order?.subtotal || 0;
-      const deliveryFee = order?.delivery_fee || 0;
+      // Calculate refund amounts based on what was actually paid
+      const advanceAmount = order?.advance_amount || 0;
       const refundAmount = statusInfo.refundType === "full" 
-        ? productAmount + deliveryFee 
-        : statusInfo.refundType === "product_only" 
-          ? productAmount 
-          : 0;
+        ? advanceAmount 
+        : 0; // After pickup: advance covers delivery+commission, no refund
       
       const deliveryFeeKept = statusInfo.refundType === "product_only";
       const requiresReturn = deliveryRequest?.status && 
@@ -217,24 +214,24 @@ export function RequestCancellationDialog({
           console.error("Error cancelling deliveries:", deliveryError);
         }
 
-        // Si paiement en ligne, créer un enregistrement de remboursement
-        if (order.payment_method === "online" && order.payment_status === "paid") {
-          const dlvFeeKept = statusInfo.refundType === "product_only";
-          const prodAmount = order.subtotal || 0;
-          const dlvFee = order.delivery_fee || 0;
-          const netRefund = dlvFeeKept ? prodAmount : prodAmount + dlvFee;
+        // Create refund record if advance was paid (online payment)
+        if (order.payment_method === "online" && ["paid", "partial"].includes(order.payment_status)) {
+          const paidAmount = order.advance_amount || 0;
+          const netRefund = statusInfo.refundType === "full" ? paidAmount : 0;
 
-          await supabase.from("refunds").insert({
-            order_id: order.id,
-            user_id: user.id,
-            amount: order.total_amount,
-            net_refund: netRefund,
-            transaction_fee_deducted: dlvFeeKept ? dlvFee : 0,
-            original_payment_reference: order.payment_reference,
-            status: "pending",
-            refund_status: "pending",
-            cancellation_id: cancellation.id,
-          });
+          if (paidAmount > 0) {
+            await supabase.from("refunds").insert({
+              order_id: order.id,
+              user_id: user.id,
+              amount: paidAmount,
+              net_refund: netRefund,
+              transaction_fee_deducted: statusInfo.refundType === "product_only" ? paidAmount : 0,
+              original_payment_reference: order.payment_reference,
+              status: "pending",
+              refund_status: "pending",
+              cancellation_id: cancellation.id,
+            });
+          }
         }
       } else if (type === "booking" && bookingId) {
         const { data: updatedBooking, error: bookingError } = await supabase
@@ -258,7 +255,7 @@ export function RequestCancellationDialog({
         ? ` Remboursement de ${data.refundAmount.toLocaleString()} FCFA en cours de traitement.`
         : "";
       toast.success(`Annulation confirmée.${refundMessage}`, { duration: 5000 });
-      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["client-orders", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["client-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-requests"] });
       onOpenChange(false);
@@ -371,13 +368,13 @@ export function RequestCancellationDialog({
               {statusInfo.refundType !== "none" && (
                 <div className="p-3 bg-muted rounded-lg text-sm">
                   <p className="font-medium mb-1">Remboursement prévu :</p>
-                  {statusInfo.refundType === "full" ? (
+              {statusInfo.refundType === "full" ? (
                     <p className="text-muted-foreground">
-                      Remboursement intégral (produits + livraison)
+                      Remboursement de l'acompte payé ({new Intl.NumberFormat("fr-FR").format(order?.advance_amount || 0)} FCFA)
                     </p>
                   ) : (
                     <p className="text-muted-foreground">
-                      Remboursement des produits uniquement (hors frais de livraison)
+                      Aucun remboursement (l'acompte couvre les frais de livraison et commissions)
                     </p>
                   )}
                 </div>

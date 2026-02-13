@@ -1,30 +1,51 @@
 
-# Fix : Les versements en attente n'apparaissent pas
 
-## Cause
+# Plan : Ajouter les frais Paystack (1%) au solde client
 
-L'erreur PostgREST est :
+## Contexte
+
+Actuellement, le solde (balance) que le client paie a la livraison est exactement le prix des produits (ex: 3 000 FCFA). Le client devrait aussi supporter les frais de transaction Paystack de 1%, soit un solde de 3 030 FCFA dans cet exemple.
+
+Le vendeur recoit bien 2 700 FCFA (3 000 - 10% commission plateforme), ce qui est correct. Le probleme est uniquement que les frais Paystack ne sont pas repercutes sur le client.
+
+## Modifications
+
+### 1. `src/pages/Checkout.tsx`
+
+- Ajouter le calcul des frais Paystack (1%) sur le montant des produits
+- Le nouveau `balanceAmount` = subtotal + frais Paystack (1% du subtotal)
+- Stocker `balance_amount` avec les frais inclus dans la commande
+- Afficher les frais dans le recapitulatif
+
+### 2. `src/components/checkout/OrdersByVendorSummary.tsx`
+
+- Ajouter une prop `paystackFees` pour afficher la ligne de frais Paystack
+- Afficher "Frais de transaction (1%)" entre le sous-total produits et le solde
+
+### 3. `src/components/orders/ClientOrderDetailSheet.tsx`
+
+- Le `balanceAmount` est deja lu depuis `order.balance_amount`, donc il inclura automatiquement les frais une fois stocke correctement
+
+### 4. `supabase/functions/paystack-payment/index.ts` (securite serveur)
+
+- Pour les paiements de type `order_balance`, recalculer le montant attendu cote serveur en recuperant le `balance_amount` de la commande dans la base de donnees, au lieu de faire confiance au montant envoye par le client
+
+## Detail technique
+
+```text
+Calcul actuel :
+  Solde = subtotal (3 000)
+
+Nouveau calcul :
+  Frais Paystack = Math.ceil(subtotal * 0.01)  // 30
+  Solde = subtotal + frais Paystack             // 3 030
+
+Stockage en base :
+  orders.balance_amount = subtotal + frais Paystack
+  orders.subtotal = inchange (prix produits brut)
+
+Versement vendeur (inchange) :
+  subtotal - commission = 3 000 - 300 = 2 700
 ```
-Could not find a relationship between 'pending_payouts' and 'profiles'
-using the hint 'pending_payouts_recipient_id_fkey'
-```
 
-La colonne `recipient_id` de `pending_payouts` pointe vers `auth.users`, pas vers `profiles`. PostgREST ne peut donc pas faire la jointure automatique demandee par le code.
-
-C'est exactement le meme probleme que celui deja corrige pour les remboursements (refunds).
-
-## Solution
-
-Modifier `src/pages/Payments.tsx` pour utiliser la meme approche en deux etapes :
-1. Recuperer les `pending_payouts` sans jointure sur `profiles`
-2. Collecter les `recipient_id` uniques et faire un second appel pour chercher les profils
-3. Fusionner les donnees cote client
-
-### Fichier modifie
-
-**`src/pages/Payments.tsx`** - Modifier les deux requetes (pending et completed) :
-
-- **Requete "pending-payouts"** (lignes 30-42) : Retirer la jointure `recipient:profiles!pending_payouts_recipient_id_fkey(...)` et ajouter un fetch secondaire des profils par `recipient_id`
-- **Requete "completed-payouts"** (lignes 45-57) : Meme correction
-
-Le reste du code (affichage, actions) reste identique car la structure des donnees fusionnees sera compatible avec `payout.recipient?.nom_complet`.
+La meme logique de frais 1% sera aussi appliquee au paiement de l'acompte (advance), car les deux passent par Paystack.

@@ -21,6 +21,8 @@ interface OrdersByVendorSummaryProps {
   balanceAmount: number;
   deliveryCommission: number;
   productCommission: number;
+  advancePaystackFees: number;
+  balancePaystackFees: number;
 }
 
 export function OrdersByVendorSummary({ 
@@ -30,6 +32,8 @@ export function OrdersByVendorSummary({
   balanceAmount,
   deliveryCommission,
   productCommission,
+  advancePaystackFees,
+  balancePaystackFees,
 }: OrdersByVendorSummaryProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
@@ -123,6 +127,10 @@ export function OrdersByVendorSummary({
           <span className="text-muted-foreground">Commission produit</span>
           <span>{formatCurrency(productCommission)}</span>
         </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">Frais transaction acompte (1%)</span>
+          <span>{formatCurrency(advancePaystackFees)}</span>
+        </div>
       </div>
 
       <Separator />
@@ -148,7 +156,7 @@ export function OrdersByVendorSummary({
           <span>{formatCurrency(balanceAmount)}</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Montant des produits (+ frais Paystack)
+          Produits + frais de transaction (1%)
         </p>
       </div>
     </div>

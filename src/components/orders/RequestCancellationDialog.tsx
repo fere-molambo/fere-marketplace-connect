@@ -214,7 +214,40 @@ export function RequestCancellationDialog({
           console.error("Error cancelling deliveries:", deliveryError);
         }
 
-        // Create refund record if advance was paid (online payment)
+        // If cancelled after pickup/arrived, handle driver payout + return
+        if (requiresReturn && deliveryRequest) {
+          // Mark original delivery with return_status
+          await supabase
+            .from("delivery_requests")
+            .update({ return_status: "returning" })
+            .eq("id", deliveryRequest.id);
+
+          // Create driver payout using driver_earnings (not delivery_fee + commission)
+          const driverEarnings = deliveryRequest.driver_earnings || 0;
+          if (driverEarnings > 0 && deliveryRequest.driver_id) {
+            await supabase.from("pending_payouts").insert({
+              recipient_id: deliveryRequest.driver_id,
+              recipient_type: "driver",
+              amount: driverEarnings,
+              order_id: order.id,
+              delivery_request_id: deliveryRequest.id,
+              eligible_at: new Date().toISOString(),
+            });
+          }
+
+          // Create return delivery request (inverted pickup/delivery points)
+          await supabase.from("delivery_requests").insert({
+            order_id: order.id,
+            is_return: true,
+            original_delivery_id: deliveryRequest.id,
+            pickup_point: deliveryRequest.delivery_point, // Client becomes pickup
+            delivery_point: deliveryRequest.pickup_point, // Vendor becomes destination
+            zone_id: deliveryRequest.zone_id,
+            status: "pending",
+          });
+        }
+
+        // Create refund record if advance was paid
         if (["paid", "partial"].includes(order.payment_status)) {
           const paidAmount = order.advance_amount || 0;
           const netRefund = statusInfo.refundType === "full" ? paidAmount : 0;

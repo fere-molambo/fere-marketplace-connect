@@ -573,10 +573,16 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </Button>
                     )}
                     
-                    {delivery.status === "delivered" && (
+                    {delivery.status === "delivered" && !delivery.is_return && (
                       <div className="flex items-center justify-center gap-2 text-green-600 py-2">
                         <CheckCircle className="h-5 w-5" />
                         <span className="font-medium">Livraison terminée</span>
+                      </div>
+                    )}
+                    {delivery.status === "delivered" && delivery.is_return && (
+                      <div className="flex items-center justify-center gap-2 text-green-600 py-2">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">Retour confirmé</span>
                       </div>
                     )}
                   </div>
@@ -615,7 +621,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                 const todayEarnings = deliveryHistory
                   .filter(d => {
                     const date = new Date(d.delivered_at || d.updated_at || d.created_at).toDateString();
-                    return date === today && (d.status === "delivered" || (d.status === "cancelled" && d.cancellation_info?.delivery_fee_kept));
+                    return date === today && !d.is_return && (d.status === "delivered" || (d.status === "cancelled" && d.cancellation_info?.delivery_fee_kept));
                   })
                   .reduce((sum, d) => sum + (d.driver_earnings || 0), 0);
                 
@@ -660,7 +666,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                         )}
                       </div>
                       <div className="text-right space-y-1">
-                        {delivery.driver_earnings > 0 && 
+                        {delivery.driver_earnings > 0 && !delivery.is_return &&
                          (delivery.status === "delivered" || 
                           (delivery.status === "cancelled" && delivery.cancellation_info?.delivery_fee_kept)) && (
                           <p className="font-semibold text-green-600">

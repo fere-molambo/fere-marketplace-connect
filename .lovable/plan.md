@@ -1,69 +1,82 @@
 
-# Corrections de coherence du flux complet
 
-## Problemes identifies
+# 1. Correction vue vendeur pour commandes annulees + 2. Instructions mobile
 
-### 1. OrderDetailSheet (vue vendeur) : mauvaise source pour le return_status
+## Partie 1 : Simplifier la vue vendeur pour les commandes annulees
 
-Le `OrderDetailSheet` (ligne 36-48) requete le `return_status` depuis la livraison **originale** (`is_return: false`). Or, la livraison originale n'a que `return_status: "returning"` (defini a l'annulation). Le suivi reel du retour (`en_route_vendor` -> `arrived_vendor` -> `returned`) est stocke sur la livraison **retour** (`is_return: true`).
+### Probleme
+Quand le vendeur ouvre le detail d'une commande annulee, il voit des badges de paiement ("Acompte paye") et des informations financieres qui ne le concernent pas. Le vendeur a seulement besoin de savoir :
+- Que la commande a ete annulee
+- Quand elle a ete annulee
+- Le motif d'annulation
+- Par qui elle a ete annulee
+- L'etat du retour du produit
 
-Resultat : le `CancellationBanner` ne montre aucune etape active pendant le retour, car `"returning"` ne correspond a aucun des 3 steps du tracker.
+### Corrections dans `OrderDetailSheet.tsx`
 
-**Correction** : Modifier la requete pour chercher la livraison retour (`is_return: true`) au lieu de l'originale. La livraison retour contient le `return_status` precis (`en_route_vendor`, `arrived_vendor`, `returned`).
+1. **Masquer le badge `PaymentStatusBadge`** quand `isVendorView` est true et que la commande est annulee
+2. **Masquer le bloc "Recapitulatif financier"** pour le vendeur sur les commandes annulees (pas d'acompte, pas de "reste a payer" - le vendeur n'a rien recu)
+3. **Garder visible** : le `CancellationBanner` avec motif, date, annuleur, et le tracker de retour
 
-### 2. Driver : "Livraison terminée" affiche pour les retours completes
+### Corrections dans `CancellationBanner.tsx`
 
-Ligne 576-581 de `DriverDeliveriesSection.tsx`, dans la section "Mes livraisons" actives :
+Ajouter un prop `isVendorView` pour masquer les consequences financieres (remboursement, penalite) qui ne concernent que l'admin/client.
 
-```
-{delivery.status === "delivered" && (
-  <div>Livraison terminée</div>
-)}
-```
+---
 
-Ce bloc ne verifie pas `is_return`. Pour un retour complete (`status: "delivered"`), il afficherait "Livraison terminée" au lieu de "Retour terminé". Bien que les retours completes passent normalement a l'historique, il vaut mieux securiser ce cas.
+## Partie 2 : Instructions Bolt.new pour les applications mobiles
 
-**Correction** : Ajouter une condition `!delivery.is_return` pour le message standard, et afficher "Retour confirmé" si `is_return`.
+Deux documents d'instructions seront crees dans le dossier `docs/` :
 
-### 3. Driver : gains affiches pour les retours dans l'historique
+### `docs/BOLT_DRIVER_APP.md` - Application Livreur
+Contenu detaille incluant :
+- Connexion Supabase (URL + anon key)
+- Authentification livreur (sign in, role `livreur`)
+- Dashboard livreur : toggle disponibilite, mise a jour GPS en temps reel
+- Livraisons en attente : liste filtree par zone, acceptation
+- Livraison active : flux 7 etapes (pending -> assigned -> in_progress -> picked_up -> en_route_client -> arrived -> delivered)
+- Flux retour : 3 etapes (en_route_vendor -> arrived_vendor -> returned) via `return_status`
+- Annulation par le livreur (avec motif)
+- Historique des livraisons avec gains
+- Tokens : achat et suivi du solde
+- Subscriptions realtime sur `delivery_requests`
+- Toutes les requetes Supabase necessaires avec exemples de code
 
-Lignes 663-668 : les gains sont affiches si `delivery.driver_earnings > 0 && delivery.status === "delivered"`. Un retour pourrait heriter de `driver_earnings` de la requete originale (selon la creation). Il faut exclure les retours (`is_return`) de l'affichage des gains pour eviter un double comptage.
+### `docs/BOLT_CLIENT_APP.md` - Application Client
+Contenu detaille incluant :
+- Connexion Supabase (URL + anon key)
+- Authentification client (sign up/in, role `client`)
+- Catalogue : produits et services avec filtres
+- Panier persistant (localStorage)
+- Systeme de prix : fixe, negoce (prix propose), en gros (intervalles)
+- Checkout : selection adresse, calcul livraison, paiement acompte via Paystack
+- Paiement en 2 etapes : acompte (frais livraison + commissions) puis solde a l'arrivee
+- Suivi commande en temps reel (7 etapes livraison)
+- Actions client a l'arrivee : payer le solde ou annuler
+- Annulation : motif, piece jointe, remboursement selon le moment
+- Reservation de services avec calendrier
+- Profil, adresses de livraison, favoris
+- Messagerie
+- Subscriptions realtime sur `orders` et `delivery_requests`
 
-**Correction** : Ajouter `&& !delivery.is_return` a la condition d'affichage des gains.
+### Details techniques dans les fichiers
 
-### 4. Driver : total du jour inclut potentiellement les retours
+Chaque fichier contiendra :
+- Les schemas de tables exactes avec les colonnes pertinentes
+- Les workflows d'etats (state machines) avec diagrammes ASCII
+- Les exemples de code TypeScript/Supabase prets a copier
+- Les regles metier critiques (ex: service = cash uniquement, acompte = en ligne)
+- Les edge functions a appeler avec parametres exacts
+- Les subscriptions realtime a configurer
 
-Lignes 615-620 : le calcul du total quotidien filtre sur `status === "delivered"` sans exclure `is_return`. Les retours completes (avec `status: "delivered"`) pourraient gonfler le total.
+---
 
-**Correction** : Ajouter `&& !d.is_return` au filtre.
+## Resume des fichiers modifies
 
-## Fichiers modifies
+| Fichier | Action |
+|---------|--------|
+| `src/components/orders/OrderDetailSheet.tsx` | Masquer badges paiement et recap financier pour le vendeur sur commandes annulees |
+| `src/components/orders/CancellationBanner.tsx` | Ajouter prop `isVendorView` pour masquer les infos financieres |
+| `docs/BOLT_DRIVER_APP.md` | Nouveau - Instructions completes app livreur |
+| `docs/BOLT_CLIENT_APP.md` | Nouveau - Instructions completes app client |
 
-### `src/components/orders/OrderDetailSheet.tsx`
-
-Ligne 43 : changer `eq("is_return", false)` en `eq("is_return", true)` pour recuperer le `return_status` de la livraison retour.
-
-### `src/components/driver/DriverDeliveriesSection.tsx`
-
-- Ligne 576-581 : Conditionner le message "Livraison terminée" / "Retour confirmé" sur `is_return`
-- Ligne 616-618 : Exclure `is_return` du filtre des gains du jour
-- Ligne 663-665 : Exclure `is_return` de l'affichage des gains dans l'historique
-
-## Resume de la coherence
-
-Apres ces corrections, le flux complet sera coherent :
-
-```text
-Etape                    | Client              | Livreur              | Vendeur
--------------------------|----------------------|----------------------|------------------------
-Commande creee           | Pending              | -                    | Commande recue
-Acompte paye             | Acompte paye         | -                    | Acompte paye
-Livreur accepte          | Assignee             | Acceptee             | En cours
-Pickup                   | Recuperee            | Colis recupere       | En transit
-En route client          | En route             | Vers client          | En transit
-Arrivee                  | Boutons payer/annuler| Attente client       | En transit
-Client annule            | Annulee              | Notifie, retour      | Annulee + retour
-Retour en route          | -                    | Badge "Retour"       | Tracker: En route
-Retour arrive vendeur    | -                    | Attente vendeur      | Tracker: Arrive
-Vendeur confirme         | -                    | Badge "Retourné"     | Tracker: Retourné
-```

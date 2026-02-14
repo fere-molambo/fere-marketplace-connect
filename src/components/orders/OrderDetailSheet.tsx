@@ -32,6 +32,21 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
     },
   });
 
+  // Fetch delivery return_status for cancelled orders
+  const { data: deliveryData } = useQuery({
+    queryKey: ["order-delivery-status", order?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("delivery_requests")
+        .select("status, return_status, is_return")
+        .eq("order_id", order!.id)
+        .eq("is_return", false)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!order?.id && order?.status === "cancelled",
+  });
+
   // Fetch cancellation details if order is cancelled
   const { data: cancellation } = useQuery({
     queryKey: ["order-cancellation", order?.id],
@@ -117,7 +132,7 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
           {order.status === "cancelled" && cancellation && (
             <CancellationBanner 
               cancellation={cancellation} 
-              returnStatus={order.return_status}
+              returnStatus={deliveryData?.return_status}
               type="order"
             />
           )}

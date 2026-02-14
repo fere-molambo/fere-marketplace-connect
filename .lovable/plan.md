@@ -1,30 +1,38 @@
 
-
-# Correction : Remboursement non cree pour les annulations
+# Correction de l'annulation a l'arrivee du livreur
 
 ## Probleme
 
-La condition a la ligne 218 de `RequestCancellationDialog.tsx` verifie `order.payment_method === "online"` avant de creer l'enregistrement de remboursement. Or, la commande annulee a `payment_method = "advance"` (paiement de l'acompte via Paystack). La condition echoue et aucun remboursement n'est insere dans la table `refunds`.
+Le bouton "Annuler la commande" visible quand le livreur est arrive (statut `arrived`) utilise une mutation inline `cancelAtArrival` (lignes 180-248 de `ClientOrderDetailSheet.tsx`) qui contourne completement le dialogue de motif d'annulation (`RequestCancellationDialog`). Cette mutation a 4 problemes :
 
-## Correction
+1. **Pas de pop-up de motif** : l'annulation est executee directement sans demander la raison au client
+2. **Paiement livreur incorrect** : calcule `delivery_fee + commission_amount` au lieu de `driver_earnings` (les gains reels du livreur)
+3. **Pas de remboursement cree** : aucun enregistrement dans la table `refunds`, l'acompte du client est perdu
+4. **Pas de retour produit fonctionnel** : le `return_status` est mis a `"returning"` mais aucune livraison retour n'est creee dans `delivery_requests`
 
-### Fichier : `src/components/orders/RequestCancellationDialog.tsx`
+## Corrections prevues
 
-Remplacer la condition de la ligne 218 :
+### 1. `src/components/orders/ClientOrderDetailSheet.tsx`
 
-```
-// Ancien
-if (order.payment_method === "online" && ["paid", "partial"].includes(order.payment_status))
+- Supprimer la mutation `cancelAtArrival` (lignes 180-248)
+- Remplacer le bouton "Annuler la commande" dans la zone "Le livreur est arrive" (ligne 403-415) par un appel a `handleCancelClick()` qui ouvre le `RequestCancellationDialog`
+- Le dialogue gere deja les motifs, l'upload de pieces jointes, et le calcul de remboursement
 
-// Nouveau
-if (["paid", "partial"].includes(order.payment_status))
-```
+### 2. `src/components/orders/RequestCancellationDialog.tsx`
 
-Le `payment_method` n'est pas pertinent ici. Ce qui compte, c'est que le client ait effectivement paye quelque chose (`payment_status` est `"paid"` ou `"partial"`). Que le paiement soit passe par le mode `"online"` ou `"advance"`, l'acompte a bien ete debite via Paystack et doit etre rembourse.
+Adapter la logique pour les annulations au statut `arrived` :
 
-## Donnees existantes
+- **Paiement livreur** : Apres annulation, creer un `pending_payouts` pour le livreur avec le montant `deliveryRequest.driver_earnings` (et non `delivery_fee + commission_amount`). Le livreur s'est deplace, il doit etre paye.
+- **Remboursement client** : Pour `refundType === "product_only"` (apres pickup/arrived), `net_refund = 0` car l'acompte couvre les frais du livreur et la commission plateforme. Ceci est deja en place.
+- **Retour produit** : Creer une livraison retour (`is_return = true`) dans `delivery_requests` avec les points de livraison inverses (le point de livraison du client devient le pickup, et le point de pickup du vendeur devient la destination). Mettre `return_status = "returning"` sur la livraison originale.
+- **Condition d'annulation** : Permettre l'annulation quand le statut est `arrived` (c'est le cas specifique ou le client a le choix entre payer ou annuler)
 
-La commande `ORD-20260213-DB35708C` a `advance_amount = 1122` et `payment_status = "partial"`. Apres cette correction, un enregistrement de remboursement de 1 122 FCFA sera correctement cree lors d'une annulation similaire.
+### 3. Verification de coherence
 
-Pour la commande deja annulee, un insert manuel dans la table `refunds` sera necessaire, ou bien le client devra relancer l'annulation. L'option la plus simple est d'inserer manuellement le remboursement via le dashboard SQL.
+- Le `getStatusInfo()` dans `RequestCancellationDialog` doit retourner `canCancel: true` et `refundType: "product_only"` quand le statut est `arrived` (deja le cas dans le code actuel)
+- Le `canCancelBeforePickup()` dans `ClientOrderDetailSheet` ne doit pas etre utilise pour le cas `arrived` (c'est un flux different, gere par `isDriverArrived`)
 
+## Fichiers modifies
+
+1. `src/components/orders/ClientOrderDetailSheet.tsx` -- Supprimer `cancelAtArrival`, utiliser le dialogue pour l'annulation a l'arrivee
+2. `src/components/orders/RequestCancellationDialog.tsx` -- Ajouter creation payout livreur + livraison retour apres annulation au statut arrived

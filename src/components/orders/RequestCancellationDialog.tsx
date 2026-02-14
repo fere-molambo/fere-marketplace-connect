@@ -203,29 +203,62 @@ export function RequestCancellationDialog({
           throw new Error("Impossible de mettre à jour la commande. Veuillez réessayer.");
         }
 
-        // Cancel all delivery requests for this order
-        const { error: deliveryError } = await supabase
-          .from("delivery_requests")
-          .update({ status: "cancelled" })
-          .eq("order_id", order.id)
-          .neq("status", "delivered");
-
-        if (deliveryError) {
-          console.error("Error cancelling deliveries:", deliveryError);
-        }
-
-        // If cancelled after pickup/arrived, handle driver payout + return
+        // If cancelled after pickup/arrived, handle return + payout BEFORE cancelling delivery
         if (requiresReturn && deliveryRequest) {
-          // Mark original delivery with return_status
-          await supabase
+          // 1. Mark original delivery with return_status BEFORE cancellation (RLS allows update when not cancelled)
+          const { error: returnStatusError } = await supabase
             .from("delivery_requests")
             .update({ return_status: "returning" })
             .eq("id", deliveryRequest.id);
 
-          // Create driver payout using driver_earnings (not delivery_fee + commission)
+          if (returnStatusError) {
+            console.error("Error setting return_status:", returnStatusError);
+          }
+
+          // 2. Cancel the original delivery
+          const { error: deliveryError } = await supabase
+            .from("delivery_requests")
+            .update({ status: "cancelled" })
+            .eq("order_id", order.id)
+            .eq("is_return", false)
+            .neq("status", "delivered");
+
+          if (deliveryError) {
+            console.error("Error cancelling deliveries:", deliveryError);
+          }
+
+          // 3. Build descriptive label for the return delivery
+          const pickupPoints = deliveryRequest.pickup_points as any[] || [];
+          const shopName = pickupPoints[0]?.shop_name || "Vendeur";
+          const returnLabel = `Retour colis ${order.order_number} vers ${shopName}`;
+
+          // Create return delivery with same driver, status en_route_vendor
+          const returnPickupPoint = {
+            ...(deliveryRequest.delivery_point || {}),
+            label: returnLabel,
+          };
+
+          const { error: returnError } = await supabase.from("delivery_requests").insert({
+            order_id: order.id,
+            is_return: true,
+            original_delivery_id: deliveryRequest.id,
+            driver_id: deliveryRequest.driver_id,
+            pickup_point: returnPickupPoint,
+            delivery_point: deliveryRequest.pickup_point,
+            zone_id: deliveryRequest.zone_id,
+            status: "en_route_vendor",
+            assigned_at: new Date().toISOString(),
+            started_at: new Date().toISOString(),
+          });
+
+          if (returnError) {
+            console.error("Error creating return delivery:", returnError);
+          }
+
+          // 4. Create driver payout
           const driverEarnings = deliveryRequest.driver_earnings || 0;
           if (driverEarnings > 0 && deliveryRequest.driver_id) {
-            await supabase.from("pending_payouts").insert({
+            const { error: payoutError } = await supabase.from("pending_payouts").insert({
               recipient_id: deliveryRequest.driver_id,
               recipient_type: "driver",
               amount: driverEarnings,
@@ -233,18 +266,22 @@ export function RequestCancellationDialog({
               delivery_request_id: deliveryRequest.id,
               eligible_at: new Date().toISOString(),
             });
-          }
 
-          // Create return delivery request (inverted pickup/delivery points)
-          await supabase.from("delivery_requests").insert({
-            order_id: order.id,
-            is_return: true,
-            original_delivery_id: deliveryRequest.id,
-            pickup_point: deliveryRequest.delivery_point, // Client becomes pickup
-            delivery_point: deliveryRequest.pickup_point, // Vendor becomes destination
-            zone_id: deliveryRequest.zone_id,
-            status: "pending",
-          });
+            if (payoutError) {
+              console.error("Error creating driver payout:", payoutError);
+            }
+          }
+        } else {
+          // No return needed - just cancel all deliveries
+          const { error: deliveryError } = await supabase
+            .from("delivery_requests")
+            .update({ status: "cancelled" })
+            .eq("order_id", order.id)
+            .neq("status", "delivered");
+
+          if (deliveryError) {
+            console.error("Error cancelling deliveries:", deliveryError);
+          }
         }
 
         // Create refund record if advance was paid

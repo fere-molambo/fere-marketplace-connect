@@ -95,19 +95,20 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
       
       if (error) throw error;
       
-      // Fetch delivery requests for all orders
+      // Fetch delivery requests for all orders (including return deliveries)
       const orderIds = [...new Set(data?.map(item => item.order?.id).filter(Boolean))];
       if (orderIds.length > 0) {
         const { data: deliveryRequests } = await supabase
           .from("delivery_requests")
-          .select("order_id, status, return_status, is_return")
+          .select("id, order_id, status, return_status, is_return, pickup_point, driver_id")
           .in("order_id", orderIds);
         
         // Map delivery status to each order item
         return data?.map(item => ({
           ...item,
           deliveryStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id && !dr.is_return)?.status,
-          returnStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id)?.return_status,
+          returnStatus: deliveryRequests?.find(dr => dr.order_id === item.order?.id && !dr.is_return)?.return_status,
+          returnDelivery: deliveryRequests?.find(dr => dr.order_id === item.order?.id && dr.is_return),
         })) || [];
       }
       
@@ -115,9 +116,10 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
     },
   });
 
-  // Get items pending return
+  // Get items pending return (check both original return_status AND return delivery status)
   const returningItems = orderItems.filter((item: any) => 
-    item.returnStatus === "returning" || item.returnStatus === "en_route_vendor"
+    item.returnStatus === "returning" || 
+    (item.returnDelivery && !["delivered", "cancelled"].includes(item.returnDelivery.status) && item.returnDelivery.status !== "returned")
   );
 
   // Fetch service bookings for this shop with delivery address
@@ -343,8 +345,10 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                           {item.order?.order_number} • {item.quantity} unité(s)
                         </p>
                         <p className="text-sm text-amber-600">
-                          {item.returnStatus === "en_route_vendor" 
-                            ? "Livreur en route vers vous" 
+                          {item.returnDelivery?.status === "arrived_vendor" 
+                            ? "Livreur arrivé - Confirmez la réception" 
+                            : item.returnDelivery?.status === "en_route_vendor"
+                            ? "Livreur en route vers vous"
                             : "Retour initié"}
                         </p>
                       </div>
@@ -352,20 +356,30 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
                         <Truck className="h-3 w-3 mr-1" />
-                        {item.returnStatus === "en_route_vendor" ? "En route" : "En attente"}
+                        {item.returnDelivery?.status === "arrived_vendor" ? "Arrivé" : item.returnDelivery?.status === "en_route_vendor" ? "En route" : "En attente"}
                       </Badge>
                       <Button
                         variant="default"
                         size="sm"
+                        disabled={item.returnDelivery?.status !== "arrived_vendor"}
                         onClick={async () => {
                           try {
-                            // Update delivery request to mark return as received
+                            // 1. Update original delivery return_status to "returned"
                             await supabase
                               .from("delivery_requests")
                               .update({ return_status: "returned" })
-                              .eq("order_id", item.order?.id);
+                              .eq("order_id", item.order?.id)
+                              .eq("is_return", false);
                             
-                            // Restore product stock
+                            // 2. Update return delivery status to "delivered"
+                            if (item.returnDelivery?.id) {
+                              await supabase
+                                .from("delivery_requests")
+                                .update({ status: "delivered", delivered_at: new Date().toISOString() })
+                                .eq("id", item.returnDelivery.id);
+                            }
+                            
+                            // 3. Restore product stock
                             const currentQty = item.product?.quantity_available ?? 0;
                             await supabase
                               .from("products")

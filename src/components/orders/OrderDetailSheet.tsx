@@ -40,7 +40,7 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
         .from("delivery_requests")
         .select("status, return_status, is_return")
         .eq("order_id", order!.id)
-        .eq("is_return", false)
+        .eq("is_return", true)
         .maybeSingle();
       return data;
     },

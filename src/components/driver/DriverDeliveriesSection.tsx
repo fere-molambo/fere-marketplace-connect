@@ -209,20 +209,28 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
 
   // Update status mutation (handles both standard and return deliveries)
   const updateStatus = useMutation({
-    mutationFn: async ({ requestId, newStatus }: { requestId: string; newStatus: string }) => {
-      const updates: Record<string, any> = { status: newStatus };
+    mutationFn: async ({ requestId, newStatus, isReturnDelivery }: { requestId: string; newStatus: string; isReturnDelivery?: boolean }) => {
+      const updates: Record<string, any> = {};
       
-      if (newStatus === "in_progress") {
-        updates.started_at = new Date().toISOString();
-      } else if (newStatus === "picked_up") {
-        updates.picked_up_at = new Date().toISOString();
-      } else if (newStatus === "en_route_client") {
-        updates.en_route_client_at = new Date().toISOString();
-      } else if (newStatus === "arrived") {
-        updates.arrived_at_client_at = new Date().toISOString();
-      } else if (newStatus === "arrived_vendor") {
-        // Return delivery: driver arrived at vendor
-        updates.arrived_at_client_at = new Date().toISOString();
+      if (isReturnDelivery) {
+        // Return deliveries: use standard status + return_status for tracking
+        if (newStatus === "arrived_vendor") {
+          updates.status = "arrived";
+          updates.return_status = "arrived_vendor";
+          updates.arrived_at_client_at = new Date().toISOString();
+        }
+      } else {
+        // Standard delivery
+        updates.status = newStatus;
+        if (newStatus === "in_progress") {
+          updates.started_at = new Date().toISOString();
+        } else if (newStatus === "picked_up") {
+          updates.picked_up_at = new Date().toISOString();
+        } else if (newStatus === "en_route_client") {
+          updates.en_route_client_at = new Date().toISOString();
+        } else if (newStatus === "arrived") {
+          updates.arrived_at_client_at = new Date().toISOString();
+        }
       }
       
       const { error } = await supabase
@@ -279,13 +287,14 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
   // Next status action - no more "delivered" from driver side
   const getNextStatusAction = (delivery: any) => {
     const status = delivery.status;
+    const returnStatus = delivery.return_status;
     const isReturn = delivery.is_return;
 
-    // Return delivery: 3 steps only
+    // Return delivery: use return_status to determine step
     if (isReturn) {
-      switch (status) {
+      switch (returnStatus) {
         case "en_route_vendor":
-          return { label: "Arrivé chez vendeur", nextStatus: "arrived_vendor", icon: MapPin };
+          return { label: "Arrivé chez vendeur", nextStatus: "arrived_vendor", icon: MapPin, isReturnDelivery: true };
         case "arrived_vendor":
           // Vendor confirms reception - no driver action
           return null;
@@ -531,7 +540,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                     )}
 
                     {/* Return delivery: waiting for vendor confirmation */}
-                    {isReturn && delivery.status === 'arrived_vendor' && (
+                    {isReturn && delivery.return_status === 'arrived_vendor' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                         <p className="text-amber-800 font-medium flex items-center gap-2">
                           <Clock className="h-4 w-4" />
@@ -548,7 +557,8 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       <Button
                         onClick={() => updateStatus.mutate({ 
                           requestId: delivery.id, 
-                          newStatus: nextAction.nextStatus! 
+                          newStatus: nextAction.nextStatus!,
+                          isReturnDelivery: (nextAction as any).isReturnDelivery || false,
                         })}
                         disabled={updateStatus.isPending}
                         className="w-full"

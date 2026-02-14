@@ -246,7 +246,8 @@ export function RequestCancellationDialog({
             pickup_point: returnPickupPoint,
             delivery_point: deliveryRequest.pickup_point,
             zone_id: deliveryRequest.zone_id,
-            status: "en_route_vendor",
+            status: "in_progress",
+            return_status: "en_route_vendor",
             assigned_at: new Date().toISOString(),
             started_at: new Date().toISOString(),
           });

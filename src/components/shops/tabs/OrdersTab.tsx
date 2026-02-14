@@ -100,7 +100,7 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
       if (orderIds.length > 0) {
         const { data: deliveryRequests } = await supabase
           .from("delivery_requests")
-          .select("id, order_id, status, return_status, is_return, pickup_point, driver_id")
+          .select("id, order_id, status, return_status, is_return, pickup_point, driver_id, arrived_at_client_at")
           .in("order_id", orderIds);
         
         // Map delivery status to each order item
@@ -116,10 +116,10 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
     },
   });
 
-  // Get items pending return (check both original return_status AND return delivery status)
+  // Get items pending return (check both original return_status AND return delivery return_status)
   const returningItems = orderItems.filter((item: any) => 
     item.returnStatus === "returning" || 
-    (item.returnDelivery && !["delivered", "cancelled"].includes(item.returnDelivery.status) && item.returnDelivery.status !== "returned")
+    (item.returnDelivery && !["delivered", "cancelled"].includes(item.returnDelivery.status) && item.returnDelivery.return_status !== "returned")
   );
 
   // Fetch service bookings for this shop with delivery address
@@ -344,24 +344,24 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                         <p className="text-sm text-muted-foreground">
                           {item.order?.order_number} • {item.quantity} unité(s)
                         </p>
-                        <p className="text-sm text-amber-600">
-                          {item.returnDelivery?.status === "arrived_vendor" 
+                         <p className="text-sm text-amber-600">
+                          {item.returnDelivery?.return_status === "arrived_vendor" 
                             ? "Livreur arrivé - Confirmez la réception" 
-                            : item.returnDelivery?.status === "en_route_vendor"
+                            : item.returnDelivery?.return_status === "en_route_vendor"
                             ? "Livreur en route vers vous"
                             : "Retour initié"}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                       <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
                         <Truck className="h-3 w-3 mr-1" />
-                        {item.returnDelivery?.status === "arrived_vendor" ? "Arrivé" : item.returnDelivery?.status === "en_route_vendor" ? "En route" : "En attente"}
+                        {item.returnDelivery?.return_status === "arrived_vendor" ? "Arrivé" : item.returnDelivery?.return_status === "en_route_vendor" ? "En route" : "En attente"}
                       </Badge>
                       <Button
                         variant="default"
                         size="sm"
-                        disabled={item.returnDelivery?.status !== "arrived_vendor"}
+                        disabled={item.returnDelivery?.return_status !== "arrived_vendor"}
                         onClick={async () => {
                           try {
                             // 1. Update original delivery return_status to "returned"
@@ -371,11 +371,11 @@ export const OrdersTab = ({ shopId }: OrdersTabProps) => {
                               .eq("order_id", item.order?.id)
                               .eq("is_return", false);
                             
-                            // 2. Update return delivery status to "delivered"
+                            // 2. Update return delivery status to "delivered" + return_status "returned"
                             if (item.returnDelivery?.id) {
                               await supabase
                                 .from("delivery_requests")
-                                .update({ status: "delivered", delivered_at: new Date().toISOString() })
+                                .update({ status: "delivered", return_status: "returned", delivered_at: new Date().toISOString() })
                                 .eq("id", item.returnDelivery.id);
                             }
                             

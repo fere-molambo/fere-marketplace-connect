@@ -99,7 +99,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     enabled: !!userId,
   });
 
-  // Fetch driver's assigned deliveries with order info
+  // Fetch driver's assigned deliveries with order info (including return deliveries)
   const { data: myDeliveries = [], isLoading: isLoadingMine } = useQuery({
     queryKey: ["my-deliveries", userId],
     queryFn: async () => {
@@ -108,7 +108,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
         .select(`
           *, 
           delivery_zones (name, city),
-          order:orders!order_id (id, payment_method, payment_status, user_id, subtotal, total_amount, balance_payment_status)
+          order:orders!order_id (id, order_number, payment_method, payment_status, user_id, subtotal, total_amount, balance_payment_status)
         `)
         .eq("driver_id", userId)
         .neq("status", "pending")
@@ -207,7 +207,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
     },
   });
 
-  // Update status mutation
+  // Update status mutation (handles both standard and return deliveries)
   const updateStatus = useMutation({
     mutationFn: async ({ requestId, newStatus }: { requestId: string; newStatus: string }) => {
       const updates: Record<string, any> = { status: newStatus };
@@ -219,6 +219,9 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
       } else if (newStatus === "en_route_client") {
         updates.en_route_client_at = new Date().toISOString();
       } else if (newStatus === "arrived") {
+        updates.arrived_at_client_at = new Date().toISOString();
+      } else if (newStatus === "arrived_vendor") {
+        // Return delivery: driver arrived at vendor
         updates.arrived_at_client_at = new Date().toISOString();
       }
       
@@ -274,7 +277,26 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
   };
 
   // Next status action - no more "delivered" from driver side
-  const getNextStatusAction = (status: string) => {
+  const getNextStatusAction = (delivery: any) => {
+    const status = delivery.status;
+    const isReturn = delivery.is_return;
+
+    // Return delivery: 3 steps only
+    if (isReturn) {
+      switch (status) {
+        case "en_route_vendor":
+          return { label: "Arrivé chez vendeur", nextStatus: "arrived_vendor", icon: MapPin };
+        case "arrived_vendor":
+          // Vendor confirms reception - no driver action
+          return null;
+        case "returned":
+          return null;
+        default:
+          return null;
+      }
+    }
+
+    // Standard delivery
     switch (status) {
       case "assigned":
         return { label: "Démarrer vers vendeur", nextStatus: "in_progress", icon: Play };
@@ -403,13 +425,25 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
               {myDeliveries.map((delivery) => {
                 const pickupPoints = delivery.pickup_points as any[] || [];
                 const deliveryPoint = delivery.delivery_point as any;
-                const nextAction = getNextStatusAction(delivery.status);
+                const pickupPoint = delivery.pickup_point as any;
+                const nextAction = getNextStatusAction(delivery);
+                const isReturn = delivery.is_return;
                 
                 return (
                   <div key={delivery.id} className="p-4 rounded-lg border space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        {getStatusBadge(delivery.status)}
+                        {isReturn ? (
+                          <Badge className="bg-amber-100 text-amber-800">
+                            <Truck className="h-3 w-3 mr-1" />
+                            Retour
+                          </Badge>
+                        ) : (
+                          getStatusBadge(delivery.status)
+                        )}
+                        {isReturn && pickupPoint?.label && (
+                          <p className="text-sm font-medium mt-1">{pickupPoint.label}</p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                           {format(new Date(delivery.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
                         </p>
@@ -474,8 +508,8 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                       </div>
                     )}
 
-                    {/* Waiting for client at arrived status */}
-                    {delivery.status === 'arrived' && (
+                    {/* Waiting for client at arrived status (standard delivery) */}
+                    {!isReturn && delivery.status === 'arrived' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                         <p className="text-amber-800 font-medium flex items-center gap-2">
                           <Clock className="h-4 w-4" />
@@ -493,6 +527,19 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                             </p>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Return delivery: waiting for vendor confirmation */}
+                    {isReturn && delivery.status === 'arrived_vendor' && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                        <p className="text-amber-800 font-medium flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          En attente de confirmation du vendeur
+                        </p>
+                        <p className="text-sm text-amber-600">
+                          Le vendeur doit confirmer la réception du colis retourné.
+                        </p>
                       </div>
                     )}
                     

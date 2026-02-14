@@ -1,70 +1,67 @@
 
-# Correction du flux de retour produit
 
-## Probleme identifie
+# Corrections de l'affichage retour (livreur) et recap vendeur
 
-La contrainte CHECK sur `delivery_requests.status` n'autorise que ces valeurs :
-`pending, assigned, in_progress, picked_up, en_route_client, arrived, delivered, cancelled`
+## Probleme 1 : "Livrée" au lieu de "Retourné" chez le livreur
 
-Le code essaie d'inserer une livraison retour avec `status: "en_route_vendor"`, ce qui viole cette contrainte. L'insertion echoue silencieusement, et aucune livraison retour n'est creee.
+Dans l'historique du livreur (`DriverDeliveriesSection.tsx`), la fonction `getStatusBadge` ne regarde que `delivery.status`. Pour une livraison retour terminee, `status = "delivered"` (contrainte DB), donc le badge affiche "Livrée".
 
-Le meme probleme se produit quand le livreur clique "Arrive chez vendeur" : le code tente de mettre `status: "arrived_vendor"`, qui est aussi invalide.
+**Correction** : Dans le rendu de l'historique (ligne 647), verifier `delivery.is_return` et `delivery.return_status === "returned"` pour afficher un badge "Retourné" (vert) au lieu de "Livrée".
 
-Les valeurs `en_route_vendor`, `arrived_vendor`, `returned` n'existent que dans la colonne `return_status`, pas dans `status`.
+## Probleme 2 : Recap vendeur incomplet et badge paiement incorrect
 
-## Solution
+### 2a. Badge "Payé intégralement" incorrect
 
-Utiliser le champ `status` avec des valeurs standard (`in_progress`, `arrived`, `delivered`) et le champ `return_status` pour le suivi specifique du retour. Le champ `is_return: true` permet de distinguer visuellement les retours des livraisons normales.
+Le `OrderDetailSheet` recoit l'objet `order` depuis `OrdersTab`. La commande a `payment_status: "partial"` (acompte payé), mais le badge affiche "Payé intégralement". Cela vient probablement du fait que le trigger de synchronisation a mis a jour le `payment_status` a tort lors de la livraison retour. Il faut verifier les donnees en base, mais cote UI le `PaymentStatusBadge` est correct ("partial" = "Acompte payé"). Le probleme est donc dans les donnees.
 
-### Mapping des etapes retour
+**Verification** : Requete SQL pour confirmer le `payment_status` actuel. Si les donnees sont correctes ("partial"), alors c'est un bug d'affichage lie au passage de donnees.
 
-```text
-Etape retour           | status       | return_status
------------------------|------------- |---------------
-En route vers vendeur  | in_progress  | en_route_vendor
-Arrive chez vendeur    | arrived      | arrived_vendor
-Retour confirme        | delivered    | returned
-```
+### 2b. Statut retour manquant dans le recap vendeur
+
+Le `CancellationBanner` recoit `returnStatus={order.return_status}` mais l'objet `order` passe par `OrdersTab` ne contient PAS de champ `return_status`. Ce champ existe sur `delivery_requests`, pas sur `orders`.
+
+**Correction dans `OrderDetailSheet.tsx`** : Ajouter une requete pour recuperer les `delivery_requests` liees a la commande afin d'extraire le `return_status` de la livraison originale (ou de la livraison retour). Passer ce statut au `CancellationBanner`.
 
 ## Fichiers modifies
 
-### 1. `src/components/orders/RequestCancellationDialog.tsx`
+### 1. `src/components/driver/DriverDeliveriesSection.tsx`
 
-Corriger l'insertion de la livraison retour :
-- `status: "in_progress"` au lieu de `"en_route_vendor"`
-- Ajouter `return_status: "en_route_vendor"` pour le suivi
+Dans la section historique (ligne ~647), remplacer l'appel simple a `getStatusBadge(delivery.status)` par une logique conditionnelle :
 
-### 2. `src/components/driver/DriverDeliveriesSection.tsx`
-
-**Query `my-deliveries`** : La livraison retour avec `status: "in_progress"` sera automatiquement visible (pas filtree).
-
-**`getNextStatusAction`** : Pour les retours (`is_return: true`), utiliser `return_status` au lieu de `status` pour determiner l'etape :
-- `return_status === "en_route_vendor"` : Bouton "Arrive chez vendeur" (met `status: "arrived"` + `return_status: "arrived_vendor"`)
-- `return_status === "arrived_vendor"` : Pas d'action (vendeur confirme)
-- `return_status === "returned"` : Pas d'action
-
-**`updateStatus` mutation** : Adapter pour les retours -- mettre a jour `status` ET `return_status` simultanement.
-
-### 3. `src/components/shops/tabs/OrdersTab.tsx`
-
-Quand le vendeur confirme la reception du retour :
-- `status: "delivered"` + `return_status: "returned"` sur la livraison retour
-- `return_status: "returned"` sur la livraison originale
-- Restauration du stock produit
-
-### 4. Migration SQL
-
-Nettoyer les donnees de test pour pouvoir retester :
-
-```sql
-DELETE FROM pending_payouts;
-DELETE FROM refunds;
-DELETE FROM client_penalties;
-UPDATE orders SET cancellation_id = NULL WHERE cancellation_id IS NOT NULL;
-DELETE FROM cancellations;
-DELETE FROM delivery_requests;
-DELETE FROM order_items;
-DELETE FROM payment_transactions;
-DELETE FROM orders;
-DELETE FROM service_bookings;
 ```
+Si delivery.is_return && delivery.return_status === "returned" :
+  -> Badge vert "Retourné"
+Si delivery.is_return && delivery.return_status !== "returned" :
+  -> Badge ambre "Retour" (avec sous-statut)
+Sinon :
+  -> getStatusBadge(delivery.status) existant
+```
+
+Aussi, ajouter `return_status, is_return` dans la query `delivery-history` si pas deja present (le `*` les inclut deja).
+
+### 2. `src/components/orders/OrderDetailSheet.tsx`
+
+Ajouter une requete pour recuperer le `return_status` depuis `delivery_requests` :
+
+```typescript
+const { data: deliveryData } = useQuery({
+  queryKey: ["order-delivery-status", order?.id],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("delivery_requests")
+      .select("status, return_status, is_return")
+      .eq("order_id", order.id)
+      .eq("is_return", false)
+      .maybeSingle();
+    return data;
+  },
+  enabled: !!order?.id && order?.status === "cancelled",
+});
+```
+
+Passer `deliveryData?.return_status` au `CancellationBanner` au lieu de `order.return_status`.
+
+### 3. Verification des donnees
+
+Verifier en base que le `payment_status` de la commande est bien "partial" et non "paid" (un trigger pourrait l'avoir change par erreur lors du retour).
+

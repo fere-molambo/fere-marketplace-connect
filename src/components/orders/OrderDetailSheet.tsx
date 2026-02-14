@@ -104,7 +104,9 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
           {/* Statuts */}
           <div className="flex flex-wrap gap-2">
             <OrderStatusBadge status={order.status} />
-            <PaymentStatusBadge status={order.payment_status} />
+            {!(isVendorView && order.status === "cancelled") && (
+              <PaymentStatusBadge status={order.payment_status} />
+            )}
             <Badge variant="outline">
               {order.delivery_type === "pickup" ? (
                 <><Store className="mr-1 h-3 w-3" />Retrait</>
@@ -134,6 +136,7 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
               cancellation={cancellation} 
               returnStatus={deliveryData?.return_status}
               type="order"
+              isVendorView={isVendorView}
             />
           )}
 
@@ -200,7 +203,8 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
 
           <Separator />
 
-          {/* Récapitulatif financier pour Admin */}
+          {/* Récapitulatif financier - Hidden for vendor on cancelled orders */}
+          {!(isVendorView && order.status === "cancelled") && (
           <div>
             <h3 className="text-sm font-semibold mb-2">Récapitulatif financier</h3>
             <div className="space-y-2 text-sm">
@@ -268,6 +272,7 @@ export function OrderDetailSheet({ order, open, onOpenChange, isVendorView = fal
               )}
             </div>
           </div>
+          )}
 
           {/* Date */}
           <div className="text-xs text-muted-foreground">

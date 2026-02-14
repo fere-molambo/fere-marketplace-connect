@@ -20,9 +20,10 @@ interface CancellationBannerProps {
   };
   returnStatus?: string | null;
   type?: "order" | "booking";
+  isVendorView?: boolean;
 }
 
-export function CancellationBanner({ cancellation, returnStatus, type = "order" }: CancellationBannerProps) {
+export function CancellationBanner({ cancellation, returnStatus, type = "order", isVendorView = false }: CancellationBannerProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR").format(amount) + " FCFA";
   };
@@ -89,8 +90,8 @@ export function CancellationBanner({ cancellation, returnStatus, type = "order" 
         )}
       </div>
       
-      {/* Conséquences financières */}
-      {((cancellation.refund_amount ?? 0) > 0 || 
+      {/* Conséquences financières - Hidden for vendor view */}
+      {!isVendorView && ((cancellation.refund_amount ?? 0) > 0 || 
         cancellation.delivery_fee_kept || 
         (cancellation.penalty_amount ?? 0) > 0) && (
         <>

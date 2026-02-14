@@ -176,78 +176,6 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
     },
   });
 
-  // Cancel at arrival mutation
-  const cancelAtArrival = useMutation({
-    mutationFn: async () => {
-      if (!user || !order) throw new Error("Non authentifié");
-      
-      const delivery = singleDelivery || deliveryRequests[0];
-      if (!delivery) throw new Error("Aucune livraison trouvée");
-
-      // Create cancellation record
-      const { data: cancellation, error: cancelError } = await supabase
-        .from("cancellations")
-        .insert({
-          order_id: order.id,
-          cancelled_by: user.id,
-          canceller_role: "client",
-          status_at_cancellation: delivery.status,
-          custom_reason: "Annulation par le client après vérification du colis",
-          delivery_fee_kept: true,
-        })
-        .select()
-        .single();
-
-      if (cancelError) throw cancelError;
-
-      // Update order
-      const { error: orderError } = await supabase
-        .from("orders")
-        .update({
-          status: "cancelled",
-          cancellation_id: cancellation.id,
-        })
-        .eq("id", order.id);
-
-      if (orderError) throw orderError;
-
-      // Update delivery - initiate return
-      const { error: deliveryError } = await supabase
-        .from("delivery_requests")
-        .update({
-          status: "cancelled",
-          return_status: "returning",
-        })
-        .eq("id", delivery.id);
-
-      if (deliveryError) throw deliveryError;
-
-      // Create payout for driver from the advance (delivery_fee + product_commission)
-      // The platform keeps the delivery commission
-      const driverPayout = (delivery.delivery_fee || 0) + (order.commission_amount || 0);
-      if (driverPayout > 0 && delivery.driver_id) {
-        await supabase.from("pending_payouts").insert({
-          recipient_id: delivery.driver_id,
-          recipient_type: "driver",
-          amount: driverPayout,
-          order_id: order.id,
-          delivery_request_id: delivery.id,
-          eligible_at: new Date().toISOString(),
-        });
-      }
-    },
-    onSuccess: () => {
-      toast.success("Commande annulée. Le livreur retournera le colis au vendeur.");
-      queryClient.invalidateQueries({ queryKey: ["delivery-requests", order.id] });
-      queryClient.invalidateQueries({ queryKey: ["client-orders"] });
-      onOpenChange(false);
-    },
-    onError: (error) => {
-      console.error("Cancel at arrival error:", error);
-      toast.error("Erreur lors de l'annulation");
-    },
-  });
-
   if (!order) return null;
 
   const isMultiZone = deliveryRequests.length > 1;
@@ -388,7 +316,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
                 <div className="space-y-2">
                   <Button
                     onClick={() => payBalance.mutate()}
-                    disabled={payBalance.isPending || cancelAtArrival.isPending}
+                    disabled={payBalance.isPending}
                     className="w-full bg-green-600 hover:bg-green-700"
                     size="lg"
                   >
@@ -402,15 +330,11 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
 
                   <Button
                     variant="destructive"
-                    onClick={() => cancelAtArrival.mutate()}
-                    disabled={payBalance.isPending || cancelAtArrival.isPending}
+                    onClick={() => handleCancelClick()}
+                    disabled={payBalance.isPending}
                     className="w-full"
                   >
-                    {cancelAtArrival.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <XCircle className="h-4 w-4 mr-2" />
-                    )}
+                    <XCircle className="h-4 w-4 mr-2" />
                     Annuler la commande
                   </Button>
                 </div>

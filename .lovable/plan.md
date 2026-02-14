@@ -1,55 +1,70 @@
 
+# Correction du flux de retour produit
 
-# Nettoyage des donnees de test et correction du remboursement a 0 FCFA
+## Probleme identifie
 
-## 1. Suppression du remboursement inutile a 0 FCFA
+La contrainte CHECK sur `delivery_requests.status` n'autorise que ces valeurs :
+`pending, assigned, in_progress, picked_up, en_route_client, arrived, delivered, cancelled`
 
-Quand le client annule apres l'arrivee du livreur, l'acompte est entierement consomme pour payer le livreur et la commission plateforme. Il n'y a rien a rembourser au client. Creer un enregistrement de remboursement avec `net_refund = 0` est inutile et confus.
+Le code essaie d'inserer une livraison retour avec `status: "en_route_vendor"`, ce qui viole cette contrainte. L'insertion echoue silencieusement, et aucune livraison retour n'est creee.
 
-**Correction dans `RequestCancellationDialog.tsx`** : Ne creer un enregistrement `refunds` que si `netRefund > 0`. Pour les annulations apres pickup/arrived, aucun enregistrement de remboursement ne sera cree puisque le client ne recoit rien.
+Le meme probleme se produit quand le livreur clique "Arrive chez vendeur" : le code tente de mettre `status: "arrived_vendor"`, qui est aussi invalide.
 
-## 2. Nettoyage complet des donnees de test
+Les valeurs `en_route_vendor`, `arrived_vendor`, `returned` n'existent que dans la colonne `return_status`, pas dans `status`.
 
-Purger toutes les donnees transactionnelles pour repartir sur une base propre :
+## Solution
+
+Utiliser le champ `status` avec des valeurs standard (`in_progress`, `arrived`, `delivered`) et le champ `return_status` pour le suivi specifique du retour. Le champ `is_return: true` permet de distinguer visuellement les retours des livraisons normales.
+
+### Mapping des etapes retour
+
+```text
+Etape retour           | status       | return_status
+-----------------------|------------- |---------------
+En route vers vendeur  | in_progress  | en_route_vendor
+Arrive chez vendeur    | arrived      | arrived_vendor
+Retour confirme        | delivered    | returned
+```
+
+## Fichiers modifies
+
+### 1. `src/components/orders/RequestCancellationDialog.tsx`
+
+Corriger l'insertion de la livraison retour :
+- `status: "in_progress"` au lieu de `"en_route_vendor"`
+- Ajouter `return_status: "en_route_vendor"` pour le suivi
+
+### 2. `src/components/driver/DriverDeliveriesSection.tsx`
+
+**Query `my-deliveries`** : La livraison retour avec `status: "in_progress"` sera automatiquement visible (pas filtree).
+
+**`getNextStatusAction`** : Pour les retours (`is_return: true`), utiliser `return_status` au lieu de `status` pour determiner l'etape :
+- `return_status === "en_route_vendor"` : Bouton "Arrive chez vendeur" (met `status: "arrived"` + `return_status: "arrived_vendor"`)
+- `return_status === "arrived_vendor"` : Pas d'action (vendeur confirme)
+- `return_status === "returned"` : Pas d'action
+
+**`updateStatus` mutation** : Adapter pour les retours -- mettre a jour `status` ET `return_status` simultanement.
+
+### 3. `src/components/shops/tabs/OrdersTab.tsx`
+
+Quand le vendeur confirme la reception du retour :
+- `status: "delivered"` + `return_status: "returned"` sur la livraison retour
+- `return_status: "returned"` sur la livraison originale
+- Restauration du stock produit
+
+### 4. Migration SQL
+
+Nettoyer les donnees de test pour pouvoir retester :
 
 ```sql
--- Ordre de suppression respectant les cles etrangeres
 DELETE FROM pending_payouts;
 DELETE FROM refunds;
 DELETE FROM client_penalties;
+UPDATE orders SET cancellation_id = NULL WHERE cancellation_id IS NOT NULL;
 DELETE FROM cancellations;
-UPDATE orders SET cancellation_id = NULL;
 DELETE FROM delivery_requests;
 DELETE FROM order_items;
 DELETE FROM payment_transactions;
 DELETE FROM orders;
 DELETE FROM service_bookings;
 ```
-
-Les donnees preservees : profils, boutiques, produits, services, tokens, configurations.
-
-## 3. Scenario de test de bout en bout
-
-Apres le nettoyage, le flux complet a tester :
-
-```text
-1. Client passe commande -> paie l'acompte via Paystack
-2. Livreur accepte et progresse : pending -> assigned -> picked_up -> en_route_client -> arrived
-3. Client annule (pop-up avec motif d'annulation)
-4. Systeme cree :
-   - Annulation avec motif
-   - Pending payout pour le livreur (driver_earnings)
-   - Livraison retour "Retour colis ORD-XXXX vers Boutique YYYY" (is_return=true, status=en_route_vendor)
-   - PAS de remboursement (net_refund serait 0)
-5. Admin voit le payout en attente et valide
-6. Livreur voit la livraison retour avec les etapes :
-   - en_route_vendor -> Bouton "Arrive chez vendeur"
-   - arrived_vendor -> "En attente de confirmation vendeur"
-7. Vendeur confirme la reception -> stock restaure
-8. Livreur peut prendre d'autres livraisons
-```
-
-## Fichiers modifies
-
-1. `src/components/orders/RequestCancellationDialog.tsx` -- Ne pas creer de refund quand net_refund = 0
-2. Migration SQL (donnees) -- Purge des donnees transactionnelles de test

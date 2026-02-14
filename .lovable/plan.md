@@ -1,67 +1,69 @@
 
+# Corrections de coherence du flux complet
 
-# Corrections de l'affichage retour (livreur) et recap vendeur
+## Problemes identifies
 
-## Probleme 1 : "Livrée" au lieu de "Retourné" chez le livreur
+### 1. OrderDetailSheet (vue vendeur) : mauvaise source pour le return_status
 
-Dans l'historique du livreur (`DriverDeliveriesSection.tsx`), la fonction `getStatusBadge` ne regarde que `delivery.status`. Pour une livraison retour terminee, `status = "delivered"` (contrainte DB), donc le badge affiche "Livrée".
+Le `OrderDetailSheet` (ligne 36-48) requete le `return_status` depuis la livraison **originale** (`is_return: false`). Or, la livraison originale n'a que `return_status: "returning"` (defini a l'annulation). Le suivi reel du retour (`en_route_vendor` -> `arrived_vendor` -> `returned`) est stocke sur la livraison **retour** (`is_return: true`).
 
-**Correction** : Dans le rendu de l'historique (ligne 647), verifier `delivery.is_return` et `delivery.return_status === "returned"` pour afficher un badge "Retourné" (vert) au lieu de "Livrée".
+Resultat : le `CancellationBanner` ne montre aucune etape active pendant le retour, car `"returning"` ne correspond a aucun des 3 steps du tracker.
 
-## Probleme 2 : Recap vendeur incomplet et badge paiement incorrect
+**Correction** : Modifier la requete pour chercher la livraison retour (`is_return: true`) au lieu de l'originale. La livraison retour contient le `return_status` precis (`en_route_vendor`, `arrived_vendor`, `returned`).
 
-### 2a. Badge "Payé intégralement" incorrect
+### 2. Driver : "Livraison terminée" affiche pour les retours completes
 
-Le `OrderDetailSheet` recoit l'objet `order` depuis `OrdersTab`. La commande a `payment_status: "partial"` (acompte payé), mais le badge affiche "Payé intégralement". Cela vient probablement du fait que le trigger de synchronisation a mis a jour le `payment_status` a tort lors de la livraison retour. Il faut verifier les donnees en base, mais cote UI le `PaymentStatusBadge` est correct ("partial" = "Acompte payé"). Le probleme est donc dans les donnees.
+Ligne 576-581 de `DriverDeliveriesSection.tsx`, dans la section "Mes livraisons" actives :
 
-**Verification** : Requete SQL pour confirmer le `payment_status` actuel. Si les donnees sont correctes ("partial"), alors c'est un bug d'affichage lie au passage de donnees.
+```
+{delivery.status === "delivered" && (
+  <div>Livraison terminée</div>
+)}
+```
 
-### 2b. Statut retour manquant dans le recap vendeur
+Ce bloc ne verifie pas `is_return`. Pour un retour complete (`status: "delivered"`), il afficherait "Livraison terminée" au lieu de "Retour terminé". Bien que les retours completes passent normalement a l'historique, il vaut mieux securiser ce cas.
 
-Le `CancellationBanner` recoit `returnStatus={order.return_status}` mais l'objet `order` passe par `OrdersTab` ne contient PAS de champ `return_status`. Ce champ existe sur `delivery_requests`, pas sur `orders`.
+**Correction** : Ajouter une condition `!delivery.is_return` pour le message standard, et afficher "Retour confirmé" si `is_return`.
 
-**Correction dans `OrderDetailSheet.tsx`** : Ajouter une requete pour recuperer les `delivery_requests` liees a la commande afin d'extraire le `return_status` de la livraison originale (ou de la livraison retour). Passer ce statut au `CancellationBanner`.
+### 3. Driver : gains affiches pour les retours dans l'historique
+
+Lignes 663-668 : les gains sont affiches si `delivery.driver_earnings > 0 && delivery.status === "delivered"`. Un retour pourrait heriter de `driver_earnings` de la requete originale (selon la creation). Il faut exclure les retours (`is_return`) de l'affichage des gains pour eviter un double comptage.
+
+**Correction** : Ajouter `&& !delivery.is_return` a la condition d'affichage des gains.
+
+### 4. Driver : total du jour inclut potentiellement les retours
+
+Lignes 615-620 : le calcul du total quotidien filtre sur `status === "delivered"` sans exclure `is_return`. Les retours completes (avec `status: "delivered"`) pourraient gonfler le total.
+
+**Correction** : Ajouter `&& !d.is_return` au filtre.
 
 ## Fichiers modifies
 
-### 1. `src/components/driver/DriverDeliveriesSection.tsx`
+### `src/components/orders/OrderDetailSheet.tsx`
 
-Dans la section historique (ligne ~647), remplacer l'appel simple a `getStatusBadge(delivery.status)` par une logique conditionnelle :
+Ligne 43 : changer `eq("is_return", false)` en `eq("is_return", true)` pour recuperer le `return_status` de la livraison retour.
 
+### `src/components/driver/DriverDeliveriesSection.tsx`
+
+- Ligne 576-581 : Conditionner le message "Livraison terminée" / "Retour confirmé" sur `is_return`
+- Ligne 616-618 : Exclure `is_return` du filtre des gains du jour
+- Ligne 663-665 : Exclure `is_return` de l'affichage des gains dans l'historique
+
+## Resume de la coherence
+
+Apres ces corrections, le flux complet sera coherent :
+
+```text
+Etape                    | Client              | Livreur              | Vendeur
+-------------------------|----------------------|----------------------|------------------------
+Commande creee           | Pending              | -                    | Commande recue
+Acompte paye             | Acompte paye         | -                    | Acompte paye
+Livreur accepte          | Assignee             | Acceptee             | En cours
+Pickup                   | Recuperee            | Colis recupere       | En transit
+En route client          | En route             | Vers client          | En transit
+Arrivee                  | Boutons payer/annuler| Attente client       | En transit
+Client annule            | Annulee              | Notifie, retour      | Annulee + retour
+Retour en route          | -                    | Badge "Retour"       | Tracker: En route
+Retour arrive vendeur    | -                    | Attente vendeur      | Tracker: Arrive
+Vendeur confirme         | -                    | Badge "Retourné"     | Tracker: Retourné
 ```
-Si delivery.is_return && delivery.return_status === "returned" :
-  -> Badge vert "Retourné"
-Si delivery.is_return && delivery.return_status !== "returned" :
-  -> Badge ambre "Retour" (avec sous-statut)
-Sinon :
-  -> getStatusBadge(delivery.status) existant
-```
-
-Aussi, ajouter `return_status, is_return` dans la query `delivery-history` si pas deja present (le `*` les inclut deja).
-
-### 2. `src/components/orders/OrderDetailSheet.tsx`
-
-Ajouter une requete pour recuperer le `return_status` depuis `delivery_requests` :
-
-```typescript
-const { data: deliveryData } = useQuery({
-  queryKey: ["order-delivery-status", order?.id],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("delivery_requests")
-      .select("status, return_status, is_return")
-      .eq("order_id", order.id)
-      .eq("is_return", false)
-      .maybeSingle();
-    return data;
-  },
-  enabled: !!order?.id && order?.status === "cancelled",
-});
-```
-
-Passer `deliveryData?.return_status` au `CancellationBanner` au lieu de `order.return_status`.
-
-### 3. Verification des donnees
-
-Verifier en base que le `payment_status` de la commande est bien "partial" et non "paid" (un trigger pourrait l'avoir change par erreur lors du retour).
-

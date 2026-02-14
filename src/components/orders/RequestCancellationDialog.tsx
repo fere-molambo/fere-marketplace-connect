@@ -284,18 +284,17 @@ export function RequestCancellationDialog({
           }
         }
 
-        // Create refund record if advance was paid
-        if (["paid", "partial"].includes(order.payment_status)) {
+        // Create refund record only if there's actually something to refund
+        if (["paid", "partial"].includes(order.payment_status) && statusInfo.refundType === "full") {
           const paidAmount = order.advance_amount || 0;
-          const netRefund = statusInfo.refundType === "full" ? paidAmount : 0;
 
           if (paidAmount > 0) {
             await supabase.from("refunds").insert({
               order_id: order.id,
               user_id: user.id,
               amount: paidAmount,
-              net_refund: netRefund,
-              transaction_fee_deducted: statusInfo.refundType === "product_only" ? paidAmount : 0,
+              net_refund: paidAmount,
+              transaction_fee_deducted: 0,
               original_payment_reference: order.payment_reference,
               status: "pending",
               refund_status: "pending",

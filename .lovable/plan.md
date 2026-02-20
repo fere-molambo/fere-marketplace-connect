@@ -1,82 +1,309 @@
 
 
-# 1. Correction vue vendeur pour commandes annulees + 2. Instructions mobile
+# 1. Nettoyage base de donnees + 2. Prompt livraison mobile
 
-## Partie 1 : Simplifier la vue vendeur pour les commandes annulees
+## Partie 1 : Nettoyage des donnees transactionnelles
 
-### Probleme
-Quand le vendeur ouvre le detail d'une commande annulee, il voit des badges de paiement ("Acompte paye") et des informations financieres qui ne le concernent pas. Le vendeur a seulement besoin de savoir :
-- Que la commande a ete annulee
-- Quand elle a ete annulee
-- Le motif d'annulation
-- Par qui elle a ete annulee
-- L'etat du retour du produit
+Donnees actuelles a supprimer :
+- 13 commandes (orders)
+- 14 articles (order_items)
+- 10 livraisons (delivery_requests)
+- 3 annulations (cancellations)
+- 1 remboursement (refunds)
+- 6 versements (pending_payouts)
+- 13 transactions de paiement (payment_transactions)
 
-### Corrections dans `OrderDetailSheet.tsx`
+Les tokens et achats de tokens seront preserves.
 
-1. **Masquer le badge `PaymentStatusBadge`** quand `isVendorView` est true et que la commande est annulee
-2. **Masquer le bloc "Recapitulatif financier"** pour le vendeur sur les commandes annulees (pas d'acompte, pas de "reste a payer" - le vendeur n'a rien recu)
-3. **Garder visible** : le `CancellationBanner` avec motif, date, annuleur, et le tracker de retour
+### Sequence SQL (ordre important pour les FK)
 
-### Corrections dans `CancellationBanner.tsx`
+```sql
+-- 1. Nullifier les references circulaires
+UPDATE orders SET cancellation_id = NULL WHERE cancellation_id IS NOT NULL;
 
-Ajouter un prop `isVendorView` pour masquer les consequences financieres (remboursement, penalite) qui ne concernent que l'admin/client.
+-- 2. Supprimer dans l'ordre des dependances
+DELETE FROM pending_payouts;
+DELETE FROM refunds;
+DELETE FROM client_penalties;
+DELETE FROM cancellations;
+DELETE FROM order_items;
+DELETE FROM delivery_requests;
+DELETE FROM payment_transactions WHERE payment_type IN ('order', 'order_advance', 'order_balance');
+DELETE FROM orders;
+```
 
----
-
-## Partie 2 : Instructions Bolt.new pour les applications mobiles
-
-Deux documents d'instructions seront crees dans le dossier `docs/` :
-
-### `docs/BOLT_DRIVER_APP.md` - Application Livreur
-Contenu detaille incluant :
-- Connexion Supabase (URL + anon key)
-- Authentification livreur (sign in, role `livreur`)
-- Dashboard livreur : toggle disponibilite, mise a jour GPS en temps reel
-- Livraisons en attente : liste filtree par zone, acceptation
-- Livraison active : flux 7 etapes (pending -> assigned -> in_progress -> picked_up -> en_route_client -> arrived -> delivered)
-- Flux retour : 3 etapes (en_route_vendor -> arrived_vendor -> returned) via `return_status`
-- Annulation par le livreur (avec motif)
-- Historique des livraisons avec gains
-- Tokens : achat et suivi du solde
-- Subscriptions realtime sur `delivery_requests`
-- Toutes les requetes Supabase necessaires avec exemples de code
-
-### `docs/BOLT_CLIENT_APP.md` - Application Client
-Contenu detaille incluant :
-- Connexion Supabase (URL + anon key)
-- Authentification client (sign up/in, role `client`)
-- Catalogue : produits et services avec filtres
-- Panier persistant (localStorage)
-- Systeme de prix : fixe, negoce (prix propose), en gros (intervalles)
-- Checkout : selection adresse, calcul livraison, paiement acompte via Paystack
-- Paiement en 2 etapes : acompte (frais livraison + commissions) puis solde a l'arrivee
-- Suivi commande en temps reel (7 etapes livraison)
-- Actions client a l'arrivee : payer le solde ou annuler
-- Annulation : motif, piece jointe, remboursement selon le moment
-- Reservation de services avec calendrier
-- Profil, adresses de livraison, favoris
-- Messagerie
-- Subscriptions realtime sur `orders` et `delivery_requests`
-
-### Details techniques dans les fichiers
-
-Chaque fichier contiendra :
-- Les schemas de tables exactes avec les colonnes pertinentes
-- Les workflows d'etats (state machines) avec diagrammes ASCII
-- Les exemples de code TypeScript/Supabase prets a copier
-- Les regles metier critiques (ex: service = cash uniquement, acompte = en ligne)
-- Les edge functions a appeler avec parametres exacts
-- Les subscriptions realtime a configurer
+Les donnees preservees : profiles, shops, products, services, user_tokens, token_transactions (achats).
 
 ---
 
-## Resume des fichiers modifies
+## Partie 2 : Prompt pour Bolt.new — Suivi livraison mobile livreur
 
-| Fichier | Action |
-|---------|--------|
-| `src/components/orders/OrderDetailSheet.tsx` | Masquer badges paiement et recap financier pour le vendeur sur commandes annulees |
-| `src/components/orders/CancellationBanner.tsx` | Ajouter prop `isVendorView` pour masquer les infos financieres |
-| `docs/BOLT_DRIVER_APP.md` | Nouveau - Instructions completes app livreur |
-| `docs/BOLT_CLIENT_APP.md` | Nouveau - Instructions completes app client |
+Voici le prompt pret a copier dans Bolt.new. Il reprend exactement la logique implementee dans le dashboard web.
+
+---
+
+### PROMPT A COPIER :
+
+---
+
+**Integre le systeme de suivi de livraisons pour le livreur. Voici les specs completes :**
+
+#### Connexion Supabase
+
+```typescript
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(
+  "https://jajfuajmkjulujnwfqen.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphamZ1YWpta2p1bHVqbndmcWVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjY3MzUsImV4cCI6MjA3OTA0MjczNX0.ME5XNJsLbB0InLeKexBcIGe5sxZZsd6Jg2W9oB0IBEQ"
+);
+```
+
+#### 1. Livraisons disponibles
+
+Le livreur voit les livraisons en attente dans ses zones actives.
+
+```typescript
+// Recuperer les zones du livreur
+const { data: driverZones } = await supabase
+  .from("driver_zones")
+  .select("zone_id")
+  .eq("driver_id", userId)
+  .eq("is_active", true);
+const zoneIds = driverZones?.map(z => z.zone_id) || [];
+
+// Recuperer les livraisons disponibles
+const { data: pending } = await supabase
+  .from("delivery_requests")
+  .select("*, delivery_zones(name, city)")
+  .eq("status", "pending")
+  .or(`zone_id.in.(${zoneIds.join(",")}),zone_id.is.null`)
+  .order("created_at", { ascending: false });
+```
+
+Chaque livraison contient :
+- `pickup_points` (jsonb array) : `[{ shop_name, lat, lng, address }]` — points de collecte
+- `delivery_point` (jsonb) : `{ address, lat, lng, recipient_name, recipient_phone }` — point de livraison
+- `driver_earnings` : gains du livreur en FCFA
+- `delivery_fee` : frais de livraison total
+- `total_distance_meters` : distance estimee
+
+Affiche pour chaque livraison disponible : la zone, la distance (km), les gains, les points de collecte et le point de livraison. Bouton "Accepter cette livraison".
+
+#### 2. Accepter une livraison
+
+```typescript
+const { error } = await supabase
+  .from("delivery_requests")
+  .update({
+    driver_id: userId,
+    status: "assigned",
+    assigned_at: new Date().toISOString(),
+  })
+  .eq("id", requestId)
+  .eq("status", "pending"); // Protection concurrence
+```
+
+Le `.eq("status", "pending")` empeche deux livreurs d'accepter la meme livraison.
+
+#### 3. Livraison active — Flux 7 etapes
+
+```
+pending -> assigned -> in_progress -> picked_up -> en_route_client -> arrived -> delivered
+```
+
+Le livreur avance le statut de l'etape 2 (assigned) a l'etape 6 (arrived). L'etape 7 (delivered) est AUTOMATIQUE quand le client paie le solde.
+
+| Etape | Status | Action livreur | Timestamp |
+|-------|--------|---------------|-----------|
+| 2 | assigned | Bouton "Demarrer vers vendeur" | assigned_at |
+| 3 | in_progress | Bouton "Colis recupere" + Navigation GPS | started_at |
+| 4 | picked_up | Bouton "En route vers client" | picked_up_at |
+| 5 | en_route_client | Bouton "Arrive chez client" + Navigation GPS | en_route_client_at |
+| 6 | arrived | AUCUN bouton — Message "En attente du client" | arrived_at_client_at |
+| 7 | delivered | AUTOMATIQUE — "Livraison terminee" | delivered_at |
+
+Mise a jour du statut :
+
+```typescript
+const updates: Record<string, any> = { status: newStatus };
+if (newStatus === "in_progress") updates.started_at = new Date().toISOString();
+if (newStatus === "picked_up") updates.picked_up_at = new Date().toISOString();
+if (newStatus === "en_route_client") updates.en_route_client_at = new Date().toISOString();
+if (newStatus === "arrived") updates.arrived_at_client_at = new Date().toISOString();
+
+const { error } = await supabase
+  .from("delivery_requests")
+  .update(updates)
+  .eq("id", requestId)
+  .eq("driver_id", userId);
+```
+
+**CRITIQUE : Le livreur ne marque JAMAIS "delivered".** A l'etape `arrived`, affiche un message : "En attente de verification par le client. Le client doit verifier le colis et payer le solde via Paystack. La livraison sera automatiquement marquee comme terminee." Affiche aussi les gains du livreur.
+
+#### 4. Affichage de la livraison active
+
+Pour chaque livraison active, affiche :
+- Le badge de statut (couleurs differentes par etape)
+- Les points de collecte avec bouton navigation GPS (ouvrir Google Maps/Waze avec les coordonnees lat/lng)
+- Le point de livraison avec nom + telephone du destinataire (lien `tel:`)
+- Le bouton d'action pour l'etape suivante
+- A l'etape `arrived` : message d'attente en jaune, pas de bouton
+
+#### 5. Flux de retour (commande annulee apres pickup)
+
+Quand le client annule apres le pickup, le systeme cree automatiquement une nouvelle livraison de retour (`is_return: true`). Le livreur la voit dans ses livraisons actives.
+
+Identifie les retours par `delivery.is_return === true`. Affiche un badge ambre "Retour" au lieu du badge standard.
+
+Le retour suit 3 etapes avec un mapping technique special (pour contourner les contraintes CHECK de la DB) :
+
+| Etape retour | `status` (DB) | `return_status` (DB) | Action livreur |
+|-------------|--------------|---------------------|----------------|
+| En route vendeur | in_progress | en_route_vendor | Bouton "Arrive chez vendeur" |
+| Arrive vendeur | arrived | arrived_vendor | Message "En attente de confirmation du vendeur" |
+| Retourne | delivered | returned | "Retour confirme" (aucune action) |
+
+Mise a jour pour un retour :
+
+```typescript
+// Arrivee chez le vendeur
+const { error } = await supabase
+  .from("delivery_requests")
+  .update({
+    status: "arrived",
+    return_status: "arrived_vendor",
+    arrived_at_client_at: new Date().toISOString(),
+  })
+  .eq("id", requestId)
+  .eq("driver_id", userId);
+```
+
+Le livreur ne peut PAS marquer "retourne". C'est le vendeur qui confirme sur le dashboard web.
+
+#### 6. Historique des livraisons
+
+```typescript
+const { data: history } = await supabase
+  .from("delivery_requests")
+  .select("*, delivery_zones(name, city), order:orders!order_id(order_number)")
+  .eq("driver_id", userId)
+  .in("status", ["delivered", "cancelled"])
+  .order("created_at", { ascending: false })
+  .limit(50);
+```
+
+Pour chaque livraison dans l'historique :
+- Badge vert "Livree" ou rouge "Annulee" ou vert "Retourne" (si `is_return && return_status === "returned"`)
+- Date
+- Numero de commande
+- Gains (seulement si `!is_return` ET `status === "delivered"` ou `status === "cancelled"` avec `delivery_fee_kept`)
+- Points de collecte et livraison
+
+#### 7. Recettes du livreur (versements)
+
+Recupere les infos de versement pour chaque livraison dans l'historique :
+
+```typescript
+const deliveryIds = history.map(d => d.id);
+const { data: payouts } = await supabase
+  .from("pending_payouts")
+  .select("delivery_request_id, status, amount")
+  .in("delivery_request_id", deliveryIds)
+  .eq("recipient_id", userId);
+```
+
+Affiche a cote de chaque livraison un badge de versement :
+- `pending` -> Badge "En attente" (gris)
+- `processing` -> Badge "En cours" (bleu)
+- `paid` -> Badge "Paye" (vert)
+
+Calcul du total du jour :
+
+```typescript
+const today = new Date().toDateString();
+const todayEarnings = history
+  .filter(d => {
+    const date = new Date(d.delivered_at || d.created_at).toDateString();
+    return date === today && !d.is_return && d.status === "delivered";
+  })
+  .reduce((sum, d) => sum + (d.driver_earnings || 0), 0);
+```
+
+Affiche le total du jour en haut de l'historique.
+
+**Regle : Les retours (`is_return: true`) ne generent PAS de gains et ne sont PAS comptes dans le total.**
+
+#### 8. Annulation par le livreur
+
+Le livreur peut annuler seulement avant d'avoir recupere le colis (statuts `assigned` ou `in_progress`).
+
+```typescript
+// Recuperer les motifs
+const { data: reasons } = await supabase
+  .from("cancellation_reasons")
+  .select("id, label")
+  .eq("is_active", true);
+
+// Creer l'annulation
+await supabase.from("cancellations").insert({
+  order_id: delivery.order_id,
+  cancelled_by: userId,
+  canceller_role: "driver",
+  reason_id: selectedReasonId,
+  custom_reason: customReasonText,
+  status_at_cancellation: delivery.status,
+  requires_return: false,
+});
+
+// Mettre a jour la livraison
+await supabase
+  .from("delivery_requests")
+  .update({ status: "cancelled" })
+  .eq("id", delivery.id)
+  .eq("driver_id", userId);
+```
+
+#### 9. Realtime — Ecouter les mises a jour
+
+```typescript
+const channel = supabase
+  .channel("driver-deliveries")
+  .on("postgres_changes", {
+    event: "*",
+    schema: "public",
+    table: "delivery_requests",
+  }, (payload) => {
+    // Rafraichir toutes les listes (disponibles, actives, historique)
+    if (payload.eventType === "UPDATE" && payload.new.driver_id === userId) {
+      if (payload.new.status === "delivered") {
+        // Notification: "Livraison terminee ! Le client a paye le solde."
+      } else if (payload.new.status === "cancelled") {
+        // Notification: "Commande annulee par le client. Retour du colis a initier."
+      }
+    }
+  })
+  .subscribe();
+```
+
+#### 10. Tables utilisees
+
+| Table | Usage |
+|-------|-------|
+| delivery_requests | Livraisons (disponibles, actives, historique, retours) |
+| delivery_zones | Zones geographiques |
+| driver_zones | Zones assignees au livreur |
+| orders | Infos commande (numero, statut paiement) |
+| cancellation_reasons | Motifs d'annulation |
+| cancellations | Enregistrer les annulations |
+| pending_payouts | Suivi des versements/recettes |
+| profiles | Profil livreur, position GPS, disponibilite |
+
+---
+
+## Resume des actions
+
+| Action | Detail |
+|--------|--------|
+| Nettoyage DB | Migration SQL pour purger toutes les donnees transactionnelles |
+| Prompt mobile | Prompt complet ci-dessus, pret a copier dans Bolt.new |
 

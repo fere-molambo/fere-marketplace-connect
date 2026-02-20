@@ -2966,10 +2966,24 @@ export type Database = {
         | "commission_payout"
         | "tokens"
         | "order_balance"
+      piece_identite_client_type:
+        | "carte_etudiant"
+        | "cni"
+        | "passeport"
+        | "permis_conduire"
       piece_identite_type: "cni" | "passeport" | "permis"
       presence_type: "presentiel" | "distance" | "hybride"
+      sexe: "homme" | "femme"
       statut_legal_type: "particulier" | "entreprise"
+      statut_matrimonial: "celibataire" | "marie" | "divorce" | "veuf"
+      statut_professionnel:
+        | "etudiant"
+        | "salarie"
+        | "entrepreneur"
+        | "sans_emploi"
+        | "retraite"
       story_visibility: "public" | "clients_only" | "private"
+      tranche_age: "18-25" | "26-35" | "36-45" | "46-55" | "55+"
       type_contrat_type: "cdd" | "cdi" | "prestataire"
       type_offre_type: "produits" | "services" | "les_deux"
     }
@@ -3134,10 +3148,26 @@ export const Constants = {
         "tokens",
         "order_balance",
       ],
+      piece_identite_client_type: [
+        "carte_etudiant",
+        "cni",
+        "passeport",
+        "permis_conduire",
+      ],
       piece_identite_type: ["cni", "passeport", "permis"],
       presence_type: ["presentiel", "distance", "hybride"],
+      sexe: ["homme", "femme"],
       statut_legal_type: ["particulier", "entreprise"],
+      statut_matrimonial: ["celibataire", "marie", "divorce", "veuf"],
+      statut_professionnel: [
+        "etudiant",
+        "salarie",
+        "entrepreneur",
+        "sans_emploi",
+        "retraite",
+      ],
       story_visibility: ["public", "clients_only", "private"],
+      tranche_age: ["18-25", "26-35", "36-45", "46-55", "55+"],
       type_contrat_type: ["cdd", "cdi", "prestataire"],
       type_offre_type: ["produits", "services", "les_deux"],
     },

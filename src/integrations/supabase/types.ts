@@ -1407,6 +1407,51 @@ export type Database = {
           },
         ]
       }
+      product_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          id: string
+          product_id: string
+          rating: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          product_id: string
+          rating: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          product_id?: string
+          rating?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           auto_validation: boolean | null
@@ -1755,30 +1800,53 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          product_review_id: string | null
           reply: string
-          review_id: string
+          review_id: string | null
+          service_review_id: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          product_review_id?: string | null
           reply: string
-          review_id: string
+          review_id?: string | null
+          service_review_id?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          product_review_id?: string | null
           reply?: string
-          review_id?: string
+          review_id?: string | null
+          service_review_id?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "review_replies_product_review_id_fkey"
+            columns: ["product_review_id"]
+            isOneToOne: false
+            referencedRelation: "product_reviews"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "review_replies_review_id_fkey"
             columns: ["review_id"]
             isOneToOne: false
             referencedRelation: "shop_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_replies_service_review_id_fkey"
+            columns: ["service_review_id"]
+            isOneToOne: false
+            referencedRelation: "service_reviews"
             referencedColumns: ["id"]
           },
           {
@@ -1979,6 +2047,51 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      service_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          id: string
+          rating: number
+          service_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating: number
+          service_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating?: number
+          service_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_reviews_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       services: {
         Row: {

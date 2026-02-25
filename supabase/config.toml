@@ -23,3 +23,6 @@ verify_jwt = true
 
 [functions.purchase-tokens]
 verify_jwt = false
+
+[functions.orange-money-payment]
+verify_jwt = false

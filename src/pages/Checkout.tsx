@@ -158,13 +158,11 @@ export default function Checkout() {
     }, 0);
   }, 0);
 
-  // Paystack fees (1%) on both advance and balance
-  const advanceRaw = totalDelivery + deliveryCommissionFere + totalProductCommission;
-  const advancePaystackFees = Math.ceil(advanceRaw * 0.01);
-  const advanceAmount = advanceRaw + advancePaystackFees;
+  // Advance = delivery + commissions (no transaction fees with Orange Money)
+  const advanceAmount = totalDelivery + deliveryCommissionFere + totalProductCommission;
 
-  const balancePaystackFees = Math.ceil(totalAmount * 0.01);
-  const balanceAmount = totalAmount + balancePaystackFees;
+  // Balance = product subtotal (no transaction fees)
+  const balanceAmount = totalAmount;
 
   // Create orders mutation (1 order per vendor)
   const createOrders = useMutation({
@@ -191,11 +189,8 @@ export default function Checkout() {
 
         // Calculate per-shop advance & balance
         const shopDeliveryCommission = Math.round(shopDeliveryFee * ((platformSettings?.delivery_commission_fere || 20) / 100));
-        const shopAdvanceRaw = shopDeliveryFee + shopDeliveryCommission + shopCommission;
-        const shopAdvancePaystackFees = Math.ceil(shopAdvanceRaw * 0.01);
-        const shopAdvance = shopAdvanceRaw + shopAdvancePaystackFees;
-        const shopBalancePaystackFees = Math.ceil(shopSubtotal * 0.01);
-        const shopBalance = shopSubtotal + shopBalancePaystackFees;
+        const shopAdvance = shopDeliveryFee + shopDeliveryCommission + shopCommission;
+        const shopBalance = shopSubtotal;
 
         // Generate order number
         const { data: orderNumber, error: orderNumError } = await supabase.rpc("generate_order_number");
@@ -292,9 +287,9 @@ export default function Checkout() {
       return { orders: createdOrders, paymentGroupId };
     },
     onSuccess: async ({ orders, paymentGroupId }) => {
-      // Initialize Paystack payment for the advance amount only
+      // Initialize Orange Money payment for the advance amount
       try {
-        const response = await supabase.functions.invoke("paystack-payment", {
+        const response = await supabase.functions.invoke("orange-money-payment", {
           body: {
             action: "initialize",
             amount: advanceAmount,
@@ -307,13 +302,18 @@ export default function Checkout() {
               order_count: orders.length,
               is_advance: true,
             },
-            callback_url: `${window.location.origin}/payment/callback`,
+            return_url: `${window.location.origin}/payment/callback`,
+            cancel_url: `${window.location.origin}/checkout`,
           },
         });
 
-        if (response.data?.authorization_url) {
+        if (response.data?.payment_url) {
+          // Store for verification on callback
+          sessionStorage.setItem('om_order_id', response.data.order_id);
+          sessionStorage.setItem('om_pay_token', response.data.pay_token);
+          sessionStorage.setItem('om_payment_type', 'order');
           clearCart();
-          window.location.href = response.data.authorization_url;
+          window.location.href = response.data.payment_url;
         } else {
           throw new Error("Erreur d'initialisation du paiement");
         }
@@ -420,8 +420,6 @@ export default function Checkout() {
                   balanceAmount={balanceAmount}
                   deliveryCommission={deliveryCommissionFere}
                   productCommission={totalProductCommission}
-                  advancePaystackFees={advancePaystackFees}
-                  balancePaystackFees={balancePaystackFees}
                 />
 
                 <Button

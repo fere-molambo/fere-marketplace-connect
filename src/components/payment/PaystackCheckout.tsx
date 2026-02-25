@@ -4,8 +4,8 @@ import { Loader2, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-interface PaystackCheckoutProps {
-  amount: number; // Amount in FCFA
+interface OrangeMoneyCheckoutProps {
+  amount: number; // Amount in FCFA (integer, no x100)
   email: string;
   paymentType: 'order' | 'service_booking' | 'subscription' | 'commission_payout';
   relatedId?: string;
@@ -30,7 +30,7 @@ export function PaystackCheckout({
   buttonVariant = "default",
   buttonClassName,
   disabled = false,
-}: PaystackCheckoutProps) {
+}: OrangeMoneyCheckoutProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePayment = async () => {
@@ -66,7 +66,7 @@ export function PaystackCheckout({
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('paystack-payment', {
+      const { data, error } = await supabase.functions.invoke('orange-money-payment', {
         body: {
           action: 'initialize',
           amount,
@@ -74,7 +74,8 @@ export function PaystackCheckout({
           payment_type: paymentType,
           related_id: relatedId,
           metadata,
-          callback_url: `${window.location.origin}/payment/callback`,
+          return_url: `${window.location.origin}/payment/callback`,
+          cancel_url: `${window.location.origin}${window.location.pathname}`,
         },
       });
 
@@ -86,15 +87,13 @@ export function PaystackCheckout({
         throw new Error(data.error || 'Échec de l\'initialisation du paiement');
       }
 
-      // Store reference for callback verification
-      sessionStorage.setItem('paystack_reference', data.reference);
-      sessionStorage.setItem('paystack_payment_type', paymentType);
-      if (relatedId) {
-        sessionStorage.setItem('paystack_related_id', relatedId);
-      }
+      // Store for callback verification
+      sessionStorage.setItem('om_order_id', data.order_id);
+      sessionStorage.setItem('om_pay_token', data.pay_token);
+      sessionStorage.setItem('om_payment_type', paymentType);
 
-      // Redirect to Paystack checkout
-      window.location.href = data.authorization_url;
+      // Redirect to Orange Money payment page
+      window.location.href = data.payment_url;
 
     } catch (error: any) {
       console.error('Payment error:', error);

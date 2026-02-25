@@ -119,7 +119,7 @@ export function OrderSummary({
         </Button>
 
         <p className="text-xs text-center text-muted-foreground">
-          Paiement sécurisé par Paystack
+          Paiement sécurisé par Orange Money
         </p>
       </CardContent>
     </Card>

@@ -26,11 +26,13 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      const reference = searchParams.get('reference') || 
-                       searchParams.get('trxref') || 
-                       sessionStorage.getItem('paystack_reference');
+      // Orange Money doesn't put reference in URL params
+      // Use sessionStorage values stored during initialization
+      const orderId = sessionStorage.getItem('om_order_id');
+      const payToken = sessionStorage.getItem('om_pay_token');
+      const paymentType = sessionStorage.getItem('om_payment_type') || 'order';
 
-      if (!reference) {
+      if (!orderId) {
         setResult({
           status: 'error',
           reference: '',
@@ -40,10 +42,11 @@ export default function PaymentCallback() {
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke('paystack-payment', {
+        const { data, error } = await supabase.functions.invoke('orange-money-payment', {
           body: {
             action: 'verify',
-            reference,
+            order_id: orderId,
+            pay_token: payToken,
           },
         });
 
@@ -51,27 +54,25 @@ export default function PaymentCallback() {
           throw new Error(error.message);
         }
 
-        const paymentType = data.metadata?.payment_type || 
-                           sessionStorage.getItem('paystack_payment_type') || 'order';
+        const resolvedPaymentType = data.metadata?.payment_type || paymentType;
         
         setResult({
           status: data.status as PaymentStatus,
-          reference: data.reference,
+          reference: data.reference || orderId,
           amount: data.amount,
           currency: data.currency,
-          paymentType,
+          paymentType: resolvedPaymentType,
         });
 
         // Clear session storage
-        sessionStorage.removeItem('paystack_reference');
-        sessionStorage.removeItem('paystack_payment_type');
-        sessionStorage.removeItem('paystack_related_id');
-        sessionStorage.removeItem('paystack_user_id');
+        sessionStorage.removeItem('om_order_id');
+        sessionStorage.removeItem('om_pay_token');
+        sessionStorage.removeItem('om_payment_type');
 
       } catch (error: any) {
         setResult({
           status: 'error',
-          reference: reference,
+          reference: orderId,
           message: error.message || 'Erreur lors de la vérification du paiement',
         });
       }

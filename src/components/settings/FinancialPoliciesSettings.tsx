@@ -12,7 +12,7 @@ export function FinancialPoliciesSettings() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [penaltyRate, setPenaltyRate] = useState<number>(10);
-  const [maxCashAmount, setMaxCashAmount] = useState<number>(20000);
+  
   const [payoutDelay, setPayoutDelay] = useState<number>(24);
 
   const { data: settings, isLoading } = useQuery({
@@ -20,7 +20,7 @@ export function FinancialPoliciesSettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings")
-        .select("cancellation_penalty_rate, max_cash_order_amount, payout_delay_hours")
+        .select("cancellation_penalty_rate, payout_delay_hours")
         .single();
       if (error) throw error;
       return data;
@@ -30,7 +30,6 @@ export function FinancialPoliciesSettings() {
   useEffect(() => {
     if (settings) {
       setPenaltyRate(settings.cancellation_penalty_rate ?? 10);
-      setMaxCashAmount(settings.max_cash_order_amount ?? 20000);
       setPayoutDelay(settings.payout_delay_hours ?? 24);
     }
   }, [settings]);
@@ -42,7 +41,6 @@ export function FinancialPoliciesSettings() {
         .from("platform_settings")
         .update({
           cancellation_penalty_rate: penaltyRate,
-          max_cash_order_amount: maxCashAmount,
           payout_delay_hours: payoutDelay,
         })
         .eq("id", (await supabase.from("platform_settings").select("id").single()).data?.id);
@@ -92,41 +90,6 @@ export function FinancialPoliciesSettings() {
             </div>
             <p className="text-xs text-muted-foreground">
               Pourcentage du montant de la commande appliqué en pénalité lors d'une annulation abusive
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Paiement cash</CardTitle>
-          <CardDescription>
-            Limitez les risques liés aux paiements à la livraison
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="maxCash">Montant maximum cash (FCFA)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="maxCash"
-                type="number"
-                min="0"
-                step="1000"
-                value={maxCashAmount}
-                onChange={(e) => setMaxCashAmount(Number(e.target.value))}
-                className="w-32"
-              />
-              <span className="text-muted-foreground">FCFA</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Au-delà de ce montant, le paiement en ligne sera obligatoire
-            </p>
-          </div>
-          <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 flex gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-yellow-800">
-              Les utilisateurs avec des pénalités impayées ne pourront pas utiliser le paiement cash
             </p>
           </div>
         </CardContent>

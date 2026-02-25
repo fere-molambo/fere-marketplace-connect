@@ -1274,7 +1274,6 @@ export type Database = {
           logo_footer: string | null
           logo_principal: string | null
           logo_sidebar_collapsed: string | null
-          max_cash_order_amount: number | null
           max_delivery_acceptance_hour: number | null
           partner_logos: Json | null
           payout_delay_hours: number | null
@@ -1313,7 +1312,6 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
-          max_cash_order_amount?: number | null
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           payout_delay_hours?: number | null
@@ -1352,7 +1350,6 @@ export type Database = {
           logo_footer?: string | null
           logo_principal?: string | null
           logo_sidebar_collapsed?: string | null
-          max_cash_order_amount?: number | null
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           payout_delay_hours?: number | null
@@ -1591,15 +1588,7 @@ export type Database = {
             | null
           piece_identite_url: string | null
           presence: Database["public"]["Enums"]["presence_type"] | null
-          sexe: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal: Database["public"]["Enums"]["statut_legal_type"] | null
-          statut_matrimonial:
-            | Database["public"]["Enums"]["client_statut_matrimonial"]
-            | null
-          statut_professionnel:
-            | Database["public"]["Enums"]["client_statut_professionnel"]
-            | null
-          tranche_age: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at: string | null
@@ -1636,15 +1625,7 @@ export type Database = {
             | null
           piece_identite_url?: string | null
           presence?: Database["public"]["Enums"]["presence_type"] | null
-          sexe?: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
-          statut_matrimonial?:
-            | Database["public"]["Enums"]["client_statut_matrimonial"]
-            | null
-          statut_professionnel?:
-            | Database["public"]["Enums"]["client_statut_professionnel"]
-            | null
-          tranche_age?: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
@@ -1681,15 +1662,7 @@ export type Database = {
             | null
           piece_identite_url?: string | null
           presence?: Database["public"]["Enums"]["presence_type"] | null
-          sexe?: Database["public"]["Enums"]["client_sexe"] | null
           statut_legal?: Database["public"]["Enums"]["statut_legal_type"] | null
-          statut_matrimonial?:
-            | Database["public"]["Enums"]["client_statut_matrimonial"]
-            | null
-          statut_professionnel?:
-            | Database["public"]["Enums"]["client_statut_professionnel"]
-            | null
-          tranche_age?: Database["public"]["Enums"]["client_tranche_age"] | null
           type_contrat?: Database["public"]["Enums"]["type_contrat_type"] | null
           type_offre?: Database["public"]["Enums"]["type_offre_type"] | null
           updated_at?: string | null
@@ -3060,15 +3033,6 @@ export type Database = {
         | "cni"
         | "passeport"
         | "permis_conduire"
-      client_sexe: "homme" | "femme" | "autre"
-      client_statut_matrimonial: "celibataire" | "marie" | "divorce" | "veuf"
-      client_statut_professionnel:
-        | "etudiant"
-        | "salarie"
-        | "entrepreneur"
-        | "sans_emploi"
-        | "retraite"
-      client_tranche_age: "18-25" | "26-35" | "36-45" | "46-55" | "55+"
       message_status: "failed" | "pending" | "sent" | "read"
       message_type: "text" | "image" | "audio"
       payment_status: "pending" | "success" | "failed" | "abandoned"
@@ -3240,16 +3204,6 @@ export const Constants = {
         "passeport",
         "permis_conduire",
       ],
-      client_sexe: ["homme", "femme", "autre"],
-      client_statut_matrimonial: ["celibataire", "marie", "divorce", "veuf"],
-      client_statut_professionnel: [
-        "etudiant",
-        "salarie",
-        "entrepreneur",
-        "sans_emploi",
-        "retraite",
-      ],
-      client_tranche_age: ["18-25", "26-35", "36-45", "46-55", "55+"],
       message_status: ["failed", "pending", "sent", "read"],
       message_type: ["text", "image", "audio"],
       payment_status: ["pending", "success", "failed", "abandoned"],

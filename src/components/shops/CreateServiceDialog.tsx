@@ -356,7 +356,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
                         placeholder="Ex: 2500"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Ce montant sera payé par le client à la réservation via Paystack.
+                        Ce montant sera payé par le client à la réservation via Orange Money.
                       </p>
                     </div>
                   )}

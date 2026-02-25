@@ -524,8 +524,8 @@ export default function Payments() {
                   </TableHeader>
                   <TableBody>
                     {filteredRefunds.map((refund: any) => {
-                      const canInitiate = refund.status === "pending" && !refund.paystack_refund_id && refund.original_payment_reference;
-                      const canVerify = refund.paystack_refund_id && refund.refund_status !== "processed";
+                      const canInitiate = refund.status === "pending" && !refund.paystack_refund_id;
+                      const canVerify = refund.refund_status === "pending_manual" || (refund.paystack_refund_id && refund.refund_status !== "processed");
                       return (
                         <TableRow key={refund.id}>
                           <TableCell>
@@ -573,7 +573,7 @@ export default function Payments() {
                                         body: { action: "initiate", refund_id: refund.id },
                                       });
                                       if (res.error) throw res.error;
-                                      toast.success("Remboursement initié sur Paystack");
+                                      toast.success("Remboursement enregistré (traitement manuel)");
                                       queryClient.invalidateQueries({ queryKey: ["refunds"] });
                                     } catch (e: any) {
                                       toast.error("Erreur: " + e.message);

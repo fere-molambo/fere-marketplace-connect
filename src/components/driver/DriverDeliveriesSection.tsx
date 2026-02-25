@@ -525,7 +525,7 @@ export function DriverDeliveriesSection({ userId }: DriverDeliveriesSectionProps
                           En attente de vérification par le client
                         </p>
                         <p className="text-sm text-amber-600">
-                          Le client doit vérifier le colis et payer le solde via Paystack.
+                          Le client doit vérifier le colis et payer le solde via Orange Money.
                           La livraison sera automatiquement marquée comme terminée.
                         </p>
                         {delivery.driver_earnings > 0 && (

@@ -38,7 +38,7 @@ export function DriverCancellationDialog({
             <div>
               <p className="text-amber-800 font-medium text-sm">En attente de vérification</p>
               <p className="text-amber-600 text-sm mt-1">
-                Le client va vérifier le colis puis payer le solde via Paystack. 
+                Le client va vérifier le colis puis payer le solde via Orange Money. 
                 La livraison sera automatiquement marquée comme terminée après le paiement.
               </p>
               <p className="text-amber-600 text-sm mt-1">

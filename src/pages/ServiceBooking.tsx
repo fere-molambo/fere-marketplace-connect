@@ -240,9 +240,9 @@ export default function ServiceBooking() {
     },
     onSuccess: async (booking) => {
       if (travelFeeAmount > 0) {
-        // Pay travel fee via Paystack
+        // Pay travel fee via Orange Money
         try {
-          const response = await supabase.functions.invoke("paystack-payment", {
+          const response = await supabase.functions.invoke("orange-money-payment", {
             body: {
               action: "initialize",
               amount: travelFeeAmount,
@@ -255,18 +255,22 @@ export default function ServiceBooking() {
                 booking_time: selectedSlot?.start,
                 is_travel_fee: true,
               },
-              callback_url: `${window.location.origin}/payment/callback`,
+              return_url: `${window.location.origin}/payment/callback`,
+              cancel_url: `${window.location.origin}/service/${serviceId}/book`,
             },
           });
 
-          if (response.data?.authorization_url) {
-            // Update booking to mark travel fee as being processed
+          if (response.data?.payment_url) {
+            sessionStorage.setItem('om_order_id', response.data.order_id);
+            sessionStorage.setItem('om_pay_token', response.data.pay_token);
+            sessionStorage.setItem('om_payment_type', 'service_booking');
+            
             await supabase
               .from("service_bookings")
-              .update({ payment_reference: response.data.reference })
+              .update({ payment_reference: response.data.order_id })
               .eq("id", booking.id);
               
-            window.location.href = response.data.authorization_url;
+            window.location.href = response.data.payment_url;
           } else {
             throw new Error("Erreur d'initialisation du paiement");
           }
@@ -456,7 +460,7 @@ export default function ServiceBooking() {
                       <span className="text-lg font-bold text-primary">{travelFeeAmount.toLocaleString()} FCFA</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Ces frais seront payés maintenant via Paystack pour confirmer votre réservation.
+                      Ces frais seront payés maintenant via Orange Money pour confirmer votre réservation.
                       Le prestataire recevra ce montant après son arrivée chez vous.
                     </p>
                   </div>

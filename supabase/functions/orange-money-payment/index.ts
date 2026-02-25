@@ -69,7 +69,7 @@ async function getAccessToken(): Promise<string> {
     throw new Error('ORANGE_MONEY_AUTH_HEADER not configured');
   }
 
-  const response = await fetch(`${ORANGE_API_BASE}/oauth/v1/token`, {
+  const response = await fetch(`${ORANGE_API_BASE}/oauth/v3/token`, {
     method: 'POST',
     headers: {
       'Authorization': authHeader, // "Basic base64(client_id:client_secret)"

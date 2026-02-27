@@ -1161,6 +1161,48 @@ export type Database = {
           },
         ]
       }
+      pending_payments: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          checkout_data: Json | null
+          completion_type: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          order_id: string | null
+          payment_mode: string
+          reference: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          booking_id?: string | null
+          checkout_data?: Json | null
+          completion_type?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          order_id?: string | null
+          payment_mode?: string
+          reference: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          checkout_data?: Json | null
+          completion_type?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          order_id?: string | null
+          payment_mode?: string
+          reference?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pending_payouts: {
         Row: {
           amount: number
@@ -3103,6 +3145,8 @@ export type Database = {
         | "commission_payout"
         | "tokens"
         | "order_balance"
+        | "service_booking_advance"
+        | "service_booking_balance"
       piece_identite_client_type:
         | "carte_etudiant"
         | "cni"
@@ -3274,6 +3318,8 @@ export const Constants = {
         "commission_payout",
         "tokens",
         "order_balance",
+        "service_booking_advance",
+        "service_booking_balance",
       ],
       piece_identite_client_type: [
         "carte_etudiant",

@@ -1,76 +1,91 @@
 
 
-# Plan : Correction temps reel + retour a Paystack
+# Plan : Corriger les versements vendeurs pour les reservations de services
 
-## Probleme 1 : Les etats ne changent pas en temps reel
+## Probleme identifie
 
-La table `service_bookings` n'est **pas ajoutee** a la publication Supabase Realtime (`supabase_realtime`). Les subscriptions Realtime dans `ClientProfile.tsx` et `ClientBookingDetailSheet.tsx` ne recoivent donc aucun evenement.
+Quand un client paie le solde d'une prestation (100% ou 50%), le code dans `PaymentCallback.tsx` tente de creer un `pending_payout` pour le vendeur. Mais cette insertion echoue silencieusement a cause de la politique RLS sur la table `pending_payouts` : seuls les admins ou les clients avec une commande annulee peuvent inserer des lignes.
 
-**Correction** : Ajouter `service_bookings` a la publication realtime via une migration SQL :
+De plus, les frais de deplacement (travel_fee) ne sont pas inclus dans le calcul du versement vendeur.
+
+## Solution : Deplacer la logique dans un trigger SQL
+
+Plutot que de corriger le RLS et garder la logique cote client (fragile), la solution est de creer un **trigger sur `service_bookings`** qui cree automatiquement les `pending_payouts` quand le statut passe a `completed` ou `partial`. C'est le meme pattern que `sync_order_payment_from_transaction` pour les commandes produits.
+
+## Etape 1 : Migration SQL - Creer le trigger
+
+Creer une fonction `handle_service_booking_payout()` et un trigger :
 
 ```text
-ALTER PUBLICATION supabase_realtime ADD TABLE service_bookings;
+CREATE OR REPLACE FUNCTION handle_service_booking_payout()
+RETURNS trigger AS $$
+DECLARE
+  v_vendor_id uuid;
+  v_vendor_amount numeric;
+  v_already_exists boolean;
+BEGIN
+  -- Seulement quand le statut passe a 'completed' ou 'partial'
+  IF (NEW.status IN ('completed', 'partial')) AND (OLD.status NOT IN ('completed', 'partial')) THEN
+
+    -- Recuperer le vendeur (owner de la boutique du service)
+    SELECT sh.owner_id INTO v_vendor_id
+    FROM services s
+    JOIN shops sh ON sh.id = s.shop_id
+    WHERE s.id = NEW.service_id;
+
+    IF v_vendor_id IS NULL THEN
+      RETURN NEW;
+    END IF;
+
+    -- Verifier qu'un payout n'existe pas deja pour cette reservation
+    SELECT EXISTS(
+      SELECT 1 FROM pending_payouts WHERE booking_id = NEW.id AND recipient_type = 'vendor'
+    ) INTO v_already_exists;
+
+    IF v_already_exists THEN
+      RETURN NEW;
+    END IF;
+
+    -- Calculer le montant : (prix du service - commission) + frais de deplacement
+    v_vendor_amount := (COALESCE(NEW.total_price, 0) - COALESCE(NEW.commission_amount, 0))
+                     + COALESCE(NEW.travel_fee, 0);
+
+    IF v_vendor_amount > 0 THEN
+      INSERT INTO pending_payouts (
+        recipient_id, recipient_type, amount, booking_id, eligible_at
+      ) VALUES (
+        v_vendor_id, 'vendor', v_vendor_amount, NEW.id,
+        now() + interval '24 hours'
+      );
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public';
+
+CREATE TRIGGER on_service_booking_completed_payout
+  AFTER UPDATE ON service_bookings
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_service_booking_payout();
 ```
 
-## Probleme 2 : Remettre Paystack pour tous les paiements
+## Etape 2 : Nettoyer PaymentCallback.tsx
 
-Remplacer tous les appels `orange-money-payment` par `paystack-payment` dans 6 fichiers frontend, et adapter la logique (reference Paystack via URL au lieu de sessionStorage Orange Money).
+Supprimer le bloc de creation de payout dans `PaymentCallback.tsx` (lignes 75-102), puisque le trigger s'en charge desormais. Le code de mise a jour du statut de la reservation (lignes 62-73) reste necessaire.
 
-### Fichiers a modifier
+## Etape 3 : Creer les payouts manquants pour les 2 reservations testees
 
-#### 1. `src/pages/PaymentCallback.tsx`
-- Remplacer la verification Orange Money par Paystack
-- Utiliser `searchParams.get('reference')` (Paystack met `?reference=xxx` dans l'URL de retour)
-- Appeler `paystack-payment` avec `action: 'verify'` + `reference`
-- Supprimer la lecture de `sessionStorage` pour `om_order_id` / `om_pay_token`
-- Garder la logique de mise a jour des `service_bookings` et `pending_payouts` en cas de succes
+Executer une requete SQL pour creer les payouts manquants :
 
-#### 2. `src/pages/Checkout.tsx` (ligne ~292)
-- Remplacer `orange-money-payment` par `paystack-payment`
-- Utiliser `data.authorization_url` au lieu de `data.payment_url`
-- Stocker `data.reference` en sessionStorage comme `paystack_reference`
-- Supprimer les references `om_order_id`, `om_pay_token`
+- Reservation `d8fbf070` (completed, 100%) : vendeur `4671cff3` recoit 128 - 10 + 100 = 218 FCFA
+- Reservation `adac88d4` (partial, 50%) : vendeur `9bc2e77f` recoit 13 - 1 + 0 = 12 FCFA
 
-#### 3. `src/pages/ServiceBooking.tsx` (ligne ~267)
-- Remplacer `orange-money-payment` par `paystack-payment`
-- Adapter les champs de reponse (`authorization_url`, `reference`)
-- Stocker le `reference` en sessionStorage et `payment_type`
+## Resume des changements
 
-#### 4. `src/components/orders/ClientOrderDetailSheet.tsx` (ligne ~152)
-- Remplacer `orange-money-payment` par `paystack-payment`
-- Adapter les champs de reponse
-
-#### 5. `src/components/orders/ClientBookingDetailSheet.tsx` (ligne ~233)
-- Remplacer `orange-money-payment` par `paystack-payment`
-- Adapter les champs de reponse
-- Stocker `booking_id` et `completion_type` en sessionStorage pour la verification callback
-
-#### 6. `src/components/tokens/BuyTokensDialog.tsx` (ligne ~47)
-- Remplacer `orange-money-payment` par `paystack-payment`
-- Adapter les champs de reponse
-
-#### 7. `src/components/payment/PaystackCheckout.tsx` (ligne ~69)
-- Remettre l'appel vers `paystack-payment`
-- Utiliser `authorization_url` et `reference`
-
-### Adaptations cles Paystack vs Orange Money
-
-| Element | Orange Money | Paystack (retour) |
-|---------|-------------|-------------------|
-| Fonction edge | `orange-money-payment` | `paystack-payment` |
-| URL de paiement | `payment_url` | `authorization_url` |
-| Reference | `order_id` + `pay_token` | `reference` |
-| Callback | sessionStorage | `?reference=xxx` dans l'URL |
-| Verification | `order_id` + `pay_token` | `reference` |
-| Montants | FCFA entiers | FCFA x100 (kobo) cote backend |
-
-### Textes a adapter
-- `ServiceBooking.tsx` : "A payer via Orange Money" -> "A payer en ligne"
-- Boutons "Payer avec Orange Money" -> "Payer maintenant"
-
-### Ce qui ne change PAS
-- L'edge function `paystack-payment` existe deja et est fonctionnelle
-- Les triggers de base de donnees (`sync_order_payment_from_transaction`) restent inchanges
-- La logique metier (acompte/solde) reste identique
-- L'edge function `orange-money-payment` reste deployee mais ne sera plus appelee
+| Fichier / Ressource | Modification |
+|---------------------|-------------|
+| Migration SQL | Nouveau trigger `handle_service_booking_payout` |
+| `PaymentCallback.tsx` | Supprimer le bloc de creation de payout (lignes 75-102) |
+| SQL ponctuel | Inserer les 2 payouts manquants |
 

@@ -287,9 +287,9 @@ export default function Checkout() {
       return { orders: createdOrders, paymentGroupId };
     },
     onSuccess: async ({ orders, paymentGroupId }) => {
-      // Initialize Orange Money payment for the advance amount
+      // Initialize Paystack payment for the advance amount
       try {
-        const response = await supabase.functions.invoke("orange-money-payment", {
+        const response = await supabase.functions.invoke("paystack-payment", {
           body: {
             action: "initialize",
             amount: advanceAmount,
@@ -302,18 +302,14 @@ export default function Checkout() {
               order_count: orders.length,
               is_advance: true,
             },
-            return_url: `${window.location.origin}/payment/callback`,
-            cancel_url: `${window.location.origin}/checkout`,
+            callback_url: `${window.location.origin}/payment/callback`,
           },
         });
 
-        if (response.data?.payment_url) {
-          // Store for verification on callback
-          sessionStorage.setItem('om_order_id', response.data.order_id);
-          sessionStorage.setItem('om_pay_token', response.data.pay_token);
-          sessionStorage.setItem('om_payment_type', 'order');
+        if (response.data?.authorization_url) {
+          sessionStorage.setItem('paystack_payment_type', 'order');
           clearCart();
-          window.location.href = response.data.payment_url;
+          window.location.href = response.data.authorization_url;
         } else {
           throw new Error("Erreur d'initialisation du paiement");
         }

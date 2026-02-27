@@ -262,9 +262,9 @@ export default function ServiceBooking() {
     },
     onSuccess: async (booking) => {
       if (travelFeeAmount > 0) {
-        // Pay travel fee via Orange Money
+        // Pay travel fee via Paystack
         try {
-          const response = await supabase.functions.invoke("orange-money-payment", {
+          const response = await supabase.functions.invoke("paystack-payment", {
             body: {
               action: "initialize",
               amount: travelFeeAmount,
@@ -277,22 +277,19 @@ export default function ServiceBooking() {
                 booking_time: selectedSlot?.start,
                 is_travel_fee: true,
               },
-              return_url: `${window.location.origin}/payment/callback`,
-              cancel_url: `${window.location.origin}/service/${serviceId}/book`,
+              callback_url: `${window.location.origin}/payment/callback`,
             },
           });
 
-          if (response.data?.payment_url) {
-            sessionStorage.setItem('om_order_id', response.data.order_id);
-            sessionStorage.setItem('om_pay_token', response.data.pay_token);
-            sessionStorage.setItem('om_payment_type', 'service_booking');
+          if (response.data?.authorization_url) {
+            sessionStorage.setItem('paystack_payment_type', 'service_booking');
             
             await supabase
               .from("service_bookings")
-              .update({ payment_reference: response.data.order_id })
+              .update({ payment_reference: response.data.reference })
               .eq("id", booking.id);
               
-            window.location.href = response.data.payment_url;
+            window.location.href = response.data.authorization_url;
           } else {
             throw new Error("Erreur d'initialisation du paiement");
           }
@@ -426,7 +423,7 @@ export default function ServiceBooking() {
                       </p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Banknote className="h-3 w-3" />
-                        À payer via Orange Money à l'arrivée du prestataire
+                        À payer en ligne à l'arrivée du prestataire
                       </p>
                     </div>
                   </div>

@@ -72,34 +72,8 @@ export default function PaymentCallback() {
             } as any)
             .eq('id', bookingId);
 
-          // Create pending payout for vendor
-          const { data: bookingData } = await supabase
-            .from('service_bookings')
-            .select('service_id, total_price, commission_amount')
-            .eq('id', bookingId)
-            .single();
-
-          if (bookingData) {
-            const { data: serviceData } = await supabase
-              .from('services')
-              .select('shop_id, shops(owner_id)')
-              .eq('id', bookingData.service_id)
-              .single();
-
-            if (serviceData?.shops) {
-              const vendorAmount = (bookingData.total_price || 0) - (bookingData.commission_amount || 0);
-              const ownerId = (serviceData.shops as any).owner_id;
-              if (vendorAmount > 0 && ownerId) {
-                await supabase.from('pending_payouts').insert({
-                  recipient_id: ownerId,
-                  recipient_type: 'vendor',
-                  amount: vendorAmount,
-                  booking_id: bookingId,
-                  eligible_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                });
-              }
-            }
-          }
+          // Payout is now handled automatically by the database trigger
+          // (handle_service_booking_payout)
         }
         
         setResult({

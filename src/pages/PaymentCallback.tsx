@@ -27,13 +27,13 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      const orderId = sessionStorage.getItem('om_order_id');
-      const payToken = sessionStorage.getItem('om_pay_token');
-      const paymentType = sessionStorage.getItem('om_payment_type') || 'order';
-      const bookingId = sessionStorage.getItem('om_booking_id');
-      const completionType = sessionStorage.getItem('om_completion_type');
+      // Paystack puts ?reference=xxx in the callback URL
+      const reference = searchParams.get('reference');
+      const paymentType = sessionStorage.getItem('paystack_payment_type') || 'order';
+      const bookingId = sessionStorage.getItem('paystack_booking_id');
+      const completionType = sessionStorage.getItem('paystack_completion_type');
 
-      if (!orderId) {
+      if (!reference) {
         setResult({
           status: 'error',
           reference: '',
@@ -43,11 +43,10 @@ export default function PaymentCallback() {
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke('orange-money-payment', {
+        const { data, error } = await supabase.functions.invoke('paystack-payment', {
           body: {
             action: 'verify',
-            order_id: orderId,
-            pay_token: payToken,
+            reference,
           },
         });
 
@@ -67,7 +66,7 @@ export default function PaymentCallback() {
               status: newStatus,
               completion_type: resolvedCompletionType,
               balance_payment_status: 'paid',
-              balance_payment_reference: data.reference || orderId,
+              balance_payment_reference: data.reference || reference,
               completed_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as any)
@@ -105,7 +104,7 @@ export default function PaymentCallback() {
         
         setResult({
           status: data.status as PaymentStatus,
-          reference: data.reference || orderId,
+          reference: data.reference || reference,
           amount: data.amount,
           currency: data.currency,
           paymentType: resolvedPaymentType,
@@ -113,16 +112,14 @@ export default function PaymentCallback() {
         });
 
         // Clear session storage
-        sessionStorage.removeItem('om_order_id');
-        sessionStorage.removeItem('om_pay_token');
-        sessionStorage.removeItem('om_payment_type');
-        sessionStorage.removeItem('om_booking_id');
-        sessionStorage.removeItem('om_completion_type');
+        sessionStorage.removeItem('paystack_payment_type');
+        sessionStorage.removeItem('paystack_booking_id');
+        sessionStorage.removeItem('paystack_completion_type');
 
       } catch (error: any) {
         setResult({
           status: 'error',
-          reference: orderId,
+          reference: reference,
           message: error.message || 'Erreur lors de la vérification du paiement',
         });
       }

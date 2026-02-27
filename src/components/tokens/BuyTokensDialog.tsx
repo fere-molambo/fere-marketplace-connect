@@ -44,26 +44,23 @@ export const BuyTokensDialog = ({ open, onOpenChange, onSuccess }: BuyTokensDial
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('orange-money-payment', {
+      const { data, error } = await supabase.functions.invoke('paystack-payment', {
         body: {
           action: 'initialize',
           amount,
           email: user.email,
           payment_type: 'tokens',
           metadata: { type: 'tokens', user_id: user.id },
-          return_url: `${window.location.origin}/payment/callback`,
-          cancel_url: `${window.location.origin}/dashboard/transactions`,
+          callback_url: `${window.location.origin}/payment/callback`,
         },
       });
 
       if (error) throw error;
 
-      if (data?.payment_url) {
-        sessionStorage.setItem('om_order_id', data.order_id);
-        sessionStorage.setItem('om_pay_token', data.pay_token);
-        sessionStorage.setItem('om_payment_type', 'tokens');
+      if (data?.authorization_url) {
+        sessionStorage.setItem('paystack_payment_type', 'tokens');
         
-        window.location.href = data.payment_url;
+        window.location.href = data.authorization_url;
       } else {
         throw new Error("URL de paiement non reçue");
       }
@@ -163,7 +160,7 @@ export const BuyTokensDialog = ({ open, onOpenChange, onSuccess }: BuyTokensDial
             ) : (
               <CreditCard className="h-4 w-4" />
             )}
-            Payer avec Orange Money
+            Payer maintenant
           </Button>
         </div>
       </DialogContent>

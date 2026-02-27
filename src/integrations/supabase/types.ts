@@ -1871,23 +1871,36 @@ export type Database = {
       }
       service_bookings: {
         Row: {
+          accepted_at: string | null
+          accepted_by: string | null
           advance_paid: number | null
+          arrived_at: string | null
+          auto_cancel_at: string | null
+          balance_payment_reference: string | null
+          balance_payment_status: string | null
           booking_date: string
           booking_time: string
+          cancellation_comment: string | null
+          cancellation_proof_url: string | null
+          cancellation_reason_id: string | null
           client_confirmed_at: string | null
           client_rating: number | null
           client_review: string | null
           commission_amount: number | null
+          completed_at: string | null
+          completion_type: string | null
           created_at: string | null
           customer_id: string | null
           delivery_address_id: string | null
           id: string
           notes: string | null
+          partial_payment_amount: number | null
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
           service_id: string
           slot_id: string | null
+          started_at: string | null
           status: string | null
           total_price: number
           travel_fee: number | null
@@ -1896,26 +1909,40 @@ export type Database = {
           updated_at: string | null
           vendor_arrived_at: string | null
           vendor_confirmed_at: string | null
+          vendor_dispute_comment: string | null
           vendor_on_the_way_at: string | null
         }
         Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           advance_paid?: number | null
+          arrived_at?: string | null
+          auto_cancel_at?: string | null
+          balance_payment_reference?: string | null
+          balance_payment_status?: string | null
           booking_date: string
           booking_time: string
+          cancellation_comment?: string | null
+          cancellation_proof_url?: string | null
+          cancellation_reason_id?: string | null
           client_confirmed_at?: string | null
           client_rating?: number | null
           client_review?: string | null
           commission_amount?: number | null
+          completed_at?: string | null
+          completion_type?: string | null
           created_at?: string | null
           customer_id?: string | null
           delivery_address_id?: string | null
           id?: string
           notes?: string | null
+          partial_payment_amount?: number | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
           service_id: string
           slot_id?: string | null
+          started_at?: string | null
           status?: string | null
           total_price: number
           travel_fee?: number | null
@@ -1924,26 +1951,40 @@ export type Database = {
           updated_at?: string | null
           vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
+          vendor_dispute_comment?: string | null
           vendor_on_the_way_at?: string | null
         }
         Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           advance_paid?: number | null
+          arrived_at?: string | null
+          auto_cancel_at?: string | null
+          balance_payment_reference?: string | null
+          balance_payment_status?: string | null
           booking_date?: string
           booking_time?: string
+          cancellation_comment?: string | null
+          cancellation_proof_url?: string | null
+          cancellation_reason_id?: string | null
           client_confirmed_at?: string | null
           client_rating?: number | null
           client_review?: string | null
           commission_amount?: number | null
+          completed_at?: string | null
+          completion_type?: string | null
           created_at?: string | null
           customer_id?: string | null
           delivery_address_id?: string | null
           id?: string
           notes?: string | null
+          partial_payment_amount?: number | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
           service_id?: string
           slot_id?: string | null
+          started_at?: string | null
           status?: string | null
           total_price?: number
           travel_fee?: number | null
@@ -1952,9 +1993,24 @@ export type Database = {
           updated_at?: string | null
           vendor_arrived_at?: string | null
           vendor_confirmed_at?: string | null
+          vendor_dispute_comment?: string | null
           vendor_on_the_way_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "service_bookings_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_bookings_cancellation_reason_id_fkey"
+            columns: ["cancellation_reason_id"]
+            isOneToOne: false
+            referencedRelation: "cancellation_reasons"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "service_bookings_customer_id_fkey"
             columns: ["customer_id"]
@@ -2994,6 +3050,7 @@ export type Database = {
         Returns: number
       }
       ensure_user_tokens: { Args: { p_user_id: string }; Returns: number }
+      expire_pending_bookings: { Args: never; Returns: number }
       generate_order_number: { Args: never; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }

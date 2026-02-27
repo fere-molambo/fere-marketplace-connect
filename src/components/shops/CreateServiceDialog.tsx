@@ -28,11 +28,12 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [includes, setIncludes] = useState("");
   const [clientPreparation, setClientPreparation] = useState("");
   const [duration, setDuration] = useState("");
+  const [customDuration, setCustomDuration] = useState("");
+  const [customDurationUnit, setCustomDurationUnit] = useState<"min" | "h" | "j">("h");
   const [priceType, setPriceType] = useState<"fixe" | "negoce">("fixe");
   const [price, setPrice] = useState("");
   const [minAutoPrice, setMinAutoPrice] = useState("");
   const [autoValidation, setAutoValidation] = useState(true);
-  const [requiresBooking, setRequiresBooking] = useState(false);
   const [travelFeeType, setTravelFeeType] = useState<"free" | "paid">("free");
   const [travelFeeAmount, setTravelFeeAmount] = useState("");
   const [discount, setDiscount] = useState("0");
@@ -56,17 +57,27 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
   const [saving, setSaving] = useState(false);
 
   const durationOptions = [
-    { value: "15", label: "Environ 15 minutes" },
-    { value: "30", label: "Environ 30 minutes" },
-    { value: "45", label: "Environ 45 minutes" },
-    { value: "60", label: "Environ 1 heure" },
-    { value: "90", label: "Environ 1h30" },
-    { value: "120", label: "Environ 2 heures" },
-    { value: "60-120", label: "Entre 1h et 2h" },
-    { value: "120-180", label: "Entre 2h et 3h" },
-    { value: "180-240", label: "Entre 3h et 4h" },
-    { value: "240+", label: "Plus de 4 heures" },
+    { value: "60", label: "1h ou plus" },
+    { value: "180", label: "3h ou plus" },
+    { value: "1440", label: "24h ou plus" },
+    { value: "2880", label: "2 jours ou plus" },
+    { value: "custom", label: "Autre" },
   ];
+
+  const parseDuration = (): number | null => {
+    if (!duration) return null;
+    if (duration === "custom") {
+      const val = parseFloat(customDuration);
+      if (isNaN(val) || val <= 0) return null;
+      switch (customDurationUnit) {
+        case "min": return Math.round(val);
+        case "h": return Math.round(val * 60);
+        case "j": return Math.round(val * 1440);
+        default: return null;
+      }
+    }
+    return parseInt(duration);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,20 +93,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
 
     setSaving(true);
     try {
-      // Parse duration - store as integer if simple, or use a special format for ranges
-      let durationValue: number | null = null;
-      if (duration) {
-        if (duration.includes("-")) {
-          // For ranges like "60-120", store the average
-          const [min, max] = duration.split("-").map(Number);
-          durationValue = Math.round((min + max) / 2);
-        } else if (duration.includes("+")) {
-          // For "240+", store 240
-          durationValue = parseInt(duration.replace("+", ""));
-        } else {
-          durationValue = parseInt(duration);
-        }
-      }
+      const durationValue = parseDuration();
 
       const { error } = await supabase.from("services").insert({
         shop_id: shopId,
@@ -108,7 +106,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
         price_type: priceType,
         min_auto_price: minAutoPrice ? parseFloat(minAutoPrice) : null,
         auto_validation: autoValidation,
-        requires_booking: requiresBooking,
+        requires_booking: true,
         travel_fee_type: travelFeeType,
         travel_fee_amount: travelFeeType === "paid" ? parseFloat(travelFeeAmount) || 0 : 0,
         discount_percent: parseFloat(discount),
@@ -148,6 +146,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
     setIncludes("");
     setClientPreparation("");
     setDuration("");
+    setCustomDuration("");
     setPrice("");
     setDiscount("0");
     setMainMedia("");
@@ -173,8 +172,8 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
             bucketName="service-media"
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="col-span-1 sm:col-span-2 space-y-2">
               <Label htmlFor="name">Nom de la prestation *</Label>
               <Input
                 id="name"
@@ -184,7 +183,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               />
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="col-span-1 sm:col-span-2 space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
@@ -194,7 +193,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               />
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="col-span-1 sm:col-span-2 space-y-2">
               <Label htmlFor="includes">Ce qui est inclus</Label>
               <Textarea
                 id="includes"
@@ -204,7 +203,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               />
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="col-span-1 sm:col-span-2 space-y-2">
               <Label htmlFor="client-preparation">À préparer par le client</Label>
               <Textarea
                 id="client-preparation"
@@ -229,6 +228,32 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
                 </SelectContent>
               </Select>
             </div>
+
+            {duration === "custom" && (
+              <div className="space-y-2">
+                <Label>Durée personnalisée</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={customDuration}
+                    onChange={(e) => setCustomDuration(e.target.value)}
+                    placeholder="Durée"
+                    className="flex-1"
+                  />
+                  <Select value={customDurationUnit} onValueChange={(v) => setCustomDurationUnit(v as "min" | "h" | "j")}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="min">Min</SelectItem>
+                      <SelectItem value="h">Heures</SelectItem>
+                      <SelectItem value="j">Jours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="price-type">Type de tarif *</Label>
@@ -255,7 +280,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
             </div>
 
             {price && parseFloat(price) > 0 && (
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <VendorNetAmountDisplay
                   price={price}
                   priceType={priceType}
@@ -288,7 +313,7 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               </>
             )}
 
-            <div className="col-span-2 space-y-2">
+            <div className="col-span-1 sm:col-span-2 space-y-2">
               <Label htmlFor="discount">Réduction (%)</Label>
               <Input
                 id="discount"
@@ -306,65 +331,53 @@ export const CreateServiceDialog = ({ shopId, open, onOpenChange }: CreateServic
               )}
             </div>
 
-            <div className="col-span-2 space-y-4 p-4 border rounded-lg">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="requires-booking">Réservation requise</Label>
-                <Switch
-                  id="requires-booking"
-                  checked={requiresBooking}
-                  onCheckedChange={setRequiresBooking}
-                />
+            {/* Travel fee section - always visible */}
+            <div className="col-span-1 sm:col-span-2 space-y-4 p-4 border rounded-lg">
+              <div className="space-y-2">
+                <Label>Frais de déplacement</Label>
+                <div className="flex gap-4">
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "free" ? "border-primary bg-primary/5" : ""}`}>
+                    <input
+                      type="radio"
+                      name="travelFee"
+                      checked={travelFeeType === "free"}
+                      onChange={() => setTravelFeeType("free")}
+                      className="sr-only"
+                    />
+                    <span className="text-sm font-medium">Gratuit</span>
+                  </label>
+                  <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "paid" ? "border-primary bg-primary/5" : ""}`}>
+                    <input
+                      type="radio"
+                      name="travelFee"
+                      checked={travelFeeType === "paid"}
+                      onChange={() => setTravelFeeType("paid")}
+                      className="sr-only"
+                    />
+                    <span className="text-sm font-medium">Payant</span>
+                  </label>
+                </div>
               </div>
 
-              {requiresBooking && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Frais de déplacement</Label>
-                    <div className="flex gap-4">
-                      <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "free" ? "border-primary bg-primary/5" : ""}`}>
-                        <input
-                          type="radio"
-                          name="travelFee"
-                          checked={travelFeeType === "free"}
-                          onChange={() => setTravelFeeType("free")}
-                          className="sr-only"
-                        />
-                        <span className="text-sm font-medium">Gratuit</span>
-                      </label>
-                      <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer flex-1 ${travelFeeType === "paid" ? "border-primary bg-primary/5" : ""}`}>
-                        <input
-                          type="radio"
-                          name="travelFee"
-                          checked={travelFeeType === "paid"}
-                          onChange={() => setTravelFeeType("paid")}
-                          className="sr-only"
-                        />
-                        <span className="text-sm font-medium">Payant</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {travelFeeType === "paid" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="travel-fee-amount">Montant des frais de déplacement (FCFA)</Label>
-                      <Input
-                        id="travel-fee-amount"
-                        type="number"
-                        min="0"
-                        value={travelFeeAmount}
-                        onChange={(e) => setTravelFeeAmount(e.target.value)}
-                        placeholder="Ex: 2500"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Ce montant sera payé par le client à la réservation via Orange Money.
-                      </p>
-                    </div>
-                  )}
+              {travelFeeType === "paid" && (
+                <div className="space-y-2">
+                  <Label htmlFor="travel-fee-amount">Montant des frais de déplacement (FCFA)</Label>
+                  <Input
+                    id="travel-fee-amount"
+                    type="number"
+                    min="0"
+                    value={travelFeeAmount}
+                    onChange={(e) => setTravelFeeAmount(e.target.value)}
+                    placeholder="Ex: 2500"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ce montant sera payé par le client à la réservation via Orange Money.
+                  </p>
                 </div>
               )}
             </div>
 
-            <div className="col-span-2 flex items-center justify-between">
+            <div className="col-span-1 sm:col-span-2 flex items-center justify-between">
               <Label htmlFor="active">Prestation active</Label>
               <Switch
                 id="active"

@@ -1,161 +1,57 @@
 
-# Refonte du systeme de reservation de services
 
-## Vue d'ensemble
+# Plan : Corrections du workflow de reservation de services
 
-Refonte complete du workflow de reservation avec statuts clairs, actions client/vendeur separees, paiements Orange Money, annulations/litiges, et auto-expiration 24h. Tous les composants seront responsive.
+## Problemes identifies
 
-## 1. Migration base de donnees
+### 1. PaymentCallback ne gere pas la completion de service (CRITIQUE)
 
-### Nouveaux champs sur `service_bookings`
+Quand le client paye 100% ou 50% via Orange Money et revient sur `/payment/callback`, la page verifie le paiement mais **ne met pas a jour** le statut de la reservation (`completed` ou `partial`). Les valeurs `om_booking_id` et `om_completion_type` sont stockees en sessionStorage mais jamais lues dans `PaymentCallback.tsx`.
 
-| Colonne | Type | Default | Description |
-|---------|------|---------|-------------|
-| `accepted_by` | uuid | null | Qui a accepte (vendeur/equipe) |
-| `accepted_at` | timestamptz | null | Date acceptation |
-| `started_at` | timestamptz | null | Prestataire demarre vers client |
-| `arrived_at` | timestamptz | null | Prestataire arrive (remplace vendor_arrived_at pour coherence) |
-| `completed_at` | timestamptz | null | Date completion |
-| `completion_type` | text | null | 'full', 'partial', 'cancelled_at_arrival' |
-| `partial_payment_amount` | numeric | null | Montant si 50% |
-| `cancellation_reason_id` | uuid | null | FK cancellation_reasons |
-| `cancellation_comment` | text | null | Commentaire client |
-| `cancellation_proof_url` | text | null | Preuve upload |
-| `vendor_dispute_comment` | text | null | Commentaire vendeur pour litiges |
-| `balance_payment_reference` | text | null | Ref paiement solde |
-| `balance_payment_status` | text | 'pending' | Statut paiement solde |
-| `auto_cancel_at` | timestamptz | null | created_at + 24h |
+**Correction :** Apres verification reussie du paiement, si `om_payment_type === 'service_booking'`, lire `om_booking_id` et `om_completion_type` depuis sessionStorage et mettre a jour `service_bookings` avec le statut appropriate (`completed` ou `partial`), `completion_type`, `balance_payment_status: 'paid'`, `completed_at`.
 
-### Statuts du workflow
+### 2. Un client peut commander plusieurs services a la fois (CORRECTION DEMANDEE)
 
-```text
-pending --> accepted --> on_the_way --> arrived --> completed (100%)
-   |           |                                --> partial (50%)
-   |           |                                --> cancelled (a l'arrivee)
-   |           +--> cancelled (par client)
-   +--> cancelled (par client)
-   +--> expired (auto 24h)
-```
+Actuellement rien n'empeche un client de reserver plusieurs services simultanement. Le client devrait ne pouvoir commander qu'un service a la fois (pas dans un panier commun).
 
-### Politique RLS supplementaire
-- UPDATE pour le client : `auth.uid() = customer_id` (pour marquer completion/annulation)
+**Correction :** Dans `ServiceBooking.tsx`, avant de creer la reservation, verifier si le client a deja une reservation active (statut `pending`, `accepted`, `on_the_way`, ou `arrived`). Si oui, afficher un message d'erreur et bloquer la reservation.
 
-### Forcer `requires_booking = true`
-- UPDATE tous les services existants pour mettre `requires_booking = true`
-- ALTER TABLE services SET DEFAULT true pour `requires_booking`
+### 3. Bucket de stockage `cancellation-attachments` potentiellement manquant
 
-## 2. Formulaires creation/modification de prestation
+`ClientBookingDetailSheet.tsx` utilise le bucket `cancellation-attachments` pour l'upload de preuves. Ce bucket n'est pas liste dans les buckets existants documentes.
 
-### Fichiers : `CreateServiceDialog.tsx`, `EditServiceDialog.tsx`
+**Correction :** Verifier si le bucket existe, sinon le creer via migration SQL ou le remplacer par un bucket existant (ex: `chat-media` ou creer `cancellation-attachments`).
 
-- **Supprimer** le toggle "Reservation requise" et forcer `requires_booking: true` dans l'insert/update
-- **Afficher** toujours le bloc frais de deplacement (plus conditionnel a `requiresBooking`)
-- **Nouvelles options de duree** :
-  - "1h ou plus" (valeur: `60`)
-  - "3h ou plus" (valeur: `180`)
-  - "24h ou plus" (valeur: `1440`)
-  - "2 jours ou plus" (valeur: `2880`)
-  - "Autre" (valeur: `custom`) avec un champ libre + unite (min/h/j)
+### 4. Messages du PaymentCallback non adaptes pour les services
 
-## 3. Page ServiceDetail.tsx
+Les titres et descriptions dans `PaymentCallback` sont centres sur les commandes produits ("Acompte paye", "solde a la livraison"). Pour un paiement de service, les messages devraient etre adaptes.
 
-- Supprimer le bloc conditionnel `if (service.requires_booking)` (lignes 245-260)
-- Toujours afficher les infos de frais de deplacement
-- Le bouton "Reserver" est deja toujours visible (ligne 290) -- OK
+**Correction :** Ajouter des conditions pour `service_booking` dans `getStatusTitle()` et `getStatusDescription()` pour afficher des messages pertinents (ex: "Prestation payee avec succes", "Reservation confirmee").
 
-## 4. Flux de reservation (ServiceBooking.tsx)
+### 5. Redirection apres reservation gratuite
 
-- Changer le statut initial de `reserved` a `pending`
-- Calculer `auto_cancel_at = now() + 24h`
-- Si frais de deplacement gratuits : reservation directe sans paiement
-- Si frais payants : paiement Orange Money = acompte (frais de deplacement)
-- Supprimer la mention "A payer en especes" car le solde se paiera via Orange Money
-- Adapter le texte explicatif
+Ligne 289 de `ServiceBooking.tsx` : quand les frais de deplacement sont gratuits, le client est redirige vers `/payment/callback?reference=BOOKING-...&status=success`, mais PaymentCallback essaie de verifier via Orange Money ce qui echouera.
 
-## 5. Nouveau composant : `ClientBookingDetailSheet.tsx`
+**Correction :** Pour les reservations sans paiement, rediriger directement vers `/mon-profil?tab=orders` avec un toast de succes, au lieu de passer par PaymentCallback.
 
-Sheet responsive pour le client avec :
+## Fichiers a modifier
 
-**Affichage du statut en temps reel** avec tracker visuel (etapes)
+1. **`src/pages/PaymentCallback.tsx`**
+   - Apres verification reussie, si `om_payment_type === 'service_booking'`, mettre a jour la reservation
+   - Adapter les messages pour les differents types de paiement
+   - Nettoyer `om_booking_id` et `om_completion_type` du sessionStorage
 
-**Actions selon le statut :**
-- `pending` : "En attente d'acceptation" + bouton Annuler (remboursement acompte si paye)
-- `accepted` : "Acceptee" + bouton Annuler (remboursement acompte si paye)
-- `on_the_way` : "Prestataire en route" -- pas d'annulation
-- `arrived` : "Prestataire arrive" + 3 boutons :
-  - "Payer 100%" : paiement Orange Money (prix service + commission)
-  - "Payer 50%" : paiement OM 50% + commission, avec motif + commentaire + upload preuve
-  - "Annuler" : motif + preuve, pas de remboursement acompte
-- `completed` / `partial` / `cancelled` / `expired` : lecture seule
+2. **`src/pages/ServiceBooking.tsx`**
+   - Ajouter une query pour verifier si le client a une reservation active
+   - Bloquer la soumission si une reservation est deja en cours
+   - Afficher un avertissement avec lien vers "Mes reservations"
+   - Corriger la redirection pour les reservations gratuites (vers `/mon-profil` au lieu de `/payment/callback`)
 
-**Logique d'annulation :**
-- Avant `on_the_way` : annulation libre, remboursement acompte cree dans table `refunds` si applicable
-- Pendant `on_the_way` : annulation impossible
-- A `arrived` + annulation : pas de remboursement acompte, admin reverse au vendeur plus tard
+3. **Migration SQL (si necessaire)**
+   - Creer le bucket `cancellation-attachments` si inexistant
 
-## 6. Refonte BookingDetailSheet.tsx (vue vendeur/equipe)
+## Sequence
 
-**Boutons d'action :**
-- `pending` : "Accepter la prestation" (enregistre `accepted_by`, `accepted_at`)
-- `accepted` : "Demarrer vers client" (-> `on_the_way`, `started_at`)
-- `on_the_way` : "Je suis arrive" (-> `arrived`, `arrived_at`)
-- `arrived` : Message "En attente de l'action du client"
-- `completed`/`partial` : Lecture seule + champ commentaire vendeur pour litiges
-- `cancelled` : Lecture seule + champ commentaire vendeur
-
-Le vendeur ne peut plus marquer "Service termine" -- c'est le client qui decide.
-
-## 7. Integration dans ClientProfile.tsx
-
-- Ajouter un bouton "Details" sur chaque reservation (comme pour les commandes produits)
-- Ouvrir `ClientBookingDetailSheet` au clic
-- Abonnement Realtime sur `service_bookings` pour MAJ instantanees
-
-## 8. OrderStatusBadge.tsx
-
-Ajouter les nouveaux statuts :
-- `accepted` : "Acceptee" (cyan)
-- `partial` : "Partielle (50%)" (amber)
-- `expired` : "Expiree" (gray)
-- `pending_refund` : "Remboursement en attente" (orange)
-
-## 9. Paiement du solde (Orange Money)
-
-Quand le client choisit "Payer 100%" ou "Payer 50%" :
-- Appeler `orange-money-payment` avec `payment_type: 'service_booking'`
-- Montant : prix service + commission (ou 50% + commission)
-- Au retour, verifier et mettre a jour `completion_type`, `balance_payment_status`, `completed_at`
-- Creer `pending_payouts` pour le vendeur
-
-## 10. Auto-expiration 24h
-
-- Utiliser `pg_cron` + `pg_net` pour appeler une edge function toutes les heures
-- La fonction verifie les bookings `pending` ou `auto_cancel_at < now()`
-- Passe a `expired`, cree un `refund` si acompte paye
-
-## Sequence d'implementation
-
-1. Migration DB (champs + RLS + defaults)
-2. Formulaires creation/modification service (toggle + durees)
-3. ServiceDetail (supprimer conditionnel requires_booking)
-4. ServiceBooking (statut initial pending, auto_cancel_at)
-5. OrderStatusBadge (nouveaux statuts)
-6. BookingDetailSheet refonte (vue vendeur)
-7. ClientBookingDetailSheet (nouveau composant client)
-8. ClientProfile integration (bouton details + realtime)
-9. Edge function auto-expiration + cron
-10. Tests
-
-## Fichiers modifies/crees
-
-- **Migration SQL** : ~1 fichier
-- `src/components/shops/CreateServiceDialog.tsx` : toggle + durees
-- `src/components/shops/EditServiceDialog.tsx` : idem
-- `src/pages/ServiceDetail.tsx` : conditionnel requires_booking
-- `src/pages/ServiceBooking.tsx` : statut pending, auto_cancel_at
-- `src/components/orders/OrderStatusBadge.tsx` : nouveaux statuts
-- `src/components/orders/BookingDetailSheet.tsx` : refonte vendeur
-- **NOUVEAU** `src/components/orders/ClientBookingDetailSheet.tsx` : vue client
-- `src/pages/ClientProfile.tsx` : integration details + realtime bookings
-- **NOUVEAU** `supabase/functions/expire-bookings/index.ts` : auto-expiration
-- `supabase/config.toml` : config expire-bookings
+1. Corriger `PaymentCallback.tsx` (critique)
+2. Corriger `ServiceBooking.tsx` (redirection gratuite + limite 1 reservation active)
+3. Verifier/creer le bucket de stockage

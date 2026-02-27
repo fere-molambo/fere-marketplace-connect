@@ -1,91 +1,83 @@
 
 
-# Plan : Corriger les versements vendeurs pour les reservations de services
+# Plan : Corriger le statut de paiement des reservations et les versements pour annulations
 
-## Probleme identifie
+## Problemes identifies
 
-Quand un client paie le solde d'une prestation (100% ou 50%), le code dans `PaymentCallback.tsx` tente de creer un `pending_payout` pour le vendeur. Mais cette insertion echoue silencieusement a cause de la politique RLS sur la table `pending_payouts` : seuls les admins ou les clients avec une commande annulee peuvent inserer des lignes.
+### 1. "Paye integralement" affiche a tort
+Le trigger `sync_order_payment_from_transaction` met `payment_status = 'paid'` pour **tous** les paiements de type `service_booking`, sans distinguer :
+- Le paiement de l'acompte (frais de deplacement) -- devrait mettre `partial` et `travel_fee_paid = true`
+- Le paiement du solde (100% ou 50%) -- devrait mettre `paid`
 
-De plus, les frais de deplacement (travel_fee) ne sont pas inclus dans le calcul du versement vendeur.
+Resultat : la reservation annulee `a45b28e7` affiche "Paye integralement" alors que seul l'acompte de 100 FCFA a ete paye.
 
-## Solution : Deplacer la logique dans un trigger SQL
+### 2. Pas de versement vendeur pour les annulations a l'arrivee
+Le trigger `handle_service_booking_payout` ne gere que les statuts `completed` et `partial`, pas `cancelled` avec `completion_type = 'cancelled_at_arrival'`. Dans ce cas, le vendeur devrait recevoir les frais de deplacement (moins la commission).
 
-Plutot que de corriger le RLS et garder la logique cote client (fragile), la solution est de creer un **trigger sur `service_bookings`** qui cree automatiquement les `pending_payouts` quand le statut passe a `completed` ou `partial`. C'est le meme pattern que `sync_order_payment_from_transaction` pour les commandes produits.
+### 3. Pas de remboursement cree lors d'une annulation avant demarrage
+Le code dans `handleCancelBeforeOnTheWay` verifie `travelFeePaid` mais ce flag n'est jamais mis a `true` par le trigger. Donc le remboursement n'est jamais cree meme si l'acompte a bien ete paye.
 
-## Etape 1 : Migration SQL - Creer le trigger
+## Corrections
 
-Creer une fonction `handle_service_booking_payout()` et un trigger :
+### Migration SQL : Corriger le trigger `sync_order_payment_from_transaction`
+
+Modifier la section `service_booking` pour distinguer l'avance du solde via `metadata->>'is_travel_fee'` :
 
 ```text
-CREATE OR REPLACE FUNCTION handle_service_booking_payout()
-RETURNS trigger AS $$
-DECLARE
-  v_vendor_id uuid;
-  v_vendor_amount numeric;
-  v_already_exists boolean;
-BEGIN
-  -- Seulement quand le statut passe a 'completed' ou 'partial'
-  IF (NEW.status IN ('completed', 'partial')) AND (OLD.status NOT IN ('completed', 'partial')) THEN
-
-    -- Recuperer le vendeur (owner de la boutique du service)
-    SELECT sh.owner_id INTO v_vendor_id
-    FROM services s
-    JOIN shops sh ON sh.id = s.shop_id
-    WHERE s.id = NEW.service_id;
-
-    IF v_vendor_id IS NULL THEN
-      RETURN NEW;
-    END IF;
-
-    -- Verifier qu'un payout n'existe pas deja pour cette reservation
-    SELECT EXISTS(
-      SELECT 1 FROM pending_payouts WHERE booking_id = NEW.id AND recipient_type = 'vendor'
-    ) INTO v_already_exists;
-
-    IF v_already_exists THEN
-      RETURN NEW;
-    END IF;
-
-    -- Calculer le montant : (prix du service - commission) + frais de deplacement
-    v_vendor_amount := (COALESCE(NEW.total_price, 0) - COALESCE(NEW.commission_amount, 0))
-                     + COALESCE(NEW.travel_fee, 0);
-
-    IF v_vendor_amount > 0 THEN
-      INSERT INTO pending_payouts (
-        recipient_id, recipient_type, amount, booking_id, eligible_at
-      ) VALUES (
-        v_vendor_id, 'vendor', v_vendor_amount, NEW.id,
-        now() + interval '24 hours'
-      );
-    END IF;
+IF NEW.payment_type = 'service_booking' AND NEW.related_id IS NOT NULL THEN
+  IF (NEW.metadata->>'is_travel_fee')::boolean = true THEN
+    -- Acompte (frais de deplacement)
+    UPDATE service_bookings
+    SET payment_status = 'partial',
+        travel_fee_paid = true,
+        payment_reference = NEW.reference,
+        advance_paid = NEW.amount,
+        updated_at = now()
+    WHERE id = NEW.related_id;
+  ELSE
+    -- Solde (completion payment)
+    UPDATE service_bookings
+    SET payment_status = 'paid',
+        payment_reference = NEW.reference,
+        updated_at = now()
+    WHERE id = NEW.related_id;
   END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public';
-
-CREATE TRIGGER on_service_booking_completed_payout
-  AFTER UPDATE ON service_bookings
-  FOR EACH ROW
-  EXECUTE FUNCTION handle_service_booking_payout();
+END IF;
 ```
 
-## Etape 2 : Nettoyer PaymentCallback.tsx
+### Migration SQL : Etendre le trigger `handle_service_booking_payout`
 
-Supprimer le bloc de creation de payout dans `PaymentCallback.tsx` (lignes 75-102), puisque le trigger s'en charge desormais. Le code de mise a jour du statut de la reservation (lignes 62-73) reste necessaire.
+Ajouter la gestion de `cancelled` avec `completion_type = 'cancelled_at_arrival'` :
 
-## Etape 3 : Creer les payouts manquants pour les 2 reservations testees
+```text
+-- Existing: completed/partial -> vendor gets (total_price - commission) + travel_fee
 
-Executer une requete SQL pour creer les payouts manquants :
+-- New: cancelled_at_arrival -> vendor gets travel_fee only (minus travel commission if applicable)
+IF NEW.status = 'cancelled'
+   AND NEW.completion_type = 'cancelled_at_arrival'
+   AND OLD.status != 'cancelled'
+   AND COALESCE(NEW.travel_fee, 0) > 0
+THEN
+  -- Insert payout for vendor = travel_fee
+  INSERT INTO pending_payouts (recipient_id, recipient_type, amount, booking_id, eligible_at)
+  VALUES (v_vendor_id, 'vendor', NEW.travel_fee, NEW.id, now() + interval '24 hours');
+END IF;
+```
 
-- Reservation `d8fbf070` (completed, 100%) : vendeur `4671cff3` recoit 128 - 10 + 100 = 218 FCFA
-- Reservation `adac88d4` (partial, 50%) : vendeur `9bc2e77f` recoit 13 - 1 + 0 = 12 FCFA
+### Correction donnees : Booking `a45b28e7`
+
+- Mettre `payment_status = 'partial'`, `travel_fee_paid = true`
+- Creer un `pending_payout` de 100 FCFA pour le vendeur (frais de deplacement)
+
+### Frontend : Aucune modification necessaire
+
+Le `PaymentStatusBadge` affichera correctement "Acompte paye" au lieu de "Paye integralement" une fois le `payment_status` corrige en `partial`. Le code de `handleCancelBeforeOnTheWay` fonctionnera aussi puisque `travel_fee_paid` sera desormais correctement mis a `true`.
 
 ## Resume des changements
 
-| Fichier / Ressource | Modification |
-|---------------------|-------------|
-| Migration SQL | Nouveau trigger `handle_service_booking_payout` |
-| `PaymentCallback.tsx` | Supprimer le bloc de creation de payout (lignes 75-102) |
-| SQL ponctuel | Inserer les 2 payouts manquants |
+| Ressource | Modification |
+|-----------|-------------|
+| Migration SQL | Corriger `sync_order_payment_from_transaction` (distinguer avance vs solde) |
+| Migration SQL | Etendre `handle_service_booking_payout` (gerer `cancelled_at_arrival`) |
+| SQL donnees | Corriger booking `a45b28e7` + creer payout manquant |
 

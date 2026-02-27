@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Clock, Star, Banknote, Car } from "lucide-react";
+import { ArrowLeft, Loader2, Clock, Star, Banknote, Car, AlertTriangle } from "lucide-react";
 import { format, getDay, parse, addMinutes, isBefore } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ServiceBookingCalendar } from "@/components/booking/ServiceBookingCalendar";
@@ -363,6 +363,23 @@ export default function ServiceBooking() {
       <Navbar />
 
       <main className="container max-w-6xl mx-auto px-4 py-8">
+        {/* Active booking warning */}
+        {activeBooking && (
+          <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-destructive">Vous avez déjà une réservation en cours</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Votre réservation pour "{(activeBooking as any).service?.name}" est en statut "{activeBooking.status}". 
+                Terminez-la ou annulez-la avant d'en créer une nouvelle.
+              </p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate("/mon-profil?tab=orders")}>
+                Voir mes réservations
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

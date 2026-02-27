@@ -54,6 +54,23 @@ export default function ServiceBooking() {
     }
   }, [user, authLoading, navigate, serviceId]);
 
+  // Check if client already has an active booking
+  const { data: activeBooking, isLoading: activeBookingLoading } = useQuery({
+    queryKey: ["active-booking-check", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("service_bookings")
+        .select("id, status, service_id, booking_date, booking_time, service:services(name)")
+        .eq("customer_id", user!.id)
+        .in("status", ["pending", "accepted", "on_the_way", "arrived"])
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Fetch service details
   const { data: service, isLoading: serviceLoading } = useQuery({
     queryKey: ["service-booking", serviceId],
@@ -286,7 +303,7 @@ export default function ServiceBooking() {
       } else {
         // No travel fee - booking confirmed directly
         toast.success("Réservation confirmée !");
-        navigate(`/payment/callback?reference=BOOKING-${booking.id}&status=success`);
+        navigate("/mon-profil?tab=orders");
       }
     },
     onError: (error) => {
@@ -301,13 +318,17 @@ export default function ServiceBooking() {
       toast.error("Veuillez sélectionner une date et un créneau");
       return;
     }
+    if (activeBooking) {
+      toast.error("Vous avez déjà une réservation en cours. Terminez-la ou annulez-la avant d'en créer une nouvelle.");
+      return;
+    }
     setIsSubmitting(true);
     createBooking.mutate();
   };
 
   const isFormValid = selectedDate && selectedSlot;
 
-  if (authLoading || serviceLoading) {
+  if (authLoading || serviceLoading || activeBookingLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />

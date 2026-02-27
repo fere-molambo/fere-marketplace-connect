@@ -1,50 +1,76 @@
 
-# Configuration du cron job pour expire-bookings
 
-## Etape 1 : Activer les extensions pg_cron et pg_net
+# Plan : Correction temps reel + retour a Paystack
 
-Migration SQL pour activer les deux extensions necessaires :
+## Probleme 1 : Les etats ne changent pas en temps reel
 
-```text
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
-GRANT USAGE ON SCHEMA cron TO postgres;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
-```
+La table `service_bookings` n'est **pas ajoutee** a la publication Supabase Realtime (`supabase_realtime`). Les subscriptions Realtime dans `ClientProfile.tsx` et `ClientBookingDetailSheet.tsx` ne recoivent donc aucun evenement.
 
-## Etape 2 : Creer le cron job
-
-Execution SQL directe (hors migration car contient l'anon key du projet) :
+**Correction** : Ajouter `service_bookings` a la publication realtime via une migration SQL :
 
 ```text
-SELECT cron.schedule(
-  'expire-pending-bookings',
-  '0 * * * *',   -- toutes les heures, a la minute 0
-  $$
-  SELECT net.http_post(
-    url := 'https://jajfuajmkjulujnwfqen.supabase.co/functions/v1/expire-bookings',
-    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphamZ1YWpta2p1bHVqbndmcWVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjY3MzUsImV4cCI6MjA3OTA0MjczNX0.ME5XNJsLbB0InLeKexBcIGe5sxZZsd6Jg2W9oB0IBEQ"}'::jsonb,
-    body := concat('{"time": "', now(), '"}')::jsonb
-  ) AS request_id;
-  $$
-);
+ALTER PUBLICATION supabase_realtime ADD TABLE service_bookings;
 ```
 
-Cela appellera la edge function `expire-bookings` toutes les heures. Elle verifiera les reservations `pending` dont `auto_cancel_at` est depasse et les passera a `expired`, avec creation automatique de remboursement si l'acompte etait paye.
+## Probleme 2 : Remettre Paystack pour tous les paiements
 
-## Resume du workflow verifie
+Remplacer tous les appels `orange-money-payment` par `paystack-payment` dans 6 fichiers frontend, et adapter la logique (reference Paystack via URL au lieu de sessionStorage Orange Money).
 
-Le workflow complet est fonctionnel :
+### Fichiers a modifier
 
-1. **Creation** : Client reserve, statut `pending`, `auto_cancel_at` = +24h
-2. **Blocage multi-service** : Un client ne peut avoir qu'une seule reservation active
-3. **Vendeur accepte** : `pending` -> `accepted` (avec `accepted_by`, `accepted_at`)
-4. **Vendeur demarre** : `accepted` -> `on_the_way` (avec `started_at`)
-5. **Vendeur arrive** : `on_the_way` -> `arrived` (avec `arrived_at`)
-6. **Client decide** :
-   - Payer 100% -> Orange Money -> `completed`
-   - Payer 50% + motif/preuve -> Orange Money -> `partial` (litige)
-   - Annuler -> `cancelled` (pas de remboursement acompte)
-7. **Annulation anticipee** : Avant `on_the_way`, annulation libre avec remboursement acompte
-8. **Expiration auto** : 24h sans acceptation -> `expired` + remboursement acompte
-9. **PaymentCallback** : Met a jour le statut de la reservation et cree les payouts vendeur
+#### 1. `src/pages/PaymentCallback.tsx`
+- Remplacer la verification Orange Money par Paystack
+- Utiliser `searchParams.get('reference')` (Paystack met `?reference=xxx` dans l'URL de retour)
+- Appeler `paystack-payment` avec `action: 'verify'` + `reference`
+- Supprimer la lecture de `sessionStorage` pour `om_order_id` / `om_pay_token`
+- Garder la logique de mise a jour des `service_bookings` et `pending_payouts` en cas de succes
+
+#### 2. `src/pages/Checkout.tsx` (ligne ~292)
+- Remplacer `orange-money-payment` par `paystack-payment`
+- Utiliser `data.authorization_url` au lieu de `data.payment_url`
+- Stocker `data.reference` en sessionStorage comme `paystack_reference`
+- Supprimer les references `om_order_id`, `om_pay_token`
+
+#### 3. `src/pages/ServiceBooking.tsx` (ligne ~267)
+- Remplacer `orange-money-payment` par `paystack-payment`
+- Adapter les champs de reponse (`authorization_url`, `reference`)
+- Stocker le `reference` en sessionStorage et `payment_type`
+
+#### 4. `src/components/orders/ClientOrderDetailSheet.tsx` (ligne ~152)
+- Remplacer `orange-money-payment` par `paystack-payment`
+- Adapter les champs de reponse
+
+#### 5. `src/components/orders/ClientBookingDetailSheet.tsx` (ligne ~233)
+- Remplacer `orange-money-payment` par `paystack-payment`
+- Adapter les champs de reponse
+- Stocker `booking_id` et `completion_type` en sessionStorage pour la verification callback
+
+#### 6. `src/components/tokens/BuyTokensDialog.tsx` (ligne ~47)
+- Remplacer `orange-money-payment` par `paystack-payment`
+- Adapter les champs de reponse
+
+#### 7. `src/components/payment/PaystackCheckout.tsx` (ligne ~69)
+- Remettre l'appel vers `paystack-payment`
+- Utiliser `authorization_url` et `reference`
+
+### Adaptations cles Paystack vs Orange Money
+
+| Element | Orange Money | Paystack (retour) |
+|---------|-------------|-------------------|
+| Fonction edge | `orange-money-payment` | `paystack-payment` |
+| URL de paiement | `payment_url` | `authorization_url` |
+| Reference | `order_id` + `pay_token` | `reference` |
+| Callback | sessionStorage | `?reference=xxx` dans l'URL |
+| Verification | `order_id` + `pay_token` | `reference` |
+| Montants | FCFA entiers | FCFA x100 (kobo) cote backend |
+
+### Textes a adapter
+- `ServiceBooking.tsx` : "A payer via Orange Money" -> "A payer en ligne"
+- Boutons "Payer avec Orange Money" -> "Payer maintenant"
+
+### Ce qui ne change PAS
+- L'edge function `paystack-payment` existe deja et est fonctionnelle
+- Les triggers de base de donnees (`sync_order_payment_from_transaction`) restent inchanges
+- La logique metier (acompte/solde) reste identique
+- L'edge function `orange-money-payment` reste deployee mais ne sera plus appelee
+

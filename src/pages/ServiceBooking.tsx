@@ -213,6 +213,10 @@ export default function ServiceBooking() {
         throw new Error("Données manquantes");
       }
 
+      // Calculate auto_cancel_at = now + 24h
+      const autoCancelAt = new Date();
+      autoCancelAt.setHours(autoCancelAt.getHours() + 24);
+
       const { data: booking, error } = await supabase
         .from("service_bookings")
         .insert({
@@ -226,12 +230,13 @@ export default function ServiceBooking() {
           advance_paid: 0,
           notes: comment || null,
           delivery_address_id: selectedAddressId,
-          payment_method: "cash",
+          payment_method: travelFeeAmount > 0 ? "online" : "none",
           payment_status: travelFeeAmount > 0 ? "pending" : "not_required",
           commission_amount: commissionAmount,
           tva_amount: tvaAmount,
-          status: "reserved",
-        })
+          status: "pending",
+          auto_cancel_at: autoCancelAt.toISOString(),
+        } as any)
         .select()
         .single();
 
@@ -383,7 +388,7 @@ export default function ServiceBooking() {
                       </p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Banknote className="h-3 w-3" />
-                        À payer en espèces le jour de la prestation
+                        À payer via Orange Money à l'arrivée du prestataire
                       </p>
                     </div>
                   </div>

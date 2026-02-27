@@ -242,22 +242,20 @@ const ServiceDetail = () => {
             </div>
 
             {/* Booking info */}
-            {service.requires_booking && (
-              <div className="bg-primary/10 p-3 rounded-lg flex items-start gap-2">
-                <Calendar className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Réservation requise</p>
-                  {service.travel_fee_type === "paid" && service.travel_fee_amount > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Frais de déplacement : {service.travel_fee_amount?.toLocaleString()} FCFA (payable en ligne)
-                    </p>
-                  )}
-                  {service.travel_fee_type === "free" && (
-                    <p className="text-sm text-green-600">Déplacement gratuit</p>
-                  )}
-                </div>
+            <div className="bg-primary/10 p-3 rounded-lg flex items-start gap-2">
+              <Calendar className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Réservation requise</p>
+                {service.travel_fee_type === "paid" && service.travel_fee_amount > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Frais de déplacement : {service.travel_fee_amount?.toLocaleString()} FCFA (payable via Orange Money)
+                  </p>
+                )}
+                {service.travel_fee_type === "free" && (
+                  <p className="text-sm text-green-600">Déplacement gratuit</p>
+                )}
               </div>
-            )}
+            </div>
 
             {/* What's included */}
             {service.includes && (

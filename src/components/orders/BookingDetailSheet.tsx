@@ -3,14 +3,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { CancellationBanner } from "./CancellationBanner";
-import { MapPin, Phone, Calendar, Clock, MessageSquare, Banknote, CreditCard, ExternalLink, CheckCircle, Play, CircleDollarSign, Loader2 } from "lucide-react";
+import { MapPin, Phone, Calendar, Clock, MessageSquare, CreditCard, ExternalLink, CheckCircle, Play, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface BookingDetailSheetProps {
@@ -22,40 +24,35 @@ interface BookingDetailSheetProps {
 
 export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: BookingDetailSheetProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
-  // Local state to reflect updates immediately
   const [bookingData, setBookingData] = useState(booking);
+  const [vendorComment, setVendorComment] = useState("");
 
-  // Sync local state when prop changes
   useEffect(() => {
     setBookingData(booking);
+    setVendorComment(booking?.vendor_dispute_comment || "");
   }, [booking]);
 
-  // Fetch cancellation details if booking is cancelled
   const { data: cancellation } = useQuery({
     queryKey: ["booking-cancellation", booking?.id],
     queryFn: async () => {
       if (!booking?.id) return null;
       const { data, error } = await supabase
         .from("cancellations")
-        .select(`
-          *,
-          reason:cancellation_reasons(label)
-        `)
+        .select(`*, reason:cancellation_reasons(label)`)
         .eq("booking_id", booking.id)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!booking?.id && booking?.status === "cancelled",
+    enabled: !!booking?.id && (booking?.status === "cancelled" || booking?.status === "partial"),
   });
 
   if (!bookingData) return null;
 
   const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined || isNaN(amount)) {
-      return "0 FCFA";
-    }
+    if (amount === null || amount === undefined || isNaN(amount)) return "0 FCFA";
     return new Intl.NumberFormat("fr-FR").format(Math.round(amount)) + " FCFA";
   };
 
@@ -75,93 +72,33 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
 
       if (error) throw error;
 
-      // Update local state immediately for reactive UI
-      setBookingData((prev: any) => ({
-        ...prev,
-        status: newStatus,
-        ...additionalFields,
-      }));
-
-      toast.success(`Statut mis à jour: ${getStatusLabel(newStatus)}`);
+      setBookingData((prev: any) => ({ ...prev, status: newStatus, ...additionalFields }));
+      toast.success(`Statut mis à jour`);
       queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
     } catch (error: any) {
       console.error("Error updating booking status:", error);
-      toast.error("Erreur lors de la mise à jour: " + error.message);
+      toast.error("Erreur: " + error.message);
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const handlePaymentStatusUpdate = async () => {
+  const handleSaveVendorComment = async () => {
     setIsUpdating(true);
     try {
       const { error } = await supabase
         .from("service_bookings")
-        .update({
-          payment_status: "paid",
-          updated_at: new Date().toISOString(),
-        })
+        .update({ vendor_dispute_comment: vendorComment } as any)
         .eq("id", bookingData.id);
-
       if (error) throw error;
-
-      // Update local state immediately
-      setBookingData((prev: any) => ({
-        ...prev,
-        payment_status: "paid",
-      }));
-
-      toast.success("Paiement marqué comme reçu");
-      queryClient.invalidateQueries({ queryKey: ["shop-bookings", shopId] });
+      toast.success("Commentaire enregistré");
     } catch (error: any) {
-      console.error("Error updating payment status:", error);
-      toast.error("Erreur lors de la mise à jour: " + error.message);
+      toast.error("Erreur: " + error.message);
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "reserved": return "Réservé";
-      case "on_the_way": return "En route";
-      case "arrived": return "Arrivé";
-      case "completed": return "Réalisé";
-      case "cancelled": return "Annulé";
-      // Legacy statuses
-      case "pending": return "En attente";
-      case "confirmed": return "Confirmée";
-      case "in_progress": return "En cours";
-      default: return status;
-    }
-  };
-
-  const handleValidateTravelFee = async () => {
-    if (!bookingData.travel_fee || !bookingData.travel_fee_paid) return;
-    // Travel fee already paid at booking - create pending payout for vendor
-    try {
-      const { data: shop } = await supabase
-        .from("services")
-        .select("shop_id, shops(owner_id)")
-        .eq("id", bookingData.service_id)
-        .single();
-      
-      if (shop?.shops?.owner_id) {
-        await supabase.from("pending_payouts").insert({
-          recipient_id: shop.shops.owner_id,
-          recipient_type: "vendor",
-          booking_id: bookingData.id,
-          amount: bookingData.travel_fee,
-          status: "pending",
-          eligible_at: new Date().toISOString(),
-        });
-      }
-    } catch (error) {
-      console.error("Error creating travel fee payout:", error);
-    }
-  };
-
-  // Calculate amounts using local state
   const totalPrice = bookingData.total_price || 0;
   const commissionAmount = bookingData.commission_amount || 0;
   const tvaAmount = bookingData.tva_amount || 0;
@@ -169,11 +106,12 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
   const travelFeePaid = bookingData.travel_fee_paid || false;
   const vendorNet = totalPrice - commissionAmount - tvaAmount;
 
-  // Build Google Maps link from delivery address
   const deliveryAddress = bookingData.delivery_address;
   const mapsLink = deliveryAddress?.geolocation_lat && deliveryAddress?.geolocation_lng
     ? `https://www.google.com/maps?q=${deliveryAddress.geolocation_lat},${deliveryAddress.geolocation_lng}`
     : deliveryAddress?.google_maps_link || null;
+
+  const status = bookingData.status;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -186,30 +124,18 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {/* Statuts et badges */}
+          {/* Status badges */}
           <div className="flex flex-wrap gap-2">
-            <OrderStatusBadge status={bookingData.status} />
+            <OrderStatusBadge status={status} />
             <PaymentStatusBadge status={bookingData.payment_status} />
-            {bookingData.payment_method === "cash" ? (
-              <Badge variant="secondary">
-                <Banknote className="mr-1 h-3 w-3" />Cash
-              </Badge>
-            ) : (
-              <Badge variant="secondary">
-                <CreditCard className="mr-1 h-3 w-3" />En ligne
-              </Badge>
-            )}
           </div>
 
           {/* Cancellation Banner */}
-          {bookingData.status === "cancelled" && cancellation && (
-            <CancellationBanner 
-              cancellation={cancellation} 
-              type="booking"
-            />
+          {(status === "cancelled" || status === "partial") && cancellation && (
+            <CancellationBanner cancellation={cancellation} type="booking" />
           )}
 
-          {/* Date et heure du RDV */}
+          {/* Date et heure */}
           <div className="rounded-lg bg-primary/10 p-4 text-center">
             <p className="text-sm text-muted-foreground">Rendez-vous prévu</p>
             <p className="text-lg font-semibold flex items-center justify-center gap-2">
@@ -222,98 +148,78 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
             </p>
           </div>
 
-          {/* Boutons d'action selon le nouveau workflow simplifié */}
+          {/* Action buttons - vendor workflow */}
           <div className="space-y-2">
-            {/* RESERVED -> ON_THE_WAY */}
-            {bookingData.status === "reserved" && (
-              <Button 
-                className="w-full" 
-                onClick={() => handleStatusUpdate("on_the_way", { vendor_on_the_way_at: new Date().toISOString() })}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                Je suis en route
-              </Button>
-            )}
-            
-            {/* ON_THE_WAY -> ARRIVED */}
-            {bookingData.status === "on_the_way" && (
-              <Button 
-                className="w-full" 
-                onClick={async () => {
-                  await handleStatusUpdate("arrived", { vendor_arrived_at: new Date().toISOString() });
-                  // Validate travel fee payment if applicable
-                  if (bookingData.travel_fee_paid) {
-                    await handleValidateTravelFee();
-                  }
-                }}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
-                Je suis arrivé
-              </Button>
-            )}
-            
-            {/* ARRIVED -> COMPLETED */}
-            {bookingData.status === "arrived" && (
-              <Button 
-                className="w-full" 
-                onClick={() => handleStatusUpdate("completed")}
+            {status === "pending" && (
+              <Button
+                className="w-full"
+                onClick={() => handleStatusUpdate("accepted", { 
+                  accepted_by: user?.id, 
+                  accepted_at: new Date().toISOString() 
+                })}
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                Service terminé
+                Accepter la prestation
               </Button>
             )}
 
-            {/* Legacy status support */}
-            {bookingData.status === "pending" && (
-              <Button 
-                className="w-full" 
-                onClick={() => handleStatusUpdate("reserved", { vendor_confirmed_at: new Date().toISOString() })}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                Accepter la réservation
-              </Button>
-            )}
-            {bookingData.status === "confirmed" && (
-              <Button 
-                className="w-full" 
-                onClick={() => handleStatusUpdate("on_the_way", { vendor_on_the_way_at: new Date().toISOString() })}
+            {status === "accepted" && (
+              <Button
+                className="w-full"
+                onClick={() => handleStatusUpdate("on_the_way", { started_at: new Date().toISOString() })}
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                Je suis en route
+                Démarrer vers client
               </Button>
             )}
-            {bookingData.status === "in_progress" && (
-              <Button 
-                className="w-full" 
-                onClick={() => handleStatusUpdate("arrived", { vendor_arrived_at: new Date().toISOString() })}
+
+            {status === "on_the_way" && (
+              <Button
+                className="w-full"
+                onClick={() => handleStatusUpdate("arrived", { arrived_at: new Date().toISOString() })}
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
                 Je suis arrivé
               </Button>
             )}
-            
-            {/* Cancellation button - available before completion */}
-            {!["cancelled", "completed"].includes(bookingData.status) && (
-              <Button 
-                className="w-full" 
-                variant="destructive"
-                onClick={() => handleStatusUpdate("cancelled")}
-                disabled={isUpdating}
-              >
-                Annuler la réservation
-              </Button>
+
+            {status === "arrived" && (
+              <div className="p-4 bg-amber-50 rounded-lg text-center">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mx-auto mb-2" />
+                <p className="text-sm font-medium text-amber-800">En attente de l'action du client</p>
+                <p className="text-xs text-amber-600 mt-1">Le client doit confirmer la fin de la prestation et effectuer le paiement.</p>
+              </div>
+            )}
+
+            {/* Vendor comment for disputes (completed/partial/cancelled) */}
+            {["completed", "partial", "cancelled"].includes(status) && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Commentaire vendeur (litiges)</label>
+                <Textarea
+                  value={vendorComment}
+                  onChange={(e) => setVendorComment(e.target.value)}
+                  placeholder="Ajoutez un commentaire pour l'admin si besoin..."
+                  rows={3}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveVendorComment}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                  Enregistrer le commentaire
+                </Button>
+              </div>
             )}
           </div>
 
           <Separator />
 
-          {/* Infos client */}
+          {/* Client info */}
           <div>
             <h3 className="text-sm font-semibold mb-2">Client</h3>
             <div className="rounded-lg bg-muted p-3 space-y-1">
@@ -327,7 +233,7 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
             </div>
           </div>
 
-          {/* Lieu d'intervention */}
+          {/* Location */}
           {deliveryAddress && (
             <div>
               <h3 className="text-sm font-semibold mb-2">Lieu d'intervention</h3>
@@ -339,16 +245,8 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
                 {deliveryAddress.city && (
                   <p className="text-sm text-muted-foreground">{deliveryAddress.city}, {deliveryAddress.country || "Mali"}</p>
                 )}
-                {deliveryAddress.recipient_name && (
-                  <p className="text-sm">{deliveryAddress.recipient_name} - {deliveryAddress.recipient_phone}</p>
-                )}
                 {mapsLink && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full mt-2"
-                    onClick={() => window.open(mapsLink, "_blank")}
-                  >
+                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => window.open(mapsLink, "_blank")}>
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Voir sur Google Maps
                   </Button>
@@ -357,7 +255,7 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
             </div>
           )}
 
-          {/* Notes du client */}
+          {/* Notes */}
           {bookingData.notes && (
             <div>
               <h3 className="text-sm font-semibold mb-2">Notes du client</h3>
@@ -369,23 +267,20 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
 
           <Separator />
 
-          {/* Récapitulatif financier - simplifié pour le vendeur */}
+          {/* Financial summary */}
           <div>
             <h3 className="text-sm font-semibold mb-2">Récapitulatif financier</h3>
             <div className="space-y-3 text-sm">
-              {/* Service price - to collect in cash */}
-              <div className="p-3 bg-orange-50 rounded-lg">
-                <div className="flex justify-between font-medium text-orange-700">
-                  <span className="flex items-center gap-2">
-                    <Banknote className="h-4 w-4" />
-                    À encaisser en espèces
-                  </span>
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="flex justify-between font-medium">
+                  <span>Prix de la prestation</span>
                   <span>{formatCurrency(totalPrice)}</span>
                 </div>
-                <p className="text-xs text-orange-600 mt-1">Le client paie le service en cash le jour J</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Payé via Orange Money par le client à l'arrivée
+                </p>
               </div>
 
-              {/* Travel fee - if applicable */}
               {travelFee > 0 && (
                 <div className={`p-3 rounded-lg ${travelFeePaid ? 'bg-green-50' : 'bg-yellow-50'}`}>
                   <div className={`flex justify-between font-medium ${travelFeePaid ? 'text-green-700' : 'text-yellow-700'}`}>
@@ -396,39 +291,37 @@ export function BookingDetailSheet({ booking, open, onOpenChange, shopId }: Book
                     <span>{formatCurrency(travelFee)}</span>
                   </div>
                   <p className={`text-xs mt-1 ${travelFeePaid ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {travelFeePaid 
-                      ? "✓ Payé en ligne - vous recevrez ce montant après votre arrivée"
-                      : "⏳ En attente de paiement par le client"}
+                    {travelFeePaid ? "✓ Payé en ligne" : "⏳ En attente de paiement"}
                   </p>
                 </div>
               )}
-              
+
               <Separator />
-              
-              {/* Net vendor earnings */}
               <div className="flex justify-between font-semibold text-lg text-green-600">
-                <span>💰 Vous conserverez (net)</span>
+                <span>💰 Vous recevrez (net)</span>
                 <span>{formatCurrency(vendorNet)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Commission plateforme ({((commissionAmount / totalPrice) * 100).toFixed(0)}%) appliquée
+                Commission plateforme déduite. L'admin effectuera le versement.
               </p>
             </div>
           </div>
 
-          {/* Confirmations */}
+          {/* Timestamps */}
           <div className="space-y-1 text-xs text-muted-foreground">
-            {bookingData.vendor_confirmed_at && (
-              <p>✓ Acceptée le {format(new Date(bookingData.vendor_confirmed_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
+            {bookingData.accepted_at && (
+              <p>✓ Acceptée le {format(new Date(bookingData.accepted_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
             )}
-            {bookingData.client_confirmed_at && (
-              <p>✓ Confirmée par client le {format(new Date(bookingData.client_confirmed_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
+            {bookingData.started_at && (
+              <p>✓ Démarré le {format(new Date(bookingData.started_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
             )}
-          </div>
-
-          {/* Date de création */}
-          <div className="text-xs text-muted-foreground">
-            Créée le {format(new Date(bookingData.created_at), "dd MMMM yyyy à HH:mm", { locale: fr })}
+            {bookingData.arrived_at && (
+              <p>✓ Arrivé le {format(new Date(bookingData.arrived_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
+            )}
+            {bookingData.completed_at && (
+              <p>✓ Terminée le {format(new Date(bookingData.completed_at), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
+            )}
+            <p className="pt-1">Créée le {format(new Date(bookingData.created_at), "dd MMMM yyyy à HH:mm", { locale: fr })}</p>
           </div>
         </div>
       </SheetContent>

@@ -18,6 +18,7 @@ import { ArrowLeft, User, MapPin, CreditCard, Loader2, Navigation, Camera, Uploa
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { ClientOrderDetailSheet } from "@/components/orders/ClientOrderDetailSheet";
+import { ClientBookingDetailSheet } from "@/components/orders/ClientBookingDetailSheet";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { DeliveryAddressManager } from "@/components/client/DeliveryAddressManager";
@@ -36,6 +37,7 @@ export default function ClientProfile() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,13 +49,15 @@ export default function ClientProfile() {
       .channel('client-orders-changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders'
-        },
+        { event: '*', schema: 'public', table: 'orders' },
         () => {
           queryClient.invalidateQueries({ queryKey: ["client-orders", user.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'service_bookings' },
+        () => {
           queryClient.invalidateQueries({ queryKey: ["client-bookings", user.id] });
         }
       )
@@ -641,7 +645,7 @@ export default function ClientProfile() {
                       {bookings.map((booking: any) => (
                         <div
                           key={booking.id}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           <div>
                             <p className="font-medium">{booking.service?.name}</p>
@@ -658,6 +662,14 @@ export default function ClientProfile() {
                             </span>
                             <OrderStatusBadge status={booking.status} />
                             <PaymentStatusBadge status={booking.payment_status} />
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setSelectedBooking(booking)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Détails
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -703,6 +715,11 @@ export default function ClientProfile() {
         order={selectedOrder} 
         open={!!selectedOrder} 
         onOpenChange={(open) => !open && setSelectedOrder(null)} 
+      />
+      <ClientBookingDetailSheet
+        booking={selectedBooking}
+        open={!!selectedBooking}
+        onOpenChange={(open) => !open && setSelectedBooking(null)}
       />
     </div>
   );

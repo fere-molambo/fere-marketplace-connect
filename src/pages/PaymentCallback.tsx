@@ -14,6 +14,7 @@ interface PaymentResult {
   currency?: string;
   message?: string;
   paymentType?: string;
+  completionType?: string;
 }
 
 export default function PaymentCallback() {
@@ -26,11 +27,11 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // Orange Money doesn't put reference in URL params
-      // Use sessionStorage values stored during initialization
       const orderId = sessionStorage.getItem('om_order_id');
       const payToken = sessionStorage.getItem('om_pay_token');
       const paymentType = sessionStorage.getItem('om_payment_type') || 'order';
+      const bookingId = sessionStorage.getItem('om_booking_id');
+      const completionType = sessionStorage.getItem('om_completion_type');
 
       if (!orderId) {
         setResult({
@@ -55,6 +56,52 @@ export default function PaymentCallback() {
         }
 
         const resolvedPaymentType = data.metadata?.payment_type || paymentType;
+        const resolvedCompletionType = data.metadata?.completion_type || completionType;
+
+        // If service booking balance payment succeeded, update the booking status
+        if (data.status === 'success' && resolvedPaymentType === 'service_booking' && bookingId && resolvedCompletionType) {
+          const newStatus = resolvedCompletionType === 'full' ? 'completed' : 'partial';
+          await supabase
+            .from('service_bookings')
+            .update({
+              status: newStatus,
+              completion_type: resolvedCompletionType,
+              balance_payment_status: 'paid',
+              balance_payment_reference: data.reference || orderId,
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as any)
+            .eq('id', bookingId);
+
+          // Create pending payout for vendor
+          const { data: bookingData } = await supabase
+            .from('service_bookings')
+            .select('service_id, total_price, commission_amount')
+            .eq('id', bookingId)
+            .single();
+
+          if (bookingData) {
+            const { data: serviceData } = await supabase
+              .from('services')
+              .select('shop_id, shops(owner_id)')
+              .eq('id', bookingData.service_id)
+              .single();
+
+            if (serviceData?.shops) {
+              const vendorAmount = (bookingData.total_price || 0) - (bookingData.commission_amount || 0);
+              const ownerId = (serviceData.shops as any).owner_id;
+              if (vendorAmount > 0 && ownerId) {
+                await supabase.from('pending_payouts').insert({
+                  recipient_id: ownerId,
+                  recipient_type: 'vendor',
+                  amount: vendorAmount,
+                  booking_id: bookingId,
+                  eligible_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                });
+              }
+            }
+          }
+        }
         
         setResult({
           status: data.status as PaymentStatus,
@@ -62,12 +109,15 @@ export default function PaymentCallback() {
           amount: data.amount,
           currency: data.currency,
           paymentType: resolvedPaymentType,
+          completionType: resolvedCompletionType,
         });
 
         // Clear session storage
         sessionStorage.removeItem('om_order_id');
         sessionStorage.removeItem('om_pay_token');
         sessionStorage.removeItem('om_payment_type');
+        sessionStorage.removeItem('om_booking_id');
+        sessionStorage.removeItem('om_completion_type');
 
       } catch (error: any) {
         setResult({
@@ -101,6 +151,14 @@ export default function PaymentCallback() {
     switch (result.status) {
       case 'loading': return 'Vérification du paiement...';
       case 'success':
+        if (result.paymentType === 'service_booking' && result.completionType) {
+          return result.completionType === 'full' 
+            ? 'Prestation payée avec succès !' 
+            : 'Prestation payée à 50%';
+        }
+        if (result.paymentType === 'service_booking') {
+          return 'Réservation confirmée !';
+        }
         return result.paymentType === 'order_balance' 
           ? 'Solde payé avec succès !' 
           : 'Acompte payé avec succès !';
@@ -116,6 +174,15 @@ export default function PaymentCallback() {
       case 'loading':
         return 'Veuillez patienter pendant que nous vérifions votre paiement...';
       case 'success':
+        if (result.paymentType === 'service_booking' && result.completionType === 'full') {
+          return `Votre prestation de ${result.amount?.toLocaleString()} ${result.currency} a été payée intégralement. Merci !`;
+        }
+        if (result.paymentType === 'service_booking' && result.completionType === 'partial') {
+          return `Paiement partiel de ${result.amount?.toLocaleString()} ${result.currency} effectué. Un litige sera ouvert avec le prestataire.`;
+        }
+        if (result.paymentType === 'service_booking') {
+          return `Vos frais de déplacement de ${result.amount?.toLocaleString()} ${result.currency} ont été payés. En attente d'acceptation du prestataire.`;
+        }
         if (result.paymentType === 'order_balance') {
           return `Votre solde de ${result.amount?.toLocaleString()} ${result.currency} a été payé. La commande est maintenant livrée !`;
         }
@@ -158,7 +225,7 @@ export default function PaymentCallback() {
           {result.status !== 'loading' && (
             <div className="flex flex-col gap-2">
               <Button onClick={handleContinue} className="w-full">
-                Voir mes commandes
+                {result.paymentType === 'service_booking' ? 'Voir mes réservations' : 'Voir mes commandes'}
               </Button>
               <Button variant="outline" onClick={() => navigate('/')} className="w-full">
                 Retour à l'accueil

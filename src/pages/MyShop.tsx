@@ -140,7 +140,7 @@ export default function MyShop() {
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-4 mt-4">
-            <StatsTab />
+            <StatsTab shopId={shop.id} />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4 mt-4">

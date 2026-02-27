@@ -129,7 +129,7 @@ export default function ShopDetail() {
           </TabsContent>
 
           <TabsContent value="stats" className="mt-6">
-            <StatsTab />
+            <StatsTab shopId={shop.id} />
           </TabsContent>
 
           <TabsContent value="config" className="mt-6">

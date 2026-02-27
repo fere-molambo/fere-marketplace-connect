@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Receipt, Search, Filter, Coins, ShoppingBag, Briefcase, RefreshCcw } from "lucide-react";
+import { Receipt, Search, Filter, ShoppingBag, Briefcase, RefreshCcw } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-type TransactionType = "all" | "order" | "service_booking" | "tokens" | "commission_payout" | "subscription";
+type TransactionType = "all" | "order" | "service_booking" | "commission_payout" | "subscription";
 
 export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState<TransactionType>("all");
@@ -110,7 +110,6 @@ export default function Transactions() {
       const totals = {
         orders: 0,
         services: 0,
-        tokens: 0,
         total: 0,
       };
 
@@ -123,9 +122,6 @@ export default function Transactions() {
             break;
           case "service_booking":
             totals.services += tx.amount;
-            break;
-          case "tokens":
-            totals.tokens += tx.amount;
             break;
         }
       });
@@ -148,13 +144,6 @@ export default function Transactions() {
           <Badge variant="secondary" className="gap-1">
             <Briefcase className="h-3 w-3" />
             Service
-          </Badge>
-        );
-      case "tokens":
-        return (
-          <Badge className="gap-1 bg-amber-500 hover:bg-amber-600">
-            <Coins className="h-3 w-3" />
-            Tokens
           </Badge>
         );
       default:
@@ -207,7 +196,7 @@ export default function Transactions() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total réussi</CardDescription>
@@ -224,12 +213,6 @@ export default function Transactions() {
           <CardHeader className="pb-2">
             <CardDescription>Services</CardDescription>
             <CardTitle className="text-xl text-secondary-foreground">{stats?.services.toLocaleString()} FCFA</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Tokens</CardDescription>
-            <CardTitle className="text-xl text-amber-600">{stats?.tokens.toLocaleString()} FCFA</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -257,7 +240,7 @@ export default function Transactions() {
                   <SelectItem value="all">Tous les types</SelectItem>
                   <SelectItem value="order">Commandes</SelectItem>
                   <SelectItem value="service_booking">Services</SelectItem>
-                  <SelectItem value="tokens">Tokens</SelectItem>
+                  
                 </SelectContent>
               </Select>
             </div>

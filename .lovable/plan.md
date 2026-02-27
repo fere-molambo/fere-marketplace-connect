@@ -1,57 +1,50 @@
 
+# Configuration du cron job pour expire-bookings
 
-# Plan : Corrections du workflow de reservation de services
+## Etape 1 : Activer les extensions pg_cron et pg_net
 
-## Problemes identifies
+Migration SQL pour activer les deux extensions necessaires :
 
-### 1. PaymentCallback ne gere pas la completion de service (CRITIQUE)
+```text
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
+```
 
-Quand le client paye 100% ou 50% via Orange Money et revient sur `/payment/callback`, la page verifie le paiement mais **ne met pas a jour** le statut de la reservation (`completed` ou `partial`). Les valeurs `om_booking_id` et `om_completion_type` sont stockees en sessionStorage mais jamais lues dans `PaymentCallback.tsx`.
+## Etape 2 : Creer le cron job
 
-**Correction :** Apres verification reussie du paiement, si `om_payment_type === 'service_booking'`, lire `om_booking_id` et `om_completion_type` depuis sessionStorage et mettre a jour `service_bookings` avec le statut appropriate (`completed` ou `partial`), `completion_type`, `balance_payment_status: 'paid'`, `completed_at`.
+Execution SQL directe (hors migration car contient l'anon key du projet) :
 
-### 2. Un client peut commander plusieurs services a la fois (CORRECTION DEMANDEE)
+```text
+SELECT cron.schedule(
+  'expire-pending-bookings',
+  '0 * * * *',   -- toutes les heures, a la minute 0
+  $$
+  SELECT net.http_post(
+    url := 'https://jajfuajmkjulujnwfqen.supabase.co/functions/v1/expire-bookings',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphamZ1YWpta2p1bHVqbndmcWVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjY3MzUsImV4cCI6MjA3OTA0MjczNX0.ME5XNJsLbB0InLeKexBcIGe5sxZZsd6Jg2W9oB0IBEQ"}'::jsonb,
+    body := concat('{"time": "', now(), '"}')::jsonb
+  ) AS request_id;
+  $$
+);
+```
 
-Actuellement rien n'empeche un client de reserver plusieurs services simultanement. Le client devrait ne pouvoir commander qu'un service a la fois (pas dans un panier commun).
+Cela appellera la edge function `expire-bookings` toutes les heures. Elle verifiera les reservations `pending` dont `auto_cancel_at` est depasse et les passera a `expired`, avec creation automatique de remboursement si l'acompte etait paye.
 
-**Correction :** Dans `ServiceBooking.tsx`, avant de creer la reservation, verifier si le client a deja une reservation active (statut `pending`, `accepted`, `on_the_way`, ou `arrived`). Si oui, afficher un message d'erreur et bloquer la reservation.
+## Resume du workflow verifie
 
-### 3. Bucket de stockage `cancellation-attachments` potentiellement manquant
+Le workflow complet est fonctionnel :
 
-`ClientBookingDetailSheet.tsx` utilise le bucket `cancellation-attachments` pour l'upload de preuves. Ce bucket n'est pas liste dans les buckets existants documentes.
-
-**Correction :** Verifier si le bucket existe, sinon le creer via migration SQL ou le remplacer par un bucket existant (ex: `chat-media` ou creer `cancellation-attachments`).
-
-### 4. Messages du PaymentCallback non adaptes pour les services
-
-Les titres et descriptions dans `PaymentCallback` sont centres sur les commandes produits ("Acompte paye", "solde a la livraison"). Pour un paiement de service, les messages devraient etre adaptes.
-
-**Correction :** Ajouter des conditions pour `service_booking` dans `getStatusTitle()` et `getStatusDescription()` pour afficher des messages pertinents (ex: "Prestation payee avec succes", "Reservation confirmee").
-
-### 5. Redirection apres reservation gratuite
-
-Ligne 289 de `ServiceBooking.tsx` : quand les frais de deplacement sont gratuits, le client est redirige vers `/payment/callback?reference=BOOKING-...&status=success`, mais PaymentCallback essaie de verifier via Orange Money ce qui echouera.
-
-**Correction :** Pour les reservations sans paiement, rediriger directement vers `/mon-profil?tab=orders` avec un toast de succes, au lieu de passer par PaymentCallback.
-
-## Fichiers a modifier
-
-1. **`src/pages/PaymentCallback.tsx`**
-   - Apres verification reussie, si `om_payment_type === 'service_booking'`, mettre a jour la reservation
-   - Adapter les messages pour les differents types de paiement
-   - Nettoyer `om_booking_id` et `om_completion_type` du sessionStorage
-
-2. **`src/pages/ServiceBooking.tsx`**
-   - Ajouter une query pour verifier si le client a une reservation active
-   - Bloquer la soumission si une reservation est deja en cours
-   - Afficher un avertissement avec lien vers "Mes reservations"
-   - Corriger la redirection pour les reservations gratuites (vers `/mon-profil` au lieu de `/payment/callback`)
-
-3. **Migration SQL (si necessaire)**
-   - Creer le bucket `cancellation-attachments` si inexistant
-
-## Sequence
-
-1. Corriger `PaymentCallback.tsx` (critique)
-2. Corriger `ServiceBooking.tsx` (redirection gratuite + limite 1 reservation active)
-3. Verifier/creer le bucket de stockage
+1. **Creation** : Client reserve, statut `pending`, `auto_cancel_at` = +24h
+2. **Blocage multi-service** : Un client ne peut avoir qu'une seule reservation active
+3. **Vendeur accepte** : `pending` -> `accepted` (avec `accepted_by`, `accepted_at`)
+4. **Vendeur demarre** : `accepted` -> `on_the_way` (avec `started_at`)
+5. **Vendeur arrive** : `on_the_way` -> `arrived` (avec `arrived_at`)
+6. **Client decide** :
+   - Payer 100% -> Orange Money -> `completed`
+   - Payer 50% + motif/preuve -> Orange Money -> `partial` (litige)
+   - Annuler -> `cancelled` (pas de remboursement acompte)
+7. **Annulation anticipee** : Avant `on_the_way`, annulation libre avec remboursement acompte
+8. **Expiration auto** : 24h sans acceptation -> `expired` + remboursement acompte
+9. **PaymentCallback** : Met a jour le statut de la reservation et cree les payouts vendeur

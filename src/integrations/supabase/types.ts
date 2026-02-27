@@ -2443,6 +2443,7 @@ export type Database = {
           assigned_by: string | null
           assignment_type: string
           id: string
+          is_active: boolean | null
           member_id: string
           shop_id: string
         }
@@ -2451,6 +2452,7 @@ export type Database = {
           assigned_by?: string | null
           assignment_type: string
           id?: string
+          is_active?: boolean | null
           member_id: string
           shop_id: string
         }
@@ -2459,6 +2461,7 @@ export type Database = {
           assigned_by?: string | null
           assignment_type?: string
           id?: string
+          is_active?: boolean | null
           member_id?: string
           shop_id?: string
         }

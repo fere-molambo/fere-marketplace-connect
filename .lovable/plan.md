@@ -1,46 +1,28 @@
 
 
-# Plan : Table de preferences de notifications + Prompt Bolt.new unifie
+# Fix: Simplifier la creation de boutique pour les vendeurs
 
-## 1. Migration SQL — Table `notification_preferences`
+## Probleme
+Le formulaire de creation de boutique montre le champ "Proprietaire (Vendeur)" a tous les utilisateurs, y compris les vendeurs. Un vendeur ne devrait pas choisir un proprietaire — il EST le proprietaire. Seuls les admins/super_admins doivent pouvoir assigner un proprietaire different.
 
-Creer une table pour stocker les preferences de notification par utilisateur, avec des colonnes booleennes par type de notification selon le role.
+## Changements — `src/components/shops/CreateShopDialog.tsx`
 
-**Table `notification_preferences`** :
-- `id` uuid PK
-- `user_id` uuid (ref auth.users, unique)
-- **Notifications Membre (client)** :
-  - `order_status_updates` boolean default true — Mises a jour statut commande
-  - `delivery_tracking` boolean default true — Suivi livraison en temps reel
-  - `promotions` boolean default true — Promos et ventes flash
-  - `messages` boolean default true — Nouveaux messages
-  - `booking_reminders` boolean default true — Rappels de reservations
-- **Notifications Vendeur/Equipe** :
-  - `new_orders` boolean default true — Nouvelles commandes
-  - `order_cancellations` boolean default true — Annulations
-  - `new_reviews` boolean default true — Nouveaux avis
-  - `low_stock` boolean default true — Stock bas (futur)
-  - `new_bookings` boolean default true — Nouvelles reservations
-- **Notifications Livreur** :
-  - `new_delivery_available` boolean default true — Nouvelle livraison dispo
-  - `delivery_status_changes` boolean default true — Changements statut livraison
-  - `payout_updates` boolean default true — Versements
-- `created_at`, `updated_at`
-- RLS : chaque utilisateur gere ses propres preferences
-- Trigger `update_updated_at_column`
+### 1. Schema Zod conditionnel
+Rendre `owner_id` optionnel dans le schema (il sera auto-rempli pour les vendeurs).
 
-## 2. Prompt Bolt.new unifie
+### 2. Auto-set owner_id pour les vendeurs
+- Si l'utilisateur n'est PAS admin/super_admin : `owner_id = user.id` automatiquement, le champ est masque
+- Si l'utilisateur EST admin/super_admin : le selecteur de proprietaire reste visible
 
-Generer un prompt unique et optimise pour une seule app React Native/Expo avec vues par role, integrant :
-- Notifications push avec preferences granulaires
-- Carte de suivi temps reel (OSM + OSRM)
-- Gestion equipe vendeur
+### 3. Verification status pour vendeurs
+- Vendeur qui cree sa propre boutique : `verification_status = "pending"` (l'admin doit valider)
+- Admin qui cree une boutique : `verification_status = "verified"` (comme actuellement)
 
-Le prompt sera affiche directement dans la reponse (pas de fichier).
+### 4. Masquer les champs admin-only
+Le champ "Proprietaire", "Zone de livraison", et tout le bloc "Parametres Admin" restent visibles uniquement pour admin/super_admin. Le vendeur voit seulement :
+- Nom de la boutique
+- Type (fournisseur / prestataire / les deux)
 
-### Fichiers modifies/crees
-| Fichier | Action |
-|---------|--------|
-| Migration SQL | Table `notification_preferences` + RLS |
-| Reponse chat | Prompt Bolt.new complet |
+### 5. Query vendors uniquement pour admins
+Ne charger la liste des vendeurs que si `isSuperAdmin || isAdmin`.
 

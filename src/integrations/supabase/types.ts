@@ -988,6 +988,66 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          booking_reminders: boolean
+          created_at: string
+          delivery_status_changes: boolean
+          delivery_tracking: boolean
+          id: string
+          low_stock: boolean
+          messages: boolean
+          new_bookings: boolean
+          new_delivery_available: boolean
+          new_orders: boolean
+          new_reviews: boolean
+          order_cancellations: boolean
+          order_status_updates: boolean
+          payout_updates: boolean
+          promotions: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_reminders?: boolean
+          created_at?: string
+          delivery_status_changes?: boolean
+          delivery_tracking?: boolean
+          id?: string
+          low_stock?: boolean
+          messages?: boolean
+          new_bookings?: boolean
+          new_delivery_available?: boolean
+          new_orders?: boolean
+          new_reviews?: boolean
+          order_cancellations?: boolean
+          order_status_updates?: boolean
+          payout_updates?: boolean
+          promotions?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_reminders?: boolean
+          created_at?: string
+          delivery_status_changes?: boolean
+          delivery_tracking?: boolean
+          id?: string
+          low_stock?: boolean
+          messages?: boolean
+          new_bookings?: boolean
+          new_delivery_available?: boolean
+          new_orders?: boolean
+          new_reviews?: boolean
+          order_cancellations?: boolean
+          order_status_updates?: boolean
+          payout_updates?: boolean
+          promotions?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           commission_amount: number

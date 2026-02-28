@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { PaymentFilters, type PeriodFilter, type TypeFilter } from "@/components/payments/PaymentFilters";
 import { RecipientTypeBadge } from "@/components/payments/RecipientTypeBadge";
-import { formatCurrency, filterByPeriod, filterByType, exportToCSV } from "@/components/payments/paymentUtils";
+import { formatCurrency, filterByPeriod, filterByType, exportToCSV, exportToExcel } from "@/components/payments/paymentUtils";
 
 export default function Payments() {
   const queryClient = useQueryClient();
@@ -192,50 +192,46 @@ export default function Payments() {
     }
   };
 
-  const handleExportPending = () => {
-    exportToCSV(
-      filteredPending.map((p) => ({
-        Bénéficiaire: p.recipient?.nom_complet || "",
-        Contact: p.recipient?.contact || "",
-        Type: p.recipient_type === "vendor" ? "Vendeur" : "Livreur",
-        Référence: p.order?.order_number || p.booking?.services?.name || "",
-        Montant: String(p.amount),
-        "Éligible le": p.eligible_at ? format(new Date(p.eligible_at), "dd/MM/yyyy HH:mm") : "",
-        Statut: "En attente",
-      })),
-      `paiements-en-attente-${format(new Date(), "yyyy-MM-dd")}.csv`
-    );
-  };
+  const buildPendingRows = () => filteredPending.map((p) => ({
+    Bénéficiaire: p.recipient?.nom_complet || "",
+    Contact: p.recipient?.contact || "",
+    Type: p.recipient_type === "vendor" ? "Vendeur" : "Livreur",
+    Référence: p.order?.order_number || p.booking?.services?.name || "",
+    Montant: String(p.amount),
+    "Éligible le": p.eligible_at ? format(new Date(p.eligible_at), "dd/MM/yyyy HH:mm") : "",
+    Statut: "En attente",
+  }));
 
-  const handleExportCompleted = () => {
-    exportToCSV(
-      filteredCompleted.map((p) => ({
-        Bénéficiaire: p.recipient?.nom_complet || "",
-        Contact: p.recipient?.contact || "",
-        Type: p.recipient_type === "vendor" ? "Vendeur" : "Livreur",
-        Référence: p.order?.order_number || p.booking?.services?.name || "",
-        Montant: String(p.amount),
-        "Payé le": p.processed_at ? format(new Date(p.processed_at), "dd/MM/yyyy HH:mm") : "",
-        Statut: "Payé",
-      })),
-      `paiements-effectues-${format(new Date(), "yyyy-MM-dd")}.csv`
-    );
-  };
+  const buildCompletedRows = () => filteredCompleted.map((p) => ({
+    Bénéficiaire: p.recipient?.nom_complet || "",
+    Contact: p.recipient?.contact || "",
+    Type: p.recipient_type === "vendor" ? "Vendeur" : "Livreur",
+    Référence: p.order?.order_number || p.booking?.services?.name || "",
+    Montant: String(p.amount),
+    "Payé le": p.processed_at ? format(new Date(p.processed_at), "dd/MM/yyyy HH:mm") : "",
+    Statut: "Payé",
+  }));
 
-  const handleExportRefunds = () => {
-    exportToCSV(
-      filteredRefunds.map((r: any) => ({
-        Client: r.user?.nom_complet || "",
-        Contact: r.user?.contact || "",
-        Référence: r.order?.order_number || r.booking?.services?.name || "",
-        Montant: String(r.amount),
-        "Net remboursé": String(r.net_refund),
-        Date: format(new Date(r.created_at), "dd/MM/yyyy"),
-        Statut: r.refund_status || "—",
-      })),
-      `remboursements-${format(new Date(), "yyyy-MM-dd")}.csv`
-    );
-  };
+  const buildRefundRows = () => filteredRefunds.map((r: any) => ({
+    Client: r.user?.nom_complet || "",
+    Contact: r.user?.contact || "",
+    Référence: r.order?.order_number || r.booking?.services?.name || "",
+    Montant: String(r.amount),
+    "Net remboursé": String(r.net_refund),
+    Date: format(new Date(r.created_at), "dd/MM/yyyy"),
+    Statut: r.refund_status || "—",
+  }));
+
+  const d = format(new Date(), "yyyy-MM-dd");
+
+  const handleExportPending = () => exportToCSV(buildPendingRows(), `paiements-en-attente-${d}.csv`);
+  const handleExportPendingXlsx = () => exportToExcel(buildPendingRows(), `paiements-en-attente-${d}.xlsx`);
+
+  const handleExportCompleted = () => exportToCSV(buildCompletedRows(), `paiements-effectues-${d}.csv`);
+  const handleExportCompletedXlsx = () => exportToExcel(buildCompletedRows(), `paiements-effectues-${d}.xlsx`);
+
+  const handleExportRefunds = () => exportToCSV(buildRefundRows(), `remboursements-${d}.csv`);
+  const handleExportRefundsXlsx = () => exportToExcel(buildRefundRows(), `remboursements-${d}.xlsx`);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -329,6 +325,7 @@ export default function Payments() {
             onCustomFromChange={setCustomFrom}
             onCustomToChange={setCustomTo}
             onExportCSV={handleExportPending}
+            onExportExcel={handleExportPendingXlsx}
           />
 
           {selectedEligible.length > 0 && (
@@ -438,6 +435,7 @@ export default function Payments() {
             onCustomFromChange={setCustomFrom}
             onCustomToChange={setCustomTo}
             onExportCSV={handleExportCompleted}
+            onExportExcel={handleExportCompletedXlsx}
           />
 
           {completedLoading ? (
@@ -500,6 +498,7 @@ export default function Payments() {
             onCustomFromChange={setCustomFrom}
             onCustomToChange={setCustomTo}
             onExportCSV={handleExportRefunds}
+            onExportExcel={handleExportRefundsXlsx}
             showTypeFilter={false}
           />
 

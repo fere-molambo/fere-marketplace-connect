@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Receipt, Search, Filter, ShoppingBag, Briefcase, RefreshCcw } from "lucide-react";
+import { Receipt, Search, Filter, ShoppingBag, Briefcase, RefreshCcw, Download } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { exportToExcel } from "@/components/payments/paymentUtils";
 
 type TransactionType = "all" | "order" | "service_booking" | "commission_payout" | "subscription";
 
@@ -174,6 +176,24 @@ export default function Transactions() {
     );
   });
 
+  const handleExportExcel = () => {
+    const typeLabel = (t: string) => t === "order" ? "Commande" : t === "service_booking" ? "Service" : t;
+    const statusLabel = (s: string) => s === "success" ? "Réussi" : s === "pending" ? "En attente" : s === "failed" ? "Échoué" : s;
+    exportToExcel(
+      filteredTransactions.map((tx) => ({
+        Date: format(new Date(tx.created_at), "dd/MM/yyyy HH:mm"),
+        Référence: tx.reference,
+        Type: typeLabel(tx.payment_type),
+        Client: tx.user?.nom_complet || "N/A",
+        Contact: tx.user?.contact || "",
+        Montant: tx.amount,
+        Devise: tx.currency,
+        Statut: statusLabel(tx.status),
+      })),
+      `transactions-${format(new Date(), "yyyy-MM-dd")}.xlsx`
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -243,6 +263,10 @@ export default function Transactions() {
                   
                 </SelectContent>
               </Select>
+              <Button variant="outline" size="sm" onClick={handleExportExcel}>
+                <Download className="h-4 w-4 mr-1" />
+                Excel
+              </Button>
             </div>
           </div>
         </CardHeader>

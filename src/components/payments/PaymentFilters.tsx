@@ -20,6 +20,7 @@ interface PaymentFiltersProps {
   onCustomFromChange: (date?: Date) => void;
   onCustomToChange: (date?: Date) => void;
   onExportCSV: () => void;
+  onExportExcel?: () => void;
   showTypeFilter?: boolean;
 }
 
@@ -33,6 +34,7 @@ export function PaymentFilters({
   onCustomFromChange,
   onCustomToChange,
   onExportCSV,
+  onExportExcel,
   showTypeFilter = true,
 }: PaymentFiltersProps) {
   return (
@@ -91,10 +93,18 @@ export function PaymentFilters({
         </div>
       )}
 
-      <Button variant="outline" size="sm" onClick={onExportCSV} className="ml-auto">
-        <Download className="h-4 w-4 mr-1" />
-        <span className="hidden sm:inline">Exporter CSV</span>
-      </Button>
+      <div className="flex items-center gap-1 ml-auto">
+        <Button variant="outline" size="sm" onClick={onExportCSV}>
+          <Download className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">CSV</span>
+        </Button>
+        {onExportExcel && (
+          <Button variant="outline" size="sm" onClick={onExportExcel}>
+            <Download className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Excel</span>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

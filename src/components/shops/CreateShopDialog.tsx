@@ -38,7 +38,7 @@ import { toast } from "sonner";
 const createShopSchema = z.object({
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   shop_type: z.enum(["fournisseur", "prestataire", "les_deux"]),
-  owner_id: z.string().uuid("Sélectionnez un propriétaire"),
+  owner_id: z.string().uuid("Sélectionnez un propriétaire").optional(),
   delivery_zone_id: z.string().uuid().optional(),
   is_official: z.boolean().default(false),
   responsible_admin_id: z.string().uuid().optional(),
@@ -58,12 +58,14 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
   const { isSuperAdmin, isAdmin } = useUserRoles();
   const { user } = useAuth();
 
+  const isAdminUser = isSuperAdmin || isAdmin;
+
   const form = useForm<CreateShopFormData>({
     resolver: zodResolver(createShopSchema),
     defaultValues: {
       shop_type: "fournisseur",
       is_official: false,
-      verification_status: "verified",
+      verification_status: isAdminUser ? "verified" : "pending",
     },
   });
 
@@ -79,6 +81,7 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
       if (error) throw error;
       return data;
     },
+    enabled: isAdminUser,
   });
 
   const { data: zones = [] } = useQuery({
@@ -88,6 +91,7 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
       if (error) throw error;
       return data;
     },
+    enabled: isAdminUser,
   });
 
   const { data: admins } = useQuery({
@@ -102,23 +106,29 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
       if (error) throw error;
       return data;
     },
-    enabled: isSuperAdmin || isAdmin,
+    enabled: isAdminUser,
   });
 
   const onSubmit = async (data: CreateShopFormData) => {
     setIsLoading(true);
     try {
       const slug = data.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
-      
+      const ownerId = isAdminUser ? data.owner_id : user?.id;
+
+      if (!ownerId) {
+        toast.error("Impossible de déterminer le propriétaire");
+        return;
+      }
+
       const { error } = await supabase.from("shops").insert([{
         name: data.name,
         shop_type: data.shop_type,
-        owner_id: data.owner_id,
-        delivery_zone_id: data.delivery_zone_id || null,
-        is_official: data.is_official,
-        responsible_admin_id: data.responsible_admin_id,
-        verification_status: data.verification_status,
-        creation_reason: data.creation_reason,
+        owner_id: ownerId,
+        delivery_zone_id: isAdminUser ? (data.delivery_zone_id || null) : null,
+        is_official: isAdminUser ? data.is_official : false,
+        responsible_admin_id: isAdminUser ? data.responsible_admin_id : undefined,
+        verification_status: isAdminUser ? data.verification_status : "pending",
+        creation_reason: isAdminUser ? data.creation_reason : undefined,
         slug,
         created_by: user?.id,
       }]);
@@ -189,58 +199,58 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="owner_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Propriétaire (Vendeur) *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {vendors?.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.id}>
-                          {vendor.nom_complet} ({vendor.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="delivery_zone_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Zone de livraison</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner une zone" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {zones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id}>
-                          {zone.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {(isSuperAdmin || isAdmin) && (
+            {isAdminUser && (
               <>
+                <FormField
+                  control={form.control}
+                  name="owner_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Propriétaire (Vendeur) *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {vendors?.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              {vendor.nom_complet} ({vendor.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="delivery_zone_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Zone de livraison</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner une zone" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {zones.map((zone) => (
+                            <SelectItem key={zone.id} value={zone.id}>
+                              {zone.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="border-t pt-4">
                   <h3 className="mb-4 text-sm font-medium">Paramètres Admin</h3>
 
@@ -326,6 +336,14 @@ export const CreateShopDialog = ({ onShopCreated }: CreateShopDialogProps) => {
                   </div>
                 </div>
               </>
+            )}
+
+            {!isAdminUser && (
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs text-muted-foreground">
+                  ℹ️ Votre boutique sera soumise à validation par un administrateur avant d'être visible.
+                </p>
+              </div>
             )}
 
             <div className="flex gap-2 pt-4">

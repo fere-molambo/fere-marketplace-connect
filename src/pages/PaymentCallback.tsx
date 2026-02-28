@@ -76,13 +76,20 @@ export default function PaymentCallback() {
           // (handle_service_booking_payout)
         }
         
+        const paymentStatus = data.status as PaymentStatus;
+        // Normalize unknown statuses to a safe fallback
+        const normalizedStatus: PaymentStatus = ['success', 'failed', 'abandoned'].includes(paymentStatus) 
+          ? paymentStatus 
+          : 'error';
+
         setResult({
-          status: data.status as PaymentStatus,
+          status: normalizedStatus,
           reference: data.reference || reference,
           amount: data.amount,
           currency: data.currency,
           paymentType: resolvedPaymentType,
           completionType: resolvedCompletionType,
+          message: normalizedStatus === 'error' ? 'Statut de paiement inconnu. Veuillez vérifier dans vos réservations.' : undefined,
         });
 
         // Clear session storage

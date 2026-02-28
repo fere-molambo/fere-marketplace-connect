@@ -291,10 +291,24 @@ export default function ServiceBooking() {
               
             window.location.href = response.data.authorization_url;
           } else {
-            throw new Error("Erreur d'initialisation du paiement");
+            // ROLLBACK: delete the booking if payment init fails
+            console.error("Payment init failed, rolling back booking", booking.id);
+            await supabase
+              .from("service_bookings")
+              .delete()
+              .eq("id", booking.id);
+            throw new Error("Erreur d'initialisation du paiement. Aucune réservation n'a été conservée.");
           }
-        } catch (error) {
-          toast.error("Erreur lors de l'initialisation du paiement");
+        } catch (error: any) {
+          // ROLLBACK: also delete booking on any unexpected error
+          if (booking?.id) {
+            await supabase
+              .from("service_bookings")
+              .delete()
+              .eq("id", booking.id)
+              .then(() => console.log("Booking rolled back:", booking.id));
+          }
+          toast.error(error?.message || "Erreur lors de l'initialisation du paiement. Aucune réservation n'a été conservée.");
           setIsSubmitting(false);
         }
       } else {
@@ -500,7 +514,7 @@ export default function ServiceBooking() {
                       <span className="text-lg font-bold text-primary">{travelFeeAmount.toLocaleString()} FCFA</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Ces frais seront payés maintenant via Orange Money pour confirmer votre réservation.
+                      Ces frais seront payés maintenant en ligne pour confirmer votre réservation.
                       Le prestataire recevra ce montant après son arrivée chez vous.
                     </p>
                   </div>

@@ -58,6 +58,14 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
   const [returnPolicy, setReturnPolicy] = useState("");
   const [isSavingShopSettings, setIsSavingShopSettings] = useState(false);
   
+  // Create member form state
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberContact, setNewMemberContact] = useState("");
+  const [newMemberPassword, setNewMemberPassword] = useState("");
+
   // Guide state
   const [guideName, setGuideName] = useState("");
   const [guideUrl, setGuideUrl] = useState("");
@@ -184,12 +192,59 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
       setOpen(false);
       setSelectedMember(null);
       setSelectedTag("");
+      setShowCreateForm(false);
       await refetchTeam();
     } catch (error: any) {
       console.error("Error adding member:", error);
       toast.error(error.message || "Erreur lors de l'ajout du membre");
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const resetCreateForm = () => {
+    setNewMemberName("");
+    setNewMemberEmail("");
+    setNewMemberContact("");
+    setNewMemberPassword("");
+    setShowCreateForm(false);
+  };
+
+  const handleCreateMember = async () => {
+    if (!newMemberName || !newMemberEmail || !newMemberPassword) {
+      toast.error("Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+
+    if (newMemberPassword.length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caractères");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newMemberEmail,
+          password: newMemberPassword,
+          nom_complet: newMemberName,
+          contact: newMemberContact || "+223",
+          role: 'equipe',
+        }
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+
+      toast.success("Membre créé avec succès ! Sélectionnez-le dans la liste.");
+      resetCreateForm();
+      // Refresh available members list
+      queryClient.invalidateQueries({ queryKey: ["available-team-members"] });
+    } catch (error: any) {
+      console.error("Error creating member:", error);
+      toast.error(error.message || "Erreur lors de la création du membre");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -504,74 +559,152 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Ajouter un membre d'équipe</DialogTitle>
+                <DialogTitle>
+                  {showCreateForm ? "Créer un nouveau membre" : "Ajouter un membre d'équipe"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                {availableMembers && availableMembers.length > 0 ? (
+                {showCreateForm ? (
                   <>
-                    {availableMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent"
-                        onClick={() => setSelectedMember(member.id)}
+                    <div className="space-y-2">
+                      <Label htmlFor="new-member-name">Nom complet *</Label>
+                      <Input
+                        id="new-member-name"
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        placeholder="Nom complet"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-member-email">Email *</Label>
+                      <Input
+                        id="new-member-email"
+                        type="email"
+                        value={newMemberEmail}
+                        onChange={(e) => setNewMemberEmail(e.target.value)}
+                        placeholder="email@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-member-contact">Contact</Label>
+                      <Input
+                        id="new-member-contact"
+                        value={newMemberContact}
+                        onChange={(e) => setNewMemberContact(e.target.value)}
+                        placeholder="+22370123456"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-member-password">Mot de passe *</Label>
+                      <Input
+                        id="new-member-password"
+                        type="password"
+                        value={newMemberPassword}
+                        onChange={(e) => setNewMemberPassword(e.target.value)}
+                        placeholder="Min. 6 caractères"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={resetCreateForm}
+                        className="flex-1"
+                        disabled={isCreating}
                       >
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={member.photo_profil || undefined} />
-                            <AvatarFallback>
-                              {member.nom_complet.split(" ").map(n => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{member.nom_complet}</p>
-                            <p className="text-sm text-muted-foreground">{member.email}</p>
-                          </div>
-                        </div>
-                        <input
-                          type="radio"
-                          checked={selectedMember === member.id}
-                          onChange={() => setSelectedMember(member.id)}
-                          className="cursor-pointer"
-                        />
-                      </div>
-                    ))}
-                    
-                    {selectedMember && (
-                      <div className="space-y-2">
-                        <Label>Type d'assignation</Label>
-                        <Select value={selectedTag} onValueChange={setSelectedTag}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un tag" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tags?.map((tag) => (
-                              <SelectItem key={tag.id} value={tag.name}>
-                                <div className="flex items-center gap-2">
-                                  <div 
-                                    className="w-3 h-3 rounded-full" 
-                                    style={{ backgroundColor: tag.color }}
-                                  />
-                                  {tag.label}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <Button 
-                      onClick={handleAddMember} 
-                      className="w-full" 
-                      disabled={isAdding || !selectedMember || !selectedTag}
-                    >
-                      {isAdding ? "Ajout en cours..." : "Ajouter"}
-                    </Button>
+                        Retour à la liste
+                      </Button>
+                      <Button
+                        onClick={handleCreateMember}
+                        className="flex-1"
+                        disabled={isCreating || !newMemberName || !newMemberEmail || !newMemberPassword}
+                      >
+                        {isCreating ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Création...
+                          </>
+                        ) : "Créer le membre"}
+                      </Button>
+                    </div>
                   </>
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">
-                    Aucun membre d'équipe disponible
-                  </p>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCreateForm(true)}
+                      className="w-full"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Créer un nouveau membre
+                    </Button>
+
+                    {availableMembers && availableMembers.length > 0 ? (
+                      <>
+                        {availableMembers.map((member) => (
+                          <div
+                            key={member.id}
+                            className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent"
+                            onClick={() => setSelectedMember(member.id)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarImage src={member.photo_profil || undefined} />
+                                <AvatarFallback>
+                                  {member.nom_complet.split(" ").map(n => n[0]).join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{member.nom_complet}</p>
+                                <p className="text-sm text-muted-foreground">{member.email}</p>
+                              </div>
+                            </div>
+                            <input
+                              type="radio"
+                              checked={selectedMember === member.id}
+                              onChange={() => setSelectedMember(member.id)}
+                              className="cursor-pointer"
+                            />
+                          </div>
+                        ))}
+                        
+                        {selectedMember && (
+                          <div className="space-y-2">
+                            <Label>Type d'assignation</Label>
+                            <Select value={selectedTag} onValueChange={setSelectedTag}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner un tag" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tags?.map((tag) => (
+                                  <SelectItem key={tag.id} value={tag.name}>
+                                    <div className="flex items-center gap-2">
+                                      <div 
+                                        className="w-3 h-3 rounded-full" 
+                                        style={{ backgroundColor: tag.color }}
+                                      />
+                                      {tag.label}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <Button 
+                          onClick={handleAddMember} 
+                          className="w-full" 
+                          disabled={isAdding || !selectedMember || !selectedTag}
+                        >
+                          {isAdding ? "Ajout en cours..." : "Ajouter"}
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground text-center py-4">
+                        Aucun membre d'équipe disponible. Créez-en un nouveau ci-dessus.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </DialogContent>

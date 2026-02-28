@@ -1,25 +1,41 @@
 
 
-# Fix: Dashboard stuck in loading state (infinite query loop)
+# Plan : Infrastructure backend pour les fonctionnalites mobile
 
-## Root cause
-`getDateRange(period)` calls `new Date()` on every render, producing a new `startISO` millisecond value each time. This value is used as a React Query key. Combined with `staleTime: 0` and `gcTime: 0` in the global QueryClient config, each render triggers a new query (different key), which causes a re-render, which generates a new key — infinite loop. The dashboard never exits the loading skeleton state.
+## 3 actions a realiser dans Lovable
 
-## Fix
+### 1. Migration SQL — Creer 2 tables + realtime
 
-### 1. Stabilize `PeriodSelector.getDateRange()` output
-Round the `endDate` to the start of the current hour (or day) so the ISO string stays stable across renders within the same hour.
+**Table `device_tokens`** : stockage des push tokens Expo/FCM
+- `id`, `user_id` (ref auth.users), `token`, `platform` (ios/android/web), `is_active`, timestamps
+- Contrainte unique `(user_id, token)`
+- RLS : chaque utilisateur gere ses propres tokens
 
-In `src/components/dashboard/PeriodSelector.tsx`:
-- Change `const endDate = new Date()` to `const endDate = startOfDay(new Date())` (set to midnight today) or `startOfHour(new Date())`.
-- This ensures `startISO` and `endISO` remain the same across renders for the same period selection.
+**Table `live_tracking_sessions`** : positions GPS temps reel
+- `id`, `tracker_id` (ref auth.users), `tracker_role` (driver/vendor/team), `reference_type` (delivery_request/service_booking), `reference_id`, `current_lat`, `current_lng`, `heading`, `speed`, `is_active`, timestamps
+- RLS : le tracker update ses sessions ; les parties concernees (client via orders/bookings, vendeur via shops) peuvent lire
+- Ajout a `supabase_realtime` publication
 
-### 2. Memoize date range in both dashboards
-In `AdminDashboard.tsx` and `VendorDashboard.tsx`:
-- Wrap `getDateRange(period)` in `useMemo(() => getDateRange(period), [period])` so the object reference and ISO strings stay stable when `period` hasn't changed.
+### 2. Edge function `send-notification`
 
-### Files to edit
-- `src/components/dashboard/PeriodSelector.tsx` — round endDate
-- `src/components/dashboard/AdminDashboard.tsx` — useMemo for date range
-- `src/components/dashboard/VendorDashboard.tsx` — useMemo for date range
+- Recoit `{ user_ids, title, body, data }` (authentifie, JWT requis)
+- Recupere les tokens actifs depuis `device_tokens`
+- Envoie via **Expo Push API** (`https://exp.host/--/api/v2/push/send`) — gratuit, pas de secret requis
+- Retourne le resultat d'envoi
+
+### 3. Mise a jour `supabase/config.toml`
+
+Ajouter :
+```toml
+[functions.send-notification]
+verify_jwt = true
+```
+
+### Fichiers crees/modifies
+
+| Fichier | Action |
+|---------|--------|
+| Migration SQL | 2 tables + RLS + realtime |
+| `supabase/functions/send-notification/index.ts` | Nouvelle edge function |
+| `supabase/config.toml` | Ajouter send-notification |
 

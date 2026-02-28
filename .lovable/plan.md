@@ -1,58 +1,25 @@
 
 
-# Dashboard enrichi avec statistiques, graphes et responsive mobile/tablette
+# Fix: Dashboard stuck in loading state (infinite query loop)
 
-## Fichiers a creer
+## Root cause
+`getDateRange(period)` calls `new Date()` on every render, producing a new `startISO` millisecond value each time. This value is used as a React Query key. Combined with `staleTime: 0` and `gcTime: 0` in the global QueryClient config, each render triggers a new query (different key), which causes a re-render, which generates a new key — infinite loop. The dashboard never exits the loading skeleton state.
 
-### 1. `src/components/dashboard/PeriodSelector.tsx`
-Composant Select shadcn avec options : 7j, 30j, 90j, 12 mois. Retourne `{ startDate, endDate }`. Layout compact pour mobile (full-width sur `sm:`).
+## Fix
 
-### 2. `src/components/dashboard/AdminDashboard.tsx`
-Vue admin complete avec :
-- **KPI Cards** (grille `grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6`) : CA total, commandes, reservations, commissions plateforme, livraisons, nouveaux utilisateurs — toutes filtrees par periode
-- **Graphe revenus** : BarChart Recharts empile (produits, services, livraisons) — `ResponsiveContainer` pleine largeur, hauteur reduite sur mobile (200px vs 300px)
-- **Graphe volume commandes** : LineChart commandes + reservations par semaine/mois
-- **Top 10 produits** : Table avec scroll horizontal sur mobile (`overflow-x-auto`)
-- **Top boutiques par CA** : idem
-- **Stats par zone de livraison** : grille cards `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`
+### 1. Stabilize `PeriodSelector.getDateRange()` output
+Round the `endDate` to the start of the current hour (or day) so the ISO string stays stable across renders within the same hour.
 
-Queries : `orders`, `order_items`, `service_bookings`, `delivery_requests`, `profiles`, `payment_transactions` filtrees par `created_at >= startDate`.
+In `src/components/dashboard/PeriodSelector.tsx`:
+- Change `const endDate = new Date()` to `const endDate = startOfDay(new Date())` (set to midnight today) or `startOfHour(new Date())`.
+- This ensures `startISO` and `endISO` remain the same across renders for the same period selection.
 
-### 3. `src/components/dashboard/VendorDashboard.tsx`
-Reprend la logique de `StatsTab` existante mais avec :
-- PeriodSelector integre
-- KPI Cards en grille responsive `grid-cols-2 lg:grid-cols-4`
-- Ajout d'une carte "Recettes en attente" (depuis `pending_payouts`)
-- Graphe revenus et top produits deja presents dans StatsTab
+### 2. Memoize date range in both dashboards
+In `AdminDashboard.tsx` and `VendorDashboard.tsx`:
+- Wrap `getDateRange(period)` in `useMemo(() => getDateRange(period), [period])` so the object reference and ISO strings stay stable when `period` hasn't changed.
 
-### 4. `src/components/dashboard/RevenueChart.tsx`
-Composant reutilisable BarChart empile. Props : `data`, `height` (defaut 280, reduit a 200 sur mobile via `useIsMobile`).
-
-### 5. `src/components/dashboard/OrdersChart.tsx`
-LineChart volume commandes/reservations. Meme pattern responsive.
-
-### 6. `src/components/dashboard/TopProductsTable.tsx`
-Table responsive avec `overflow-x-auto` et `min-w-[400px]` sur le tableau interne.
-
-### 7. `src/components/dashboard/ZoneStatsCard.tsx`
-Cards zones de livraison avec nb commandes et CA par zone.
-
-## Fichier modifie
-
-### `src/pages/Dashboard.tsx`
-- Importer `useUserRoles`
-- Si `isSuperAdmin || isAdmin` → render `<AdminDashboard />`
-- Si `isVendeur` → render `<VendorDashboard />`
-- Sinon → affichage basique actuel
-
-## Strategie responsive
-
-Toutes les grilles utilisent le pattern mobile-first :
-- Cards KPI : `grid-cols-2` mobile, `lg:grid-cols-4` ou `xl:grid-cols-6` desktop
-- Graphes : `ResponsiveContainer width="100%" height={isMobile ? 200 : 300}`
-- Tableaux : wrapper `div` avec `overflow-x-auto` pour scroll horizontal mobile
-- PeriodSelector : `w-full sm:w-auto` pour prendre toute la largeur mobile
-- Titres : `text-xl sm:text-2xl lg:text-3xl`
-- Espacement : `space-y-4 lg:space-y-6`, padding `p-0` (gere par DashboardLayout)
-- Sidebar : deja collapsible via `SidebarProvider` — fonctionne nativement en mobile
+### Files to edit
+- `src/components/dashboard/PeriodSelector.tsx` — round endDate
+- `src/components/dashboard/AdminDashboard.tsx` — useMemo for date range
+- `src/components/dashboard/VendorDashboard.tsx` — useMemo for date range
 

@@ -1,4 +1,5 @@
 import { startOfDay, startOfWeek, startOfMonth, isAfter, isBefore, endOfDay } from "date-fns";
+import * as XLSX from "xlsx";
 import type { PeriodFilter, TypeFilter } from "./PaymentFilters";
 
 export const formatCurrency = (amount: number) => {
@@ -68,4 +69,12 @@ export function exportToCSV(rows: Record<string, string>[], filename: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export function exportToExcel(rows: Record<string, string | number>[], filename: string) {
+  if (rows.length === 0) return;
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Données");
+  XLSX.writeFile(workbook, filename);
 }

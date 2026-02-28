@@ -16,7 +16,7 @@ import { fr } from "date-fns/locale";
 
 export const AdminDashboard = () => {
   const [period, setPeriod] = useState<PeriodKey>("30d");
-  const { startDate, endDate } = getDateRange(period);
+  const { startDate, endDate } = useMemo(() => getDateRange(period), [period]);
   const startISO = startDate.toISOString();
 
   // Fetch orders in period

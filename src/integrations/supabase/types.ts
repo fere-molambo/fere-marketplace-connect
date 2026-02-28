@@ -627,6 +627,36 @@ export type Database = {
         }
         Relationships: []
       }
+      device_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       driver_zones: {
         Row: {
           created_at: string | null
@@ -855,6 +885,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      live_tracking_sessions: {
+        Row: {
+          current_lat: number | null
+          current_lng: number | null
+          heading: number | null
+          id: string
+          is_active: boolean
+          reference_id: string
+          reference_type: string
+          speed: number | null
+          started_at: string
+          tracker_id: string
+          tracker_role: string
+          updated_at: string
+        }
+        Insert: {
+          current_lat?: number | null
+          current_lng?: number | null
+          heading?: number | null
+          id?: string
+          is_active?: boolean
+          reference_id: string
+          reference_type: string
+          speed?: number | null
+          started_at?: string
+          tracker_id: string
+          tracker_role: string
+          updated_at?: string
+        }
+        Update: {
+          current_lat?: number | null
+          current_lng?: number | null
+          heading?: number | null
+          id?: string
+          is_active?: boolean
+          reference_id?: string
+          reference_type?: string
+          speed?: number | null
+          started_at?: string
+          tracker_id?: string
+          tracker_role?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       messages: {
         Row: {

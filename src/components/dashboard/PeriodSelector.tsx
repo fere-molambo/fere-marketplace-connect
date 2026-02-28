@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { subDays, subMonths } from "date-fns";
+import { subDays, subMonths, startOfDay } from "date-fns";
 
 export type PeriodKey = "7d" | "30d" | "90d" | "12m";
 
@@ -16,7 +16,7 @@ const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = [
 ];
 
 export function getDateRange(period: PeriodKey): { startDate: Date; endDate: Date } {
-  const endDate = new Date();
+  const endDate = startOfDay(new Date());
   let startDate: Date;
   switch (period) {
     case "7d": startDate = subDays(endDate, 7); break;

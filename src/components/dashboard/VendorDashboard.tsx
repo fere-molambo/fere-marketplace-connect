@@ -17,7 +17,7 @@ import { fr } from "date-fns/locale";
 export const VendorDashboard = () => {
   const { user } = useAuth();
   const [period, setPeriod] = useState<PeriodKey>("30d");
-  const { startDate, endDate } = getDateRange(period);
+  const { startDate, endDate } = useMemo(() => getDateRange(period), [period]);
   const startISO = startDate.toISOString();
 
   // Get vendor's shop

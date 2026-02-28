@@ -3248,6 +3248,14 @@ export type Database = {
         Returns: boolean
       }
       is_created_by_profile: { Args: { _profile_id: string }; Returns: boolean }
+      is_driver_for_order: {
+        Args: { _driver_id: string; _order_id: string }
+        Returns: boolean
+      }
+      is_order_owner: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_shop_team_member: {
         Args: { _shop_id: string; _user_id: string }
         Returns: boolean

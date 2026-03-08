@@ -18,12 +18,33 @@ export function RefundsSection({ userId }: RefundsSectionProps) {
         .from("refunds")
         .select(`
           *,
-          order:orders(order_number)
+          order:orders(order_number),
+          booking:service_bookings(id, service_id)
         `)
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      // Fetch service names for booking refunds
+      const bookingIds = data
+        ?.filter((r: any) => r.booking?.service_id)
+        .map((r: any) => r.booking.service_id) || [];
+
+      let serviceMap: Record<string, string> = {};
+      if (bookingIds.length > 0) {
+        const { data: services } = await supabase
+          .from("services")
+          .select("id, name")
+          .in("id", bookingIds);
+        if (services) {
+          serviceMap = Object.fromEntries(services.map((s: any) => [s.id, s.name]));
+        }
+      }
+
+      return data?.map((r: any) => ({
+        ...r,
+        _serviceName: r.booking?.service_id ? serviceMap[r.booking.service_id] : null,
+      })) || [];
     },
     enabled: !!userId,
   });

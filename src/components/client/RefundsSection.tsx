@@ -131,7 +131,9 @@ export function RefundsSection({ userId }: RefundsSectionProps) {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium">
-                    {refund.order?.order_number || "Commande"}
+                    {refund._serviceName
+                      ? `Service: ${refund._serviceName}`
+                      : refund.order?.order_number || "Commande"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(refund.created_at), "dd MMMM yyyy", { locale: fr })}

@@ -149,7 +149,7 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
       
       const balanceAmount = order.balance_amount || order.subtotal;
       
-      const response = await supabase.functions.invoke("paystack-payment", {
+      const response = await supabase.functions.invoke("orange-money-payment", {
         body: {
           action: "initialize",
           amount: balanceAmount,
@@ -160,13 +160,16 @@ export function ClientOrderDetailSheet({ order, open, onOpenChange }: ClientOrde
             order_number: order.order_number,
             is_balance_payment: true,
           },
-          callback_url: `${window.location.origin}/payment/callback`,
+          return_url: `${window.location.origin}/payment/callback`,
+          cancel_url: `${window.location.origin}/mon-profil?tab=orders`,
         },
       });
 
-      if (response.data?.authorization_url) {
-        sessionStorage.setItem('paystack_payment_type', 'order_balance');
-        window.location.href = response.data.authorization_url;
+      if (response.data?.payment_url) {
+        sessionStorage.setItem('om_payment_type', 'order_balance');
+        sessionStorage.setItem('om_order_id', response.data.order_id);
+        sessionStorage.setItem('om_pay_token', response.data.pay_token);
+        window.location.href = response.data.payment_url;
       } else {
         throw new Error("Erreur d'initialisation du paiement du solde");
       }

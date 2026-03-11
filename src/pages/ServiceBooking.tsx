@@ -264,7 +264,7 @@ export default function ServiceBooking() {
       if (travelFeeAmount > 0) {
         // Pay travel fee via Paystack
         try {
-          const response = await supabase.functions.invoke("paystack-payment", {
+          const response = await supabase.functions.invoke("orange-money-payment", {
             body: {
               action: "initialize",
               amount: travelFeeAmount,
@@ -277,19 +277,22 @@ export default function ServiceBooking() {
                 booking_time: selectedSlot?.start,
                 is_travel_fee: true,
               },
-              callback_url: `${window.location.origin}/payment/callback`,
+              return_url: `${window.location.origin}/payment/callback`,
+              cancel_url: `${window.location.origin}/service/${service?.id}/book`,
             },
           });
 
-          if (response.data?.authorization_url) {
-            sessionStorage.setItem('paystack_payment_type', 'service_booking');
+          if (response.data?.payment_url) {
+            sessionStorage.setItem('om_payment_type', 'service_booking');
+            sessionStorage.setItem('om_order_id', response.data.order_id);
+            sessionStorage.setItem('om_pay_token', response.data.pay_token);
             
             await supabase
               .from("service_bookings")
-              .update({ payment_reference: response.data.reference })
+              .update({ payment_reference: response.data.order_id })
               .eq("id", booking.id);
               
-            window.location.href = response.data.authorization_url;
+            window.location.href = response.data.payment_url;
           } else {
             // ROLLBACK: delete the booking if payment init fails
             console.error("Payment init failed, rolling back booking", booking.id);

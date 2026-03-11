@@ -230,7 +230,7 @@ export function ClientBookingDetailSheet({ booking, open, onOpenChange }: Client
         ? totalPrice 
         : Math.round(totalPrice * 0.5);
 
-      const response = await supabase.functions.invoke("paystack-payment", {
+      const response = await supabase.functions.invoke("orange-money-payment", {
         body: {
           action: "initialize",
           amount: paymentAmount,
@@ -242,14 +242,17 @@ export function ClientBookingDetailSheet({ booking, open, onOpenChange }: Client
             completion_type: percentage === 100 ? "full" : "partial",
             percentage,
           },
-          callback_url: `${window.location.origin}/payment/callback`,
+          return_url: `${window.location.origin}/payment/callback`,
+          cancel_url: `${window.location.origin}/mon-profil?tab=orders`,
         },
       });
 
-      if (response.data?.authorization_url) {
-        sessionStorage.setItem('paystack_payment_type', 'service_booking');
-        sessionStorage.setItem('paystack_booking_id', bookingData.id);
-        sessionStorage.setItem('paystack_completion_type', percentage === 100 ? 'full' : 'partial');
+      if (response.data?.payment_url) {
+        sessionStorage.setItem('om_payment_type', 'service_booking');
+        sessionStorage.setItem('om_booking_id', bookingData.id);
+        sessionStorage.setItem('om_completion_type', percentage === 100 ? 'full' : 'partial');
+        sessionStorage.setItem('om_order_id', response.data.order_id);
+        sessionStorage.setItem('om_pay_token', response.data.pay_token);
 
         // If 50%, save cancellation details before redirecting
         if (percentage === 50) {
@@ -263,7 +266,7 @@ export function ClientBookingDetailSheet({ booking, open, onOpenChange }: Client
             .eq("id", bookingData.id);
         }
 
-        window.location.href = response.data.authorization_url;
+        window.location.href = response.data.payment_url;
       } else {
         throw new Error("Erreur d'initialisation du paiement");
       }

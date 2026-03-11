@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ interface PaymentResult {
 }
 
 export default function PaymentCallback() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [result, setResult] = useState<PaymentResult>({
     status: 'loading',
@@ -27,13 +26,14 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // Paystack puts ?reference=xxx in the callback URL
-      const reference = searchParams.get('reference');
-      const paymentType = sessionStorage.getItem('paystack_payment_type') || 'order';
-      const bookingId = sessionStorage.getItem('paystack_booking_id');
-      const completionType = sessionStorage.getItem('paystack_completion_type');
+      // Orange Money: read order_id and pay_token from sessionStorage
+      const orderId = sessionStorage.getItem('om_order_id');
+      const payToken = sessionStorage.getItem('om_pay_token');
+      const paymentType = sessionStorage.getItem('om_payment_type') || 'order';
+      const bookingId = sessionStorage.getItem('om_booking_id');
+      const completionType = sessionStorage.getItem('om_completion_type');
 
-      if (!reference) {
+      if (!orderId) {
         setResult({
           status: 'error',
           reference: '',
@@ -43,10 +43,11 @@ export default function PaymentCallback() {
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke('paystack-payment', {
+        const { data, error } = await supabase.functions.invoke('orange-money-payment', {
           body: {
             action: 'verify',
-            reference,
+            order_id: orderId,
+            pay_token: payToken,
           },
         });
 
@@ -66,25 +67,21 @@ export default function PaymentCallback() {
               status: newStatus,
               completion_type: resolvedCompletionType,
               balance_payment_status: 'paid',
-              balance_payment_reference: data.reference || reference,
+              balance_payment_reference: data.reference || orderId,
               completed_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             } as any)
             .eq('id', bookingId);
-
-          // Payout is now handled automatically by the database trigger
-          // (handle_service_booking_payout)
         }
         
         const paymentStatus = data.status as PaymentStatus;
-        // Normalize unknown statuses to a safe fallback
         const normalizedStatus: PaymentStatus = ['success', 'failed', 'abandoned'].includes(paymentStatus) 
           ? paymentStatus 
           : 'error';
 
         setResult({
           status: normalizedStatus,
-          reference: data.reference || reference,
+          reference: data.reference || orderId,
           amount: data.amount,
           currency: data.currency,
           paymentType: resolvedPaymentType,
@@ -93,21 +90,23 @@ export default function PaymentCallback() {
         });
 
         // Clear session storage
-        sessionStorage.removeItem('paystack_payment_type');
-        sessionStorage.removeItem('paystack_booking_id');
-        sessionStorage.removeItem('paystack_completion_type');
+        sessionStorage.removeItem('om_payment_type');
+        sessionStorage.removeItem('om_order_id');
+        sessionStorage.removeItem('om_pay_token');
+        sessionStorage.removeItem('om_booking_id');
+        sessionStorage.removeItem('om_completion_type');
 
       } catch (error: any) {
         setResult({
           status: 'error',
-          reference: reference,
+          reference: orderId,
           message: error.message || 'Erreur lors de la vérification du paiement',
         });
       }
     };
 
     verifyPayment();
-  }, [searchParams]);
+  }, []);
 
   const getStatusIcon = () => {
     switch (result.status) {

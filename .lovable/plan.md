@@ -1,32 +1,31 @@
 
 
-# Ajout de l'export Excel (XLSX) pour Paiements et Transactions
+# Nettoyage des données de commandes et transactions
 
-## Constat
-- La page **Paiements** (`/dashboard/payments`) a deja un export CSV par onglet (en attente, effectues, remboursements).
-- La page **Transactions** (`/dashboard/transactions`) n'a **aucun export**.
-- Le format demande est **Excel (.xlsx)**, pas seulement CSV.
+## Données actuelles
+| Table | Lignes |
+|---|---|
+| orders | 6 |
+| order_items | 6 |
+| payment_transactions | 17 |
+| delivery_requests | 7 |
+| pending_payouts | 8 |
+| refunds | 0 |
+| service_bookings | 16 |
+| token_transactions | 11 |
 
 ## Plan
 
-### 1. Ajouter la librairie `xlsx` (SheetJS)
-Installer `xlsx` pour generer de vrais fichiers `.xlsx` compatibles Excel.
+Exécuter des `DELETE` (via l'outil insert) sur les tables dans l'ordre suivant pour respecter les contraintes de clés étrangères :
 
-### 2. Creer une fonction utilitaire `exportToExcel`
-Dans `src/components/payments/paymentUtils.ts`, ajouter une fonction `exportToExcel(rows, filename)` qui :
-- Cree un workbook avec un worksheet a partir des donnees
-- Telecharge le fichier `.xlsx`
+1. **pending_payouts** (dépend de orders, delivery_requests, service_bookings)
+2. **refunds** (dépend de orders, service_bookings)
+3. **token_transactions** (référence service_bookings)
+4. **delivery_requests** (dépend de orders)
+5. **order_items** (dépend de orders)
+6. **payment_transactions** (dépend de orders via related_id)
+7. **orders**
+8. **service_bookings**
 
-### 3. Modifier la page Paiements
-- Ajouter un bouton "Exporter Excel" a cote du bouton CSV existant dans chaque onglet (en attente, effectues, remboursements), ou remplacer le CSV par Excel selon preference.
-
-### 4. Ajouter l'export a la page Transactions
-- Ajouter un bouton "Exporter Excel" dans la zone de filtres de `src/pages/Transactions.tsx`
-- Exporter les transactions filtrees avec colonnes : Date, Reference, Type, Client, Contact, Montant, Devise, Statut
-
-## Fichiers modifies
-- `package.json` : ajout de `xlsx`
-- `src/components/payments/paymentUtils.ts` : ajout `exportToExcel`
-- `src/pages/Payments.tsx` : ajout boutons Excel par onglet
-- `src/pages/Transactions.tsx` : ajout bouton Export Excel
+Toutes les lignes de ces 8 tables seront supprimées. Aucune autre table (produits, services, shops, utilisateurs, etc.) ne sera touchée.
 

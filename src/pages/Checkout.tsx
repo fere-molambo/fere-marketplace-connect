@@ -289,7 +289,7 @@ export default function Checkout() {
     onSuccess: async ({ orders, paymentGroupId }) => {
       // Initialize Paystack payment for the advance amount
       try {
-        const response = await supabase.functions.invoke("paystack-payment", {
+      const response = await supabase.functions.invoke("orange-money-payment", {
           body: {
             action: "initialize",
             amount: advanceAmount,
@@ -302,14 +302,17 @@ export default function Checkout() {
               order_count: orders.length,
               is_advance: true,
             },
-            callback_url: `${window.location.origin}/payment/callback`,
+            return_url: `${window.location.origin}/payment/callback`,
+            cancel_url: `${window.location.origin}/checkout`,
           },
         });
 
-        if (response.data?.authorization_url) {
-          sessionStorage.setItem('paystack_payment_type', 'order');
+        if (response.data?.payment_url) {
+          sessionStorage.setItem('om_payment_type', 'order');
+          sessionStorage.setItem('om_order_id', response.data.order_id);
+          sessionStorage.setItem('om_pay_token', response.data.pay_token);
           clearCart();
-          window.location.href = response.data.authorization_url;
+          window.location.href = response.data.payment_url;
         } else {
           throw new Error("Erreur d'initialisation du paiement");
         }

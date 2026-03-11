@@ -18,7 +18,7 @@ interface OrangeMoneyCheckoutProps {
   disabled?: boolean;
 }
 
-export function PaystackCheckout({
+export function OrangeMoneyCheckout({
   amount,
   email,
   paymentType,
@@ -66,7 +66,7 @@ export function PaystackCheckout({
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('paystack-payment', {
+      const { data, error } = await supabase.functions.invoke('orange-money-payment', {
         body: {
           action: 'initialize',
           amount,
@@ -74,7 +74,8 @@ export function PaystackCheckout({
           payment_type: paymentType,
           related_id: relatedId,
           metadata,
-          callback_url: `${window.location.origin}/payment/callback`,
+          return_url: `${window.location.origin}/payment/callback`,
+          cancel_url: `${window.location.origin}/checkout`,
         },
       });
 
@@ -86,11 +87,13 @@ export function PaystackCheckout({
         throw new Error(data.error || 'Échec de l\'initialisation du paiement');
       }
 
-      // Store payment type for callback verification
-      sessionStorage.setItem('paystack_payment_type', paymentType);
+      // Store payment info for callback verification
+      sessionStorage.setItem('om_payment_type', paymentType);
+      sessionStorage.setItem('om_order_id', data.order_id);
+      sessionStorage.setItem('om_pay_token', data.pay_token);
 
-      // Redirect to Paystack payment page
-      window.location.href = data.authorization_url;
+      // Redirect to Orange Money payment page
+      window.location.href = data.payment_url;
 
     } catch (error: any) {
       console.error('Payment error:', error);
@@ -126,3 +129,6 @@ export function PaystackCheckout({
     </Button>
   );
 }
+
+// Backward compatibility alias
+export const PaystackCheckout = OrangeMoneyCheckout;

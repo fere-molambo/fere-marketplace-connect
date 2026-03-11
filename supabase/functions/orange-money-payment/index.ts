@@ -168,11 +168,10 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const notifUrl = `${supabaseUrl}/functions/v1/orange-money-payment`.substring(0, 120);
 
-  // Use OUV for dev, XOF for production
-  const currency = 'OUV'; // TODO: Change to 'XOF' in production
+  const currency = 'XOF';
 
   // Call Orange Money Web Payment API
-  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/dev/v1/webpayment`, {
+  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/v1/webpayment`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -269,7 +268,7 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
 
   const accessToken = await getAccessToken();
 
-  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/dev/v1/transactionstatus`, {
+  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/v1/transactionstatus`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,

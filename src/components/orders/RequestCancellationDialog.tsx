@@ -285,24 +285,8 @@ export function RequestCancellationDialog({
           }
         }
 
-        // Create refund record only if there's actually something to refund
-        if (["paid", "partial"].includes(order.payment_status) && statusInfo.refundType === "full") {
-          const paidAmount = order.advance_amount || 0;
-
-          if (paidAmount > 0) {
-            await supabase.from("refunds").insert({
-              order_id: order.id,
-              user_id: user.id,
-              amount: paidAmount,
-              net_refund: paidAmount,
-              transaction_fee_deducted: 0,
-              original_payment_reference: order.payment_reference,
-              status: "pending",
-              refund_status: "pending",
-              cancellation_id: cancellation.id,
-            });
-          }
-        }
+        // Refund is now automatically created by the database trigger
+        // trg_auto_create_refund_on_cancellation (AFTER INSERT ON cancellations)
       } else if (type === "booking" && bookingId) {
         const { data: updatedBooking, error: bookingError } = await supabase
           .from("service_bookings")

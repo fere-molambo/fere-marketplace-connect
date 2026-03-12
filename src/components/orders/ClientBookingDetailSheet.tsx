@@ -142,17 +142,8 @@ export function ClientBookingDetailSheet({ booking, open, onOpenChange }: Client
         .eq("id", bookingData.id);
       if (error) throw error;
 
-      // If advance was paid, create refund record
-      if (travelFeePaid && travelFee > 0) {
-        await supabase.from("refunds").insert({
-          user_id: user!.id,
-          booking_id: bookingData.id,
-          amount: travelFee,
-          net_refund: travelFee,
-          status: "pending",
-          refund_status: "pending_manual",
-        });
-      }
+      // Refund is now automatically created by the database trigger
+      // trg_auto_create_refund_on_cancellation (AFTER INSERT ON cancellations)
 
       // Create cancellation record
       await supabase.from("cancellations").insert({

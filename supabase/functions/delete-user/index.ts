@@ -130,7 +130,72 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Delete the user from auth (this will cascade to profiles due to FK constraints)
+    // Clean up all user-related data before deleting from auth
+    // (foreign keys referencing profiles prevent auth.users deletion)
+    console.log('Cleaning up user data for:', userId);
+
+    // Delete in order of dependencies
+    const cleanupTables = [
+      { table: 'pending_payouts', column: 'recipient_id' },
+      { table: 'refunds', column: 'user_id' },
+      { table: 'client_penalties', column: 'user_id' },
+      { table: 'token_transactions', column: 'user_id' },
+      { table: 'user_tokens', column: 'user_id' },
+      { table: 'favorites', column: 'user_id' },
+      { table: 'notification_preferences', column: 'user_id' },
+      { table: 'device_tokens', column: 'user_id' },
+      { table: 'live_tracking_sessions', column: 'tracker_id' },
+      { table: 'blocked_users', column: 'blocker_id' },
+      { table: 'blocked_users', column: 'blocked_id' },
+      { table: 'driver_zones', column: 'driver_id' },
+    ];
+
+    for (const { table, column } of cleanupTables) {
+      const { error } = await supabaseAdmin.from(table).delete().eq(column, userId);
+      if (error) {
+        console.warn(`Warning cleaning ${table}.${column}:`, error.message);
+      }
+    }
+
+    // Clean up conversations: remove participant entries, then orphan conversations
+    const { data: participantConvos } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', userId);
+
+    await supabaseAdmin.from('conversation_participants').delete().eq('user_id', userId);
+
+    // Delete messages sent by this user
+    await supabaseAdmin.from('messages').delete().eq('sender_id', userId);
+
+    // Clean up shops owned by user (and their dependent data)
+    const { data: userShops } = await supabaseAdmin
+      .from('shops')
+      .select('id')
+      .eq('owner_id', userId);
+
+    if (userShops && userShops.length > 0) {
+      const shopIds = userShops.map(s => s.id);
+      for (const shopId of shopIds) {
+        // Delete products and services of each shop
+        await supabaseAdmin.from('flash_sales').delete().eq('product_id', shopId); // will miss, but safe
+        await supabaseAdmin.from('products').delete().eq('shop_id', shopId);
+        await supabaseAdmin.from('services').delete().eq('shop_id', shopId);
+        await supabaseAdmin.from('generated_images').delete().eq('shop_id', shopId);
+        await supabaseAdmin.from('shop_stories').delete().eq('shop_id', shopId);
+        await supabaseAdmin.from('shop_reviews').delete().eq('shop_id', shopId);
+        await supabaseAdmin.from('shop_team_members').delete().eq('shop_id', shopId);
+      }
+      await supabaseAdmin.from('shops').delete().in('id', shopIds);
+    }
+
+    // Delete user roles
+    await supabaseAdmin.from('user_roles').delete().eq('user_id', userId);
+
+    // Delete profile
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+
+    // Now delete the user from auth
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {

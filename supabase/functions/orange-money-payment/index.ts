@@ -168,7 +168,8 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const notifUrl = `${supabaseUrl}/functions/v1/orange-money-payment`.substring(0, 120);
 
-  const currency = 'XOF';
+  // Sandbox uses OUV, production uses XOF
+  const currency = 'OUV';
 
   // Call Orange Money Web Payment API
   const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/dev/v1/webpayment`, {

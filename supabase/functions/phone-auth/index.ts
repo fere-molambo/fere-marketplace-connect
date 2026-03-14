@@ -164,17 +164,34 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Record OTP rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Send OTP via Orange SMS
+  // Check SMS balance before sending
+  let smsSent = false;
+  let balanceOk = true;
   try {
-    await sendSms(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
-    console.log(`[phone-auth] OTP sent to ${phone}`);
-  } catch (smsError) {
-    console.error('[phone-auth] SMS error:', smsError);
-    // In dev/sandbox, log the OTP for testing
-    console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
+    balanceOk = await checkSmsBalance();
+  } catch (e) {
+    console.warn('[phone-auth] Balance check failed:', (e as Error).message);
+    balanceOk = false;
   }
 
-  return jsonResponse({ success: true, message: 'Code de vérification envoyé par SMS' });
+  if (balanceOk) {
+    try {
+      const resourceUrl = await sendSms(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
+      smsSent = true;
+      console.log(`[phone-auth] OTP sent to ${phone}, resourceURL: ${resourceUrl}`);
+    } catch (smsError) {
+      console.error('[phone-auth] SMS error:', smsError);
+    }
+  } else {
+    console.warn('[phone-auth] SMS balance insufficient or inactive');
+  }
+
+  if (!smsSent) {
+    console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
+    return jsonResponse({ success: true, sms_sent: false, dev_otp: otpCode, message: 'SMS non envoyé — mode test' });
+  }
+
+  return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
 }
 
 // ============================================================

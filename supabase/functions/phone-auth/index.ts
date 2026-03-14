@@ -160,26 +160,14 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Record OTP rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Check SMS balance before sending
+  // Send OTP via Africa's Talking
   let smsSent = false;
-  let balanceOk = true;
   try {
-    balanceOk = await checkSmsBalance();
-  } catch (e) {
-    console.warn('[phone-auth] Balance check failed:', (e as Error).message);
-    balanceOk = false;
-  }
-
-  if (balanceOk) {
-    try {
-      const resourceUrl = await sendSms(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
-      smsSent = true;
-      console.log(`[phone-auth] OTP sent to ${phone}, resourceURL: ${resourceUrl}`);
-    } catch (smsError) {
-      console.error('[phone-auth] SMS error:', smsError);
-    }
-  } else {
-    console.warn('[phone-auth] SMS balance insufficient or inactive');
+    await sendSmsAfricasTalking(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
+    smsSent = true;
+    console.log(`[phone-auth] OTP sent to ${phone} via Africa's Talking`);
+  } catch (smsError) {
+    console.error('[phone-auth] SMS error:', smsError);
   }
 
   if (!smsSent) {

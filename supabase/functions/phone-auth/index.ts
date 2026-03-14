@@ -223,7 +223,22 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Hash PIN with PBKDF2
   const pinHash = await hashPin(pin);
 
-  // Upsert pending registration (no otp_code stored — Ikoddi manages it)
+  // Record OTP rate limit
+  await supabaseAdmin.from('otp_rate_limits').insert({ phone });
+
+  // Send OTP via Ikoddi
+  let smsSent = false;
+  let otpToken: string | null = null;
+  try {
+    const ikoddiResult = await sendOtpIkoddi(phone);
+    otpToken = ikoddiResult.otpToken;
+    smsSent = true;
+    console.log(`[phone-auth] OTP sent to ${phone} via Ikoddi, otpToken received`);
+  } catch (smsError) {
+    console.error('[phone-auth] Ikoddi SMS error:', smsError);
+  }
+
+  // Upsert pending registration — store otpToken in otp_code column
   const { error: upsertError } = await supabaseAdmin
     .from('pending_registrations')
     .upsert({
@@ -232,7 +247,7 @@ async function handleRegister(supabaseAdmin: any, body: any) {
       email: email?.trim() || null,
       role,
       pin_hash: pinHash,
-      otp_code: '000000', // placeholder — Ikoddi manages the real OTP
+      otp_code: otpToken || 'DEV_FALLBACK',
       otp_expires_at: new Date(Date.now() + 5 * 60000).toISOString(),
       otp_attempts: 0,
     }, { onConflict: 'phone' });
@@ -242,26 +257,13 @@ async function handleRegister(supabaseAdmin: any, body: any) {
     throw new Error('Erreur lors de l\'enregistrement');
   }
 
-  // Record OTP rate limit
-  await supabaseAdmin.from('otp_rate_limits').insert({ phone });
-
-  // Send OTP via Ikoddi
-  let smsSent = false;
-  try {
-    await sendOtpIkoddi(phone);
-    smsSent = true;
-    console.log(`[phone-auth] OTP sent to ${phone} via Ikoddi`);
-  } catch (smsError) {
-    console.error('[phone-auth] Ikoddi SMS error:', smsError);
-  }
-
   if (!smsSent) {
     // Fallback: generate a dev OTP for testing
     const devOtp = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
-    // Store it so verify can check it locally
+    // Store devOtp for local verification
     await supabaseAdmin
       .from('pending_registrations')
-      .update({ otp_code: devOtp })
+      .update({ otp_code: `DEV:${devOtp}` })
       .eq('phone', phone);
     console.log(`[phone-auth] DEV OTP for ${phone}: ${devOtp}`);
     return jsonResponse({ success: true, sms_sent: false, dev_otp: devOtp, message: 'SMS non envoyé — mode test' });

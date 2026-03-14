@@ -57,6 +57,46 @@ export const createUserSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// Schema pour la connexion par téléphone + PIN
+export const phoneLoginSchema = z.object({
+  phone: z
+    .string()
+    .regex(/^\+\d{10,15}$/, "Format requis: +223XXXXXXXX (indicatif + numéro)"),
+  pin: z
+    .string()
+    .regex(/^\d{6}$/, "Le PIN doit contenir exactement 6 chiffres"),
+});
+
+// Schema pour l'inscription par téléphone + PIN
+export const phoneSignupSchema = z.object({
+  nom_complet: z
+    .string()
+    .min(2, "Le nom complet doit contenir au moins 2 caractères")
+    .max(100, "Le nom complet est trop long"),
+  phone: z
+    .string()
+    .regex(/^\+\d{10,15}$/, "Format requis: +223XXXXXXXX (indicatif + numéro)"),
+  email: z
+    .string()
+    .email("Format d'email invalide")
+    .optional()
+    .or(z.literal("")),
+  role: z.enum(["vendeur", "livreur", "membre"], {
+    required_error: "Veuillez sélectionner votre rôle",
+  }),
+  pin: z
+    .string()
+    .regex(/^\d{6}$/, "Le PIN doit contenir exactement 6 chiffres"),
+  confirmPin: z
+    .string()
+    .regex(/^\d{6}$/, "Le PIN doit contenir exactement 6 chiffres"),
+}).refine((data) => data.pin === data.confirmPin, {
+  message: "Les PIN ne correspondent pas",
+  path: ["confirmPin"],
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type SignupFormData = z.infer<typeof signupSchema>;
 export type CreateUserFormData = z.infer<typeof createUserSchema>;
+export type PhoneLoginFormData = z.infer<typeof phoneLoginSchema>;
+export type PhoneSignupFormData = z.infer<typeof phoneSignupSchema>;

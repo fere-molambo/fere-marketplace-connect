@@ -293,22 +293,16 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
     throw new Error('Aucune inscription en attente pour ce numéro');
   }
 
-  // Try Ikoddi verification first (if SMS was sent via Ikoddi)
+  // Determine verification mode based on stored otp_code
   let otpValid = false;
 
-  if (pending.otp_code === '000000') {
-    // OTP was sent via Ikoddi — verify through Ikoddi API
-    const ikoddiResult = await verifyOtpIkoddi(phone, otp);
-    otpValid = ikoddiResult.valid;
-    if (!otpValid) {
-      throw new Error('Code de vérification incorrect ou expiré');
-    }
-  } else {
-    // Fallback: local OTP verification (dev mode)
+  if (pending.otp_code.startsWith('DEV:')) {
+    // Dev fallback mode — local verification
+    const devCode = pending.otp_code.replace('DEV:', '');
     if (new Date(pending.otp_expires_at) < new Date()) {
       throw new Error('Code expiré. Cliquez sur « Renvoyer le code » pour recevoir un nouveau OTP');
     }
-    if (pending.otp_code !== otp) {
+    if (devCode !== otp) {
       const nextAttempts = (pending.otp_attempts || 0) + 1;
       if (nextAttempts >= 5) {
         await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
@@ -321,6 +315,13 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
       throw new Error(`Code incorrect. ${5 - nextAttempts} tentative(s) restante(s)`);
     }
     otpValid = true;
+  } else {
+    // Ikoddi mode — verify via API using stored otpToken
+    const ikoddiResult = await verifyOtpIkoddi(phone, otp, pending.otp_code);
+    otpValid = ikoddiResult.valid;
+    if (!otpValid) {
+      throw new Error('Code de vérification incorrect ou expiré');
+    }
   }
 
   // OTP is valid — create user

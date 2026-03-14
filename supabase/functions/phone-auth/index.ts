@@ -6,8 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const OTP_VALIDITY_MINUTES = 5;
-const MAX_OTP_ATTEMPTS = 5;
 const MAX_OTP_PER_HOUR = 10;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_BLOCK_MINUTES = 3;
@@ -44,13 +42,99 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
     keyMaterial, 256
   );
   const newHashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
-  // Timing-safe comparison
   if (newHashHex.length !== hashHex.length) return false;
   let result = 0;
   for (let i = 0; i < newHashHex.length; i++) {
     result |= newHashHex.charCodeAt(i) ^ hashHex.charCodeAt(i);
   }
   return result === 0;
+}
+
+// ============================================================
+// IKODDI OTP API
+// ============================================================
+async function sendOtpIkoddi(phone: string): Promise<{ success: boolean; error?: string }> {
+  const apiKey = Deno.env.get('IKODDI_API_KEY');
+  const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
+
+  if (!apiKey || !otpAppId) {
+    throw new Error('Ikoddi credentials not configured');
+  }
+
+  const response = await fetch('https://api.ikoddi.com/v1/otp/send', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: phone,
+      length: 6,
+      expiry: 300,
+      app_id: otpAppId,
+      message: "Votre code de vérification Fere : {code}. Valable 5 minutes.",
+    }),
+  });
+
+  const responseText = await response.text();
+  console.log('[phone-auth] Ikoddi send OTP response:', response.status, responseText);
+
+  if (!response.ok) {
+    throw new Error(`Ikoddi OTP send failed: ${response.status} ${responseText}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`Ikoddi returned non-JSON: ${responseText}`);
+  }
+
+  return { success: true };
+}
+
+async function verifyOtpIkoddi(phone: string, code: string): Promise<{ valid: boolean; message?: string }> {
+  const apiKey = Deno.env.get('IKODDI_API_KEY');
+  const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
+
+  if (!apiKey || !otpAppId) {
+    throw new Error('Ikoddi credentials not configured');
+  }
+
+  const response = await fetch('https://api.ikoddi.com/v1/otp/verify', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: phone,
+      code,
+      app_id: otpAppId,
+    }),
+  });
+
+  const responseText = await response.text();
+  console.log('[phone-auth] Ikoddi verify OTP response:', response.status, responseText);
+
+  if (!response.ok) {
+    // Ikoddi returns non-200 for invalid OTP
+    return { valid: false, message: responseText };
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    return { valid: false, message: responseText };
+  }
+
+  // Ikoddi returns status 0 for matched OTP
+  if (data.status === 0 || data.success === true || data.matched === true) {
+    return { valid: true };
+  }
+
+  return { valid: false, message: data.message || 'Code incorrect' };
 }
 
 serve(async (req) => {
@@ -119,7 +203,7 @@ async function handleRegister(supabaseAdmin: any, body: any) {
     throw new Error('Ce numéro de téléphone est déjà associé à un compte');
   }
 
-  // Check OTP rate limit (max 3/hour)
+  // Check OTP rate limit
   const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
   const { count: otpCount } = await supabaseAdmin
     .from('otp_rate_limits')
@@ -134,11 +218,7 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Hash PIN with PBKDF2
   const pinHash = await hashPin(pin);
 
-  // Generate OTP
-  const otpCode = generateOtp();
-  const otpExpiresAt = new Date(Date.now() + OTP_VALIDITY_MINUTES * 60000).toISOString();
-
-  // Upsert pending registration
+  // Upsert pending registration (no otp_code stored — Ikoddi manages it)
   const { error: upsertError } = await supabaseAdmin
     .from('pending_registrations')
     .upsert({
@@ -147,8 +227,8 @@ async function handleRegister(supabaseAdmin: any, body: any) {
       email: email?.trim() || null,
       role,
       pin_hash: pinHash,
-      otp_code: otpCode,
-      otp_expires_at: otpExpiresAt,
+      otp_code: '000000', // placeholder — Ikoddi manages the real OTP
+      otp_expires_at: new Date(Date.now() + 5 * 60000).toISOString(),
       otp_attempts: 0,
     }, { onConflict: 'phone' });
 
@@ -160,19 +240,26 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Record OTP rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Send OTP via Africa's Talking
+  // Send OTP via Ikoddi
   let smsSent = false;
   try {
-    await sendSmsAfricasTalking(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
+    await sendOtpIkoddi(phone);
     smsSent = true;
-    console.log(`[phone-auth] OTP sent to ${phone} via Africa's Talking`);
+    console.log(`[phone-auth] OTP sent to ${phone} via Ikoddi`);
   } catch (smsError) {
-    console.error('[phone-auth] SMS error:', smsError);
+    console.error('[phone-auth] Ikoddi SMS error:', smsError);
   }
 
   if (!smsSent) {
-    console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
-    return jsonResponse({ success: true, sms_sent: false, dev_otp: otpCode, message: 'SMS non envoyé — mode test' });
+    // Fallback: generate a dev OTP for testing
+    const devOtp = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    // Store it so verify can check it locally
+    await supabaseAdmin
+      .from('pending_registrations')
+      .update({ otp_code: devOtp })
+      .eq('phone', phone);
+    console.log(`[phone-auth] DEV OTP for ${phone}: ${devOtp}`);
+    return jsonResponse({ success: true, sms_sent: false, dev_otp: devOtp, message: 'SMS non envoyé — mode test' });
   }
 
   return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
@@ -199,40 +286,40 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
     throw new Error('Aucune inscription en attente pour ce numéro');
   }
 
-  // Check max attempts
-  if (pending.otp_attempts >= MAX_OTP_ATTEMPTS) {
-    await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
-    throw new Error('Trop de tentatives. Veuillez recommencer l\'inscription');
-  }
+  // Try Ikoddi verification first (if SMS was sent via Ikoddi)
+  let otpValid = false;
 
-  // Check OTP expiry first (do not consume attempts on expired code)
-  if (new Date(pending.otp_expires_at) < new Date()) {
-    throw new Error('Code expiré. Cliquez sur « Renvoyer le code » pour recevoir un nouveau OTP');
-  }
-
-  // Check OTP match and increment attempts only on invalid OTP
-  if (pending.otp_code !== otp) {
-    const nextAttempts = pending.otp_attempts + 1;
-
-    if (nextAttempts >= MAX_OTP_ATTEMPTS) {
-      await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
-      throw new Error('Trop de tentatives. Veuillez recommencer l\'inscription');
+  if (pending.otp_code === '000000') {
+    // OTP was sent via Ikoddi — verify through Ikoddi API
+    const ikoddiResult = await verifyOtpIkoddi(phone, otp);
+    otpValid = ikoddiResult.valid;
+    if (!otpValid) {
+      throw new Error('Code de vérification incorrect ou expiré');
     }
-
-    await supabaseAdmin
-      .from('pending_registrations')
-      .update({ otp_attempts: nextAttempts })
-      .eq('phone', phone);
-
-    const remaining = MAX_OTP_ATTEMPTS - nextAttempts;
-    throw new Error(`Code incorrect. ${remaining} tentative(s) restante(s)`);
+  } else {
+    // Fallback: local OTP verification (dev mode)
+    if (new Date(pending.otp_expires_at) < new Date()) {
+      throw new Error('Code expiré. Cliquez sur « Renvoyer le code » pour recevoir un nouveau OTP');
+    }
+    if (pending.otp_code !== otp) {
+      const nextAttempts = (pending.otp_attempts || 0) + 1;
+      if (nextAttempts >= 5) {
+        await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
+        throw new Error('Trop de tentatives. Veuillez recommencer l\'inscription');
+      }
+      await supabaseAdmin
+        .from('pending_registrations')
+        .update({ otp_attempts: nextAttempts })
+        .eq('phone', phone);
+      throw new Error(`Code incorrect. ${5 - nextAttempts} tentative(s) restante(s)`);
+    }
+    otpValid = true;
   }
 
   // OTP is valid — create user
   const internalPassword = generateInternalPassword();
   const fictiveEmail = `${phone.replace('+', '')}@phone.fere.app`;
 
-  // Create Supabase Auth user
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: fictiveEmail,
     password: internalPassword,
@@ -403,68 +490,10 @@ async function recordFailedLogin(supabaseAdmin: any, phone: string) {
     }, { onConflict: 'phone' });
 }
 
-function generateOtp(): string {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  return String(array[0] % 1000000).padStart(6, '0');
-}
-
 function generateInternalPassword(): string {
   const array = new Uint8Array(24);
   crypto.getRandomValues(array);
   return Array.from(array, b => b.toString(36).padStart(2, '0')).join('').substring(0, 32);
-}
-
-async function sendSmsAfricasTalking(recipientPhone: string, message: string): Promise<void> {
-  const apiKey = Deno.env.get('AFRICASTALKING_API_KEY');
-  const username = Deno.env.get('AFRICASTALKING_USERNAME');
-
-  console.log('[phone-auth] AT apiKey prefix:', apiKey?.substring(0, 8), '| username:', username);
-
-  if (!apiKey || !username) {
-    throw new Error('Africa\'s Talking credentials not configured');
-  }
-
-  const params = new URLSearchParams({
-    username,
-    to: recipientPhone,
-    message,
-  });
-
-  const response = await fetch('https://api.africastalking.com/version1/messaging', {
-    method: 'POST',
-    headers: {
-      'apiKey': apiKey,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Accept': 'application/json',
-    },
-    body: params.toString(),
-  });
-
-  const responseText = await response.text();
-  console.log('[phone-auth] AT SMS response:', response.status, responseText);
-
-  if (!response.ok) {
-    throw new Error(`SMS sending failed: ${response.status} ${responseText}`);
-  }
-
-  let data: any;
-  try {
-    data = JSON.parse(responseText);
-  } catch {
-    throw new Error(`AT returned non-JSON response: ${responseText}`);
-  }
-
-  // Check if any recipient failed
-  const recipients = data?.SMSMessageData?.Recipients || [];
-  if (recipients.length > 0 && recipients[0].statusCode === 101) {
-    console.log(`[phone-auth] SMS sent successfully to ${recipientPhone}`);
-    return;
-  }
-
-  const statusCode = recipients[0]?.statusCode || 'unknown';
-  const status = recipients[0]?.status || data?.SMSMessageData?.Message || 'Unknown error';
-  throw new Error(`SMS delivery failed: code=${statusCode}, status=${status}`);
 }
 
 function jsonResponse(data: any, status = 200) {

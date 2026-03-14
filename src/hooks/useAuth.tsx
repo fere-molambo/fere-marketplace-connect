@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import type { PhoneLoginFormData } from "@/lib/validators";
 
 const SUPABASE_PROJECT_ID = "jajfuajmkjulujnwfqen";
 

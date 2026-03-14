@@ -419,6 +419,8 @@ async function sendSmsAfricasTalking(recipientPhone: string, message: string): P
   const apiKey = Deno.env.get('AFRICASTALKING_API_KEY');
   const username = Deno.env.get('AFRICASTALKING_USERNAME');
 
+  console.log('[phone-auth] AT apiKey prefix:', apiKey?.substring(0, 8), '| username:', username);
+
   if (!apiKey || !username) {
     throw new Error('Africa\'s Talking credentials not configured');
   }

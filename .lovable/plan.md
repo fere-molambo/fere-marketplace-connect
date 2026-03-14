@@ -1,36 +1,47 @@
 
-# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-## Statut : ✅ IMPLÉMENTÉ
+# Intégrer Africa's Talking SMS dans phone-auth
 
-### Ce qui a été fait :
+## Situation
+- Compte AT production : app "Fere", username "Junior_Mamete"
+- Solde : 44.24 XOF (~3-4 SMS de test possibles)
+- API key obtenue
+- Fallback dev_otp conservé si le solde tombe à zéro
 
-1. **Migration SQL** — 5 tables créées :
-   - `pending_registrations` (inscriptions en attente OTP)
-   - `user_pins` (PIN hashé + mot de passe interne)
-   - `login_attempts` (protection brute-force)
-   - `otp_rate_limits` (max 3 OTP/heure)
-   - `pin_reset_requests` (préparé pour Phase 2)
-   - Fonction `cleanup_expired_registrations()`
-   - RLS activé sur toutes les tables, accès via service_role uniquement
+## Changements
 
-2. **Edge Function `phone-auth`** — 3 actions :
-   - `register` : validation, hash PIN, OTP, SMS Orange
-   - `verify-registration` : validation OTP, création user Supabase Auth
-   - `login` : vérification PIN, session Supabase via mot de passe interne
+### 1. Ajouter 2 secrets au projet
+- `AFRICASTALKING_API_KEY` — ta clé API production
+- `AFRICASTALKING_USERNAME` — `Junior_Mamete`
 
-3. **Frontend** :
-   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
-   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
-   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
-   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
-   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
-   - `useAuth` : ajout `signInWithPin()`
+### 2. Edge Function `phone-auth/index.ts`
 
-### Compatibilité mobile :
-Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
+**Supprimer** la logique Orange SMS :
+- Constantes `ORANGE_API_BASE`, `SMS_SENDER_ADDRESS`, `cachedToken` (lignes 9-10, 17)
+- Fonctions `getAccessToken()`, `checkSmsBalance()`, `sendSms()` (plus bas dans le fichier)
 
-### Phase 2 (à venir) :
-- Reset PIN (forgot-pin)
-- UI admin pour pin_reset_requests
-- Cron cleanup_expired_registrations
+**Ajouter** une fonction `sendSmsAfricasTalking()` :
+```text
+POST https://api.africastalking.com/version1/messaging
+Headers:
+  apiKey: ${AFRICASTALKING_API_KEY}
+  Content-Type: application/x-www-form-urlencoded
+  Accept: application/json
+Body:
+  username=Junior_Mamete&to=${phone}&message=${text}
+```
+
+**Modifier `handleRegister`** (lignes 167-194) :
+- Supprimer le check de balance Orange
+- Appeler `sendSmsAfricasTalking()` directement
+- Garder le fallback `dev_otp` si l'envoi échoue (solde épuisé, erreur réseau, etc.)
+
+### 3. Frontend
+Aucun changement — gère déjà `sms_sent` et `dev_otp`.
+
+## Résumé
+- 1 fichier modifié : `supabase/functions/phone-auth/index.ts`
+- 2 secrets à ajouter
+- ~3-4 SMS de test possibles avec le solde actuel
+- Fallback automatique en mode dev_otp quand le solde sera épuisé
+

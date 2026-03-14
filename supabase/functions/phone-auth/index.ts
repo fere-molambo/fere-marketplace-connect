@@ -6,15 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const ORANGE_API_BASE = 'https://api.orange.com';
-const SMS_SENDER_ADDRESS = 'tel:+2250000';
 const OTP_VALIDITY_MINUTES = 5;
 const MAX_OTP_ATTEMPTS = 5;
 const MAX_OTP_PER_HOUR = 10;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_BLOCK_MINUTES = 3;
-
-let cachedToken: { token: string; expiresAt: number } | null = null;
 
 // ============================================================
 // PBKDF2-based password hashing (Web Crypto API — no Workers needed)

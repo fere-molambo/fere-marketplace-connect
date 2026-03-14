@@ -221,20 +221,26 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
     throw new Error('Trop de tentatives. Veuillez recommencer l\'inscription');
   }
 
-  // Increment attempts
-  await supabaseAdmin
-    .from('pending_registrations')
-    .update({ otp_attempts: pending.otp_attempts + 1 })
-    .eq('phone', phone);
-
-  // Check OTP expiry
+  // Check OTP expiry first (do not consume attempts on expired code)
   if (new Date(pending.otp_expires_at) < new Date()) {
-    throw new Error('Code expiré. Veuillez recommencer l\'inscription');
+    throw new Error('Code expiré. Cliquez sur « Renvoyer le code » pour recevoir un nouveau OTP');
   }
 
-  // Check OTP match
+  // Check OTP match and increment attempts only on invalid OTP
   if (pending.otp_code !== otp) {
-    const remaining = MAX_OTP_ATTEMPTS - pending.otp_attempts - 1;
+    const nextAttempts = pending.otp_attempts + 1;
+
+    if (nextAttempts >= MAX_OTP_ATTEMPTS) {
+      await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
+      throw new Error('Trop de tentatives. Veuillez recommencer l\'inscription');
+    }
+
+    await supabaseAdmin
+      .from('pending_registrations')
+      .update({ otp_attempts: nextAttempts })
+      .eq('phone', phone);
+
+    const remaining = MAX_OTP_ATTEMPTS - nextAttempts;
     throw new Error(`Code incorrect. ${remaining} tentative(s) restante(s)`);
   }
 

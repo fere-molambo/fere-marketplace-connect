@@ -415,107 +415,48 @@ function generateInternalPassword(): string {
   return Array.from(array, b => b.toString(36).padStart(2, '0')).join('').substring(0, 32);
 }
 
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 3600000) {
-    return cachedToken.token;
+async function sendSmsAfricasTalking(recipientPhone: string, message: string): Promise<void> {
+  const apiKey = Deno.env.get('AFRICASTALKING_API_KEY');
+  const username = Deno.env.get('AFRICASTALKING_USERNAME');
+
+  if (!apiKey || !username) {
+    throw new Error('Africa\'s Talking credentials not configured');
   }
 
-  const authHeader = Deno.env.get('ORANGE_MONEY_AUTH_HEADER');
-  if (!authHeader) {
-    throw new Error('ORANGE_MONEY_AUTH_HEADER not configured');
-  }
+  const params = new URLSearchParams({
+    username,
+    to: recipientPhone,
+    message,
+  });
 
-  const response = await fetch(`${ORANGE_API_BASE}/oauth/v3/token`, {
+  const response = await fetch('https://api.africastalking.com/version1/messaging', {
     method: 'POST',
     headers: {
-      'Authorization': authHeader,
+      'apiKey': apiKey,
       'Content-Type': 'application/x-www-form-urlencoded',
       'Accept': 'application/json',
     },
-    body: 'grant_type=client_credentials',
+    body: params.toString(),
   });
 
   const data = await response.json();
-  if (!response.ok || !data.access_token) {
-    console.error('[phone-auth] Token error:', JSON.stringify(data));
-    throw new Error('Failed to get Orange API access token');
-  }
-
-  const expiresIn = data.expires_in || 7776000;
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + expiresIn * 1000,
-  };
-
-  return data.access_token;
-}
-
-async function checkSmsBalance(): Promise<boolean> {
-  try {
-    const accessToken = await getAccessToken();
-    const response = await fetch(
-      `${ORANGE_API_BASE}/sms/admin/v1/contracts`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      }
-    );
-    const data = await response.json();
-    console.log('[phone-auth] SMS contracts:', JSON.stringify(data));
-
-    if (!response.ok) return false;
-
-    // Orange API may return contracts as a direct array or nested
-    const contracts = Array.isArray(data) ? data : (data?.partnerContracts?.contracts || []);
-    for (const contract of contracts) {
-      if (contract.status === 'ACTIVE' && (contract.availableUnits ?? 0) > 0) {
-        console.log(`[phone-auth] Active contract found: ${contract.availableUnits} units remaining`);
-        return true;
-      }
-    }
-    return false;
-  } catch (e) {
-    console.error('[phone-auth] checkSmsBalance error:', e);
-    return false;
-  }
-}
-
-async function sendSms(recipientPhone: string, message: string): Promise<string | null> {
-  const accessToken = await getAccessToken();
-
-  const response = await fetch(
-    `${ORANGE_API_BASE}/smsmessaging/v1/outbound/${encodeURIComponent(SMS_SENDER_ADDRESS)}/requests`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        outboundSMSMessageRequest: {
-          address: `tel:${recipientPhone}`,
-          senderAddress: SMS_SENDER_ADDRESS,
-          outboundSMSTextMessage: {
-            message,
-          },
-        },
-      }),
-    }
-  );
-
-  const data = await response.json();
-  console.log('[phone-auth] SMS response:', response.status, JSON.stringify(data));
+  console.log('[phone-auth] AT SMS response:', response.status, JSON.stringify(data));
 
   if (!response.ok) {
     throw new Error(`SMS sending failed: ${response.status} ${JSON.stringify(data)}`);
   }
 
-  // Return resourceURL for delivery receipt tracking
-  const resourceUrl = data?.outboundSMSMessageRequest?.resourceURL || null;
-  return resourceUrl;
+  // Check if any recipient failed
+  const recipients = data?.SMSMessageData?.Recipients || [];
+  if (recipients.length > 0 && recipients[0].statusCode === 101) {
+    console.log(`[phone-auth] SMS sent successfully to ${recipientPhone}`);
+    return;
+  }
+
+  // statusCode 401 = insufficient balance, 403 = rejected, etc.
+  const statusCode = recipients[0]?.statusCode || 'unknown';
+  const status = recipients[0]?.status || data?.SMSMessageData?.Message || 'Unknown error';
+  throw new Error(`SMS delivery failed: code=${statusCode}, status=${status}`);
 }
 
 function jsonResponse(data: any, status = 200) {

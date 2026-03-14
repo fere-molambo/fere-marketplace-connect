@@ -126,6 +126,8 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
         onResend={handleResendOtp}
         onBack={() => setStep("form")}
         isVerifying={isVerifying}
+        devOtp={devOtp}
+        smsSent={smsSent}
       />
     );
   }

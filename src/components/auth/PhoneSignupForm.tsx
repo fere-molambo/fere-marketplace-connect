@@ -28,6 +28,8 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
   const [registeredPhone, setRegisteredPhone] = useState("");
   const [formData, setFormData] = useState<PhoneSignupFormData | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(true);
 
   const form = useForm<PhoneSignupFormData>({
     resolver: zodResolver(phoneSignupSchema),

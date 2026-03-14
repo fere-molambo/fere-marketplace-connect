@@ -134,8 +134,8 @@ Deno.serve(async (req) => {
     // (foreign keys referencing profiles prevent auth.users deletion)
     console.log('Cleaning up user data for:', userId);
 
-    // Delete in order of dependencies
-    const cleanupTables = [
+    // Hard-delete relations owned by the user
+    const deleteCleanupTargets = [
       { table: 'pending_payouts', column: 'recipient_id' },
       { table: 'refunds', column: 'user_id' },
       { table: 'client_penalties', column: 'user_id' },
@@ -150,10 +150,37 @@ Deno.serve(async (req) => {
       { table: 'driver_zones', column: 'driver_id' },
     ];
 
-    for (const { table, column } of cleanupTables) {
+    // Nullify optional references (audit/assignment fields) that would block profile deletion
+    const nullifyCleanupTargets = [
+      { table: 'shops', column: 'responsible_admin_id' },
+      { table: 'shops', column: 'created_by' },
+      { table: 'profiles', column: 'created_by' },
+      { table: 'shop_team_members', column: 'assigned_by' },
+      { table: 'service_bookings', column: 'accepted_by' },
+      { table: 'delivery_zones', column: 'created_by' },
+      { table: 'faq_items', column: 'created_by' },
+      { table: 'generated_images', column: 'created_by' },
+      { table: 'flash_sales', column: 'created_by' },
+      { table: 'shop_stories', column: 'created_by' },
+      { table: 'team_assignment_tags', column: 'created_by' },
+      { table: 'tutorials', column: 'created_by' },
+    ];
+
+    for (const { table, column } of deleteCleanupTargets) {
       const { error } = await supabaseAdmin.from(table).delete().eq(column, userId);
       if (error) {
         console.warn(`Warning cleaning ${table}.${column}:`, error.message);
+      }
+    }
+
+    for (const { table, column } of nullifyCleanupTargets) {
+      const { error } = await supabaseAdmin
+        .from(table)
+        .update({ [column]: null })
+        .eq(column, userId);
+
+      if (error) {
+        console.warn(`Warning nullifying ${table}.${column}:`, error.message);
       }
     }
 
@@ -190,10 +217,32 @@ Deno.serve(async (req) => {
     }
 
     // Delete user roles
-    await supabaseAdmin.from('user_roles').delete().eq('user_id', userId);
+    const { error: roleDeleteError } = await supabaseAdmin
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId);
+
+    if (roleDeleteError) {
+      console.error('Error deleting user roles:', roleDeleteError);
+      return new Response(
+        JSON.stringify({ error: roleDeleteError.message || 'Erreur lors de la suppression des rôles utilisateur' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Delete profile
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    const { error: profileDeleteError } = await supabaseAdmin
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (profileDeleteError) {
+      console.error('Error deleting profile:', profileDeleteError);
+      return new Response(
+        JSON.stringify({ error: profileDeleteError.message || 'Erreur lors de la suppression du profil utilisateur' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Now delete the user from auth
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);

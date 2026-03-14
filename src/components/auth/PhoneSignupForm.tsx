@@ -112,7 +112,12 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
       if (error) throw new Error(error.message);
       if (result && !result.success) throw new Error(result.error);
 
-      toast.success("Nouveau code envoyé");
+      setSmsSent(result?.sms_sent !== false);
+      setDevOtp(result?.dev_otp || null);
+
+      toast.success(result?.sms_sent === false
+        ? "Mode test : nouveau code affiché ci-dessous"
+        : "Nouveau code envoyé");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors du renvoi du code");
     }

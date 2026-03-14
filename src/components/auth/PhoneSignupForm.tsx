@@ -61,8 +61,12 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
 
       setRegisteredPhone(data.phone);
       setFormData(data);
+      setSmsSent(result?.sms_sent !== false);
+      setDevOtp(result?.dev_otp || null);
       setStep("otp");
-      toast.success("Code de vérification envoyé par SMS");
+      toast.success(result?.sms_sent === false
+        ? "Mode test : le code est affiché ci-dessous"
+        : "Code de vérification envoyé par SMS");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de l'inscription");
     }

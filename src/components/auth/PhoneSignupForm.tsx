@@ -35,7 +35,7 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
     resolver: zodResolver(phoneSignupSchema),
     defaultValues: {
       nom_complet: "",
-      phone: "+223",
+      phone: "+225",
       email: "",
       role: "membre",
       pin: "",

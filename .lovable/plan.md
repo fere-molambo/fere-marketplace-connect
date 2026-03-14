@@ -1,58 +1,36 @@
 
+# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-# Intégration Ikoddi OTP pour remplacer Africa's Talking
+## Statut : ✅ IMPLÉMENTÉ
 
-## Contexte
-Africa's Talking renvoie 401 malgré la bonne clé. Ikoddi est un provider SMS spécialisé Afrique de l'Ouest avec un endpoint OTP dédié (`/v1/otp/send` et `/v1/otp/verify`).
+### Ce qui a été fait :
 
-## Approche : Utiliser l'API OTP dédiée d'Ikoddi
+1. **Migration SQL** — 5 tables créées :
+   - `pending_registrations` (inscriptions en attente OTP)
+   - `user_pins` (PIN hashé + mot de passe interne)
+   - `login_attempts` (protection brute-force)
+   - `otp_rate_limits` (max 3 OTP/heure)
+   - `pin_reset_requests` (préparé pour Phase 2)
+   - Fonction `cleanup_expired_registrations()`
+   - RLS activé sur toutes les tables, accès via service_role uniquement
 
-Ikoddi propose deux options :
-1. **API OTP managée** — Ikoddi génère, envoie et vérifie le code lui-même
-2. **API SMS classique** — On envoie un SMS avec notre propre code OTP
+2. **Edge Function `phone-auth`** — 3 actions :
+   - `register` : validation, hash PIN, OTP, SMS Orange
+   - `verify-registration` : validation OTP, création user Supabase Auth
+   - `login` : vérification PIN, session Supabase via mot de passe interne
 
-**Option recommandée : API OTP managée** — Plus simple, Ikoddi gère la génération/vérification du code.
+3. **Frontend** :
+   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
+   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
+   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
+   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
+   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
+   - `useAuth` : ajout `signInWithPin()`
 
-## Secrets requis
+### Compatibilité mobile :
+Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
 
-Deux nouveaux secrets à configurer :
-- `IKODDI_API_KEY` — Clé API depuis le dashboard Ikoddi
-- `IKODDI_OTP_APP_ID` — ID de l'app OTP créée dans Ikoddi
-
-## Changements
-
-### 1. Edge Function `phone-auth/index.ts`
-
-- **Supprimer** `sendSmsAfricasTalking()` entièrement
-- **Ajouter** deux fonctions Ikoddi :
-  - `sendOtpIkoddi(phone)` — appelle `POST https://api.ikoddi.com/v1/otp/send` avec `to`, `length: 6`, `expiry: 300`
-  - `verifyOtpIkoddi(phone, otp)` — appelle `POST https://api.ikoddi.com/v1/otp/verify`
-- **Modifier `handleRegister()`** :
-  - Remplacer la génération locale d'OTP par l'appel à `sendOtpIkoddi(phone)`
-  - Ne plus stocker `otp_code` dans `pending_registrations` (Ikoddi le gère)
-- **Modifier `handleVerifyRegistration()`** :
-  - Remplacer la comparaison locale `pending.otp_code !== otp` par `verifyOtpIkoddi(phone, otp)`
-  - Garder la logique de création de compte identique
-- **Conserver** le fallback dev_otp si Ikoddi échoue (mode test)
-- **Supprimer** le log diagnostic AT temporaire
-
-### 2. Renvoi OTP (resend)
-
-Quand l'utilisateur clique "Renvoyer le code" :
-- Appeler à nouveau `sendOtpIkoddi(phone)` — Ikoddi invalide l'ancien code automatiquement
-
-### 3. Frontend — Aucun changement
-
-Le frontend (`PhoneSignupForm`, `OtpVerificationStep`, `PhoneLoginForm`) reste identique. Seul le backend change de provider.
-
-### 4. Nettoyage
-
-- Retirer les secrets `AFRICASTALKING_API_KEY` et `AFRICASTALKING_USERNAME` (optionnel, peuvent rester inactifs)
-
-## Prérequis utilisateur
-
-Avant l'implémentation :
-1. Créer un compte sur [ikoddi.com](https://ikoddi.com)
-2. Créer une "App OTP" dans le dashboard Ikoddi
-3. Récupérer la **clé API** et l'**OTP App ID**
-
+### Phase 2 (à venir) :
+- Reset PIN (forgot-pin)
+- UI admin pour pin_reset_requests
+- Cron cleanup_expired_registrations

@@ -360,6 +360,27 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       }
     }
 
+    // Gérer le changement de rôle (super_admin uniquement)
+    if (isSuperAdmin && currentUser?.id !== user.id && selectedRole && selectedRole !== userRoles[0]) {
+      // Supprimer tous les rôles existants
+      const { error: deleteRoleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteRoleError) throw deleteRoleError;
+
+      // Insérer le nouveau rôle
+      const { error: insertRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: user.id, role: selectedRole });
+
+      if (insertRoleError) throw insertRoleError;
+
+      setUserRoles([selectedRole]);
+      queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+    }
+
     toast.success("Utilisateur mis à jour avec succès !");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       onUserUpdated?.();

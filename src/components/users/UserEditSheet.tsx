@@ -120,7 +120,9 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
         .eq("user_id", user.id);
       
       if (!error && data) {
-        setUserRoles(data.map(r => r.role));
+        const roles = data.map(r => r.role);
+        setUserRoles(roles);
+        setSelectedRole(roles[0] || "");
       }
     };
     

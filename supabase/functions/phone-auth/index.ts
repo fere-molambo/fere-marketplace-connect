@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +15,47 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_BLOCK_MINUTES = 3;
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+
+// ============================================================
+// PBKDF2-based password hashing (Web Crypto API — no Workers needed)
+// ============================================================
+async function hashPin(pin: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, 256
+  );
+  const hashArray = new Uint8Array(derivedBits);
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${saltHex}:${hashHex}`;
+}
+
+async function verifyPin(pin: string, stored: string): Promise<boolean> {
+  const [saltHex, hashHex] = stored.split(':');
+  if (!saltHex || !hashHex) return false;
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16)));
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, 256
+  );
+  const newHashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  // Timing-safe comparison
+  if (newHashHex.length !== hashHex.length) return false;
+  let result = 0;
+  for (let i = 0; i < newHashHex.length; i++) {
+    result |= newHashHex.charCodeAt(i) ^ hashHex.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -95,14 +135,14 @@ async function handleRegister(supabaseAdmin: any, body: any) {
     throw new Error('Trop de demandes OTP. Réessayez dans 1 heure');
   }
 
-  // Hash PIN
-  const pinHash = await bcrypt.hash(pin);
+  // Hash PIN with PBKDF2
+  const pinHash = await hashPin(pin);
 
   // Generate OTP
   const otpCode = generateOtp();
   const otpExpiresAt = new Date(Date.now() + OTP_VALIDITY_MINUTES * 60000).toISOString();
 
-  // Upsert pending registration (allows re-submit if OTP expired)
+  // Upsert pending registration
   const { error: upsertError } = await supabaseAdmin
     .from('pending_registrations')
     .upsert({
@@ -130,7 +170,6 @@ async function handleRegister(supabaseAdmin: any, body: any) {
     console.log(`[phone-auth] OTP sent to ${phone}`);
   } catch (smsError) {
     console.error('[phone-auth] SMS error:', smsError);
-    // Don't throw — registration is saved, user can retry
     // In dev/sandbox, log the OTP for testing
     console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
   }
@@ -296,12 +335,11 @@ async function handleLogin(supabaseAdmin: any, body: any) {
     .maybeSingle();
 
   if (!userPin) {
-    // User exists but doesn't have PIN auth (email-based user)
     throw new Error('Ce compte utilise la connexion par email');
   }
 
-  // Verify PIN
-  const pinValid = await bcrypt.compare(pin, userPin.pin_hash);
+  // Verify PIN with PBKDF2
+  const pinValid = await verifyPin(pin, userPin.pin_hash);
 
   if (!pinValid) {
     await recordFailedLogin(supabaseAdmin, phone);

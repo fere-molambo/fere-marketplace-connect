@@ -57,6 +57,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
   // Récupérer les rôles de l'utilisateur édité
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState<string>("");
 
   // États vendeur
   const [statutLegal, setStatutLegal] = useState<string>("");
@@ -119,7 +120,9 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
         .eq("user_id", user.id);
       
       if (!error && data) {
-        setUserRoles(data.map(r => r.role));
+        const roles = data.map(r => r.role);
+        setUserRoles(roles);
+        setSelectedRole(roles[0] || "");
       }
     };
     
@@ -355,6 +358,27 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             assigned_by: currentUser?.id,
           })));
       }
+    }
+
+    // Gérer le changement de rôle (super_admin uniquement)
+    if (isSuperAdmin && currentUser?.id !== user.id && selectedRole && selectedRole !== userRoles[0]) {
+      // Supprimer tous les rôles existants
+      const { error: deleteRoleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteRoleError) throw deleteRoleError;
+
+      // Insérer le nouveau rôle
+      const { error: insertRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: user.id, role: selectedRole as any });
+
+      if (insertRoleError) throw insertRoleError;
+
+      setUserRoles([selectedRole]);
+      queryClient.invalidateQueries({ queryKey: ["user-roles"] });
     }
 
     toast.success("Utilisateur mis à jour avec succès !");
@@ -606,6 +630,29 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               L'email ne peut pas être modifié
             </p>
           </div>
+
+          {/* Sélecteur de rôle - UNIQUEMENT pour le super_admin */}
+          {isSuperAdmin && currentUser?.id !== user?.id && (
+            <div className="space-y-2">
+              <Label>Rôle</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un rôle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="vendeur">Vendeur</SelectItem>
+                  <SelectItem value="livreur">Livreur</SelectItem>
+                  <SelectItem value="membre">Membre</SelectItem>
+                  <SelectItem value="equipe">Équipe</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Changer le rôle de cet utilisateur
+              </p>
+            </div>
+          )}
 
           {/* Départements - UNIQUEMENT pour les admins */}
           {userRoles.includes('admin') && (isSuperAdmin || isAdmin) && departments.length > 0 && (

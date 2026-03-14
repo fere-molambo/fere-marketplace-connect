@@ -1,32 +1,32 @@
 
 
-# Changement de rôle des utilisateurs par le Super Admin
+# Ajout de l'export Excel (XLSX) pour Paiements et Transactions
 
-## Fonctionnalité
+## Constat
+- La page **Paiements** (`/dashboard/payments`) a deja un export CSV par onglet (en attente, effectues, remboursements).
+- La page **Transactions** (`/dashboard/transactions`) n'a **aucun export**.
+- Le format demande est **Excel (.xlsx)**, pas seulement CSV.
 
-Ajouter un sélecteur de rôle dans le formulaire `UserEditSheet` permettant au super_admin de changer le rôle d'un utilisateur. Le changement remplacera le(s) rôle(s) existant(s) par le nouveau rôle sélectionné.
+## Plan
 
-## Plan d'implémentation
+### 1. Ajouter la librairie `xlsx` (SheetJS)
+Installer `xlsx` pour generer de vrais fichiers `.xlsx` compatibles Excel.
 
-### 1. Modifier `UserEditSheet.tsx`
+### 2. Creer une fonction utilitaire `exportToExcel`
+Dans `src/components/payments/paymentUtils.ts`, ajouter une fonction `exportToExcel(rows, filename)` qui :
+- Cree un workbook avec un worksheet a partir des donnees
+- Telecharge le fichier `.xlsx`
 
-- Ajouter un état `selectedRole` initialisé avec le rôle actuel de l'utilisateur
-- Ajouter un `Select` dropdown après le champ Email, visible uniquement pour le super_admin
-- Options : super_admin, admin, vendeur, livreur, membre, equipe
-- Empêcher le super_admin de changer son propre rôle
-- Dans `onSubmit`, si le rôle a changé :
-  - Supprimer l'ancien rôle via `DELETE FROM user_roles WHERE user_id = ...`
-  - Insérer le nouveau rôle via `INSERT INTO user_roles`
-  - Invalider le cache `user-roles`
+### 3. Modifier la page Paiements
+- Ajouter un bouton "Exporter Excel" a cote du bouton CSV existant dans chaque onglet (en attente, effectues, remboursements), ou remplacer le CSV par Excel selon preference.
 
-### 2. RLS
+### 4. Ajouter l'export a la page Transactions
+- Ajouter un bouton "Exporter Excel" dans la zone de filtres de `src/pages/Transactions.tsx`
+- Exporter les transactions filtrees avec colonnes : Date, Reference, Type, Client, Contact, Montant, Devise, Statut
 
-Les politiques existantes sur `user_roles` doivent permettre au super_admin de modifier les rôles. Vérification nécessaire — si la table n'a pas de policy ALL pour super_admin, une migration sera ajoutée.
-
-### Section technique
-
-Modifications dans un seul fichier : `src/components/users/UserEditSheet.tsx`
-- Ajout d'un `Select` avec les 6 rôles disponibles
-- Logique de mise à jour : delete ancien + insert nouveau dans `user_roles`
-- Condition : `isSuperAdmin && currentUser?.id !== user?.id`
+## Fichiers modifies
+- `package.json` : ajout de `xlsx`
+- `src/components/payments/paymentUtils.ts` : ajout `exportToExcel`
+- `src/pages/Payments.tsx` : ajout boutons Excel par onglet
+- `src/pages/Transactions.tsx` : ajout bouton Export Excel
 

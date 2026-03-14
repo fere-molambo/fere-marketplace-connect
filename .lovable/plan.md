@@ -1,32 +1,36 @@
 
+# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-# Séparer indicatif pays et numéro de téléphone
+## Statut : ✅ IMPLÉMENTÉ
 
-## Contexte
-Le bundle SMS de 100 unités est maintenant actif. Le formulaire actuel demande le numéro complet avec indicatif (ex: `+22370123456`), ce qui est source d'erreurs de saisie. On va séparer en deux champs : un sélecteur d'indicatif pays et un champ numéro local.
+### Ce qui a été fait :
 
-## Changements
+1. **Migration SQL** — 5 tables créées :
+   - `pending_registrations` (inscriptions en attente OTP)
+   - `user_pins` (PIN hashé + mot de passe interne)
+   - `login_attempts` (protection brute-force)
+   - `otp_rate_limits` (max 3 OTP/heure)
+   - `pin_reset_requests` (préparé pour Phase 2)
+   - Fonction `cleanup_expired_registrations()`
+   - RLS activé sur toutes les tables, accès via service_role uniquement
 
-### 1. Nouveau composant `PhoneInputWithCountry`
-Créer `src/components/ui/PhoneInputWithCountry.tsx` :
-- Un `<Select>` avec les indicatifs pays ciblés : `+225` (Côte d'Ivoire), `+223` (Mali), `+221` (Sénégal), `+220` (Gambie), etc.
-- Afficher le drapeau emoji + code pays + indicatif dans chaque option
-- Un `<Input>` pour le numéro local (sans indicatif)
-- Le composant expose une valeur combinée `onChange(fullPhone)` = indicatif + numéro local
-- Indicatif par défaut : `+225` (Côte d'Ivoire, puisque le bundle SMS est ivoirien)
+2. **Edge Function `phone-auth`** — 3 actions :
+   - `register` : validation, hash PIN, OTP, SMS Orange
+   - `verify-registration` : validation OTP, création user Supabase Auth
+   - `login` : vérification PIN, session Supabase via mot de passe interne
 
-### 2. Mettre à jour `PhoneSignupForm.tsx`
-- Remplacer le champ `phone` unique par `<PhoneInputWithCountry>`
-- Valeur par défaut de l'indicatif : `+225`
+3. **Frontend** :
+   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
+   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
+   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
+   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
+   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
+   - `useAuth` : ajout `signInWithPin()`
 
-### 3. Mettre à jour `PhoneLoginForm.tsx`
-- Même remplacement du champ phone par `<PhoneInputWithCountry>`
+### Compatibilité mobile :
+Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
 
-### 4. Validators (`src/lib/validators.ts`)
-- Pas de changement nécessaire — la validation existante `^\+\d{10,15}$` fonctionne sur le numéro combiné
-
-### 5. Edge Function — mode dev fallback
-- Ajouter la vérification de solde SMS (`checkSmsBalance`)
-- Retourner `sms_sent: boolean` et `dev_otp` quand l'envoi échoue
-- Afficher l'OTP dans un bandeau "Mode Test" côté frontend si `sms_sent === false`
-
+### Phase 2 (à venir) :
+- Reset PIN (forgot-pin)
+- UI admin pour pin_reset_requests
+- Cron cleanup_expired_registrations

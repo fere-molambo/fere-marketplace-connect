@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { User, Phone, Mail } from "lucide-react";
+import { User, Mail } from "lucide-react";
+import { PhoneInputWithCountry } from "@/components/ui/PhoneInputWithCountry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -27,12 +28,14 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
   const [registeredPhone, setRegisteredPhone] = useState("");
   const [formData, setFormData] = useState<PhoneSignupFormData | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [smsSent, setSmsSent] = useState(true);
 
   const form = useForm<PhoneSignupFormData>({
     resolver: zodResolver(phoneSignupSchema),
     defaultValues: {
       nom_complet: "",
-      phone: "+223",
+      phone: "+225",
       email: "",
       role: "membre",
       pin: "",
@@ -58,8 +61,12 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
 
       setRegisteredPhone(data.phone);
       setFormData(data);
+      setSmsSent(result?.sms_sent !== false);
+      setDevOtp(result?.dev_otp || null);
       setStep("otp");
-      toast.success("Code de vérification envoyé par SMS");
+      toast.success(result?.sms_sent === false
+        ? "Mode test : le code est affiché ci-dessous"
+        : "Code de vérification envoyé par SMS");
     } catch (err: any) {
       toast.error(err.message || "Erreur lors de l'inscription");
     }
@@ -119,6 +126,8 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
         onResend={handleResendOtp}
         onBack={() => setStep("form")}
         isVerifying={isVerifying}
+        devOtp={devOtp}
+        smsSent={smsSent}
       />
     );
   }
@@ -150,10 +159,10 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
             <FormItem>
               <FormLabel>Numéro de téléphone</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input {...field} placeholder="+22370123456" className="pl-10" />
-                </div>
+                <PhoneInputWithCountry
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

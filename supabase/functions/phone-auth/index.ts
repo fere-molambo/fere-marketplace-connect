@@ -164,17 +164,34 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Record OTP rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Send OTP via Orange SMS
+  // Check SMS balance before sending
+  let smsSent = false;
+  let balanceOk = true;
   try {
-    await sendSms(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
-    console.log(`[phone-auth] OTP sent to ${phone}`);
-  } catch (smsError) {
-    console.error('[phone-auth] SMS error:', smsError);
-    // In dev/sandbox, log the OTP for testing
-    console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
+    balanceOk = await checkSmsBalance();
+  } catch (e) {
+    console.warn('[phone-auth] Balance check failed:', (e as Error).message);
+    balanceOk = false;
   }
 
-  return jsonResponse({ success: true, message: 'Code de vérification envoyé par SMS' });
+  if (balanceOk) {
+    try {
+      const resourceUrl = await sendSms(phone, `Votre code de verification Fere: ${otpCode}. Valide ${OTP_VALIDITY_MINUTES} minutes.`);
+      smsSent = true;
+      console.log(`[phone-auth] OTP sent to ${phone}, resourceURL: ${resourceUrl}`);
+    } catch (smsError) {
+      console.error('[phone-auth] SMS error:', smsError);
+    }
+  } else {
+    console.warn('[phone-auth] SMS balance insufficient or inactive');
+  }
+
+  if (!smsSent) {
+    console.log(`[phone-auth] DEV OTP for ${phone}: ${otpCode}`);
+    return jsonResponse({ success: true, sms_sent: false, dev_otp: otpCode, message: 'SMS non envoyé — mode test' });
+  }
+
+  return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
 }
 
 // ============================================================
@@ -443,7 +460,38 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function sendSms(recipientPhone: string, message: string): Promise<void> {
+async function checkSmsBalance(): Promise<boolean> {
+  try {
+    const accessToken = await getAccessToken();
+    const response = await fetch(
+      `${ORANGE_API_BASE}/sms/admin/v1/contracts`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      }
+    );
+    const data = await response.json();
+    console.log('[phone-auth] SMS contracts:', JSON.stringify(data));
+
+    if (!response.ok) return false;
+
+    const contracts = data?.partnerContracts?.contracts || [];
+    for (const contract of contracts) {
+      if (contract.status === 'ACTIVE' && (contract.availableUnits ?? 0) > 0) {
+        console.log(`[phone-auth] Active contract found: ${contract.availableUnits} units remaining`);
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.error('[phone-auth] checkSmsBalance error:', e);
+    return false;
+  }
+}
+
+async function sendSms(recipientPhone: string, message: string): Promise<string | null> {
   const accessToken = await getAccessToken();
 
   const response = await fetch(
@@ -473,6 +521,10 @@ async function sendSms(recipientPhone: string, message: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`SMS sending failed: ${response.status} ${JSON.stringify(data)}`);
   }
+
+  // Return resourceURL for delivery receipt tracking
+  const resourceUrl = data?.outboundSMSMessageRequest?.resourceURL || null;
+  return resourceUrl;
 }
 
 function jsonResponse(data: any, status = 200) {

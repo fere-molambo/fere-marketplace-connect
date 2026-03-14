@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface OtpVerificationStepProps {
   phone: string;
@@ -9,6 +10,8 @@ interface OtpVerificationStepProps {
   onResend: () => Promise<void>;
   onBack: () => void;
   isVerifying: boolean;
+  devOtp?: string | null;
+  smsSent?: boolean;
 }
 
 const OtpVerificationStep = ({
@@ -17,9 +20,11 @@ const OtpVerificationStep = ({
   onResend,
   onBack,
   isVerifying,
+  devOtp,
+  smsSent = true,
 }: OtpVerificationStepProps) => {
   const [otp, setOtp] = useState("");
-  const [timer, setTimer] = useState(300); // 5 minutes
+  const [timer, setTimer] = useState(300);
   const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -64,6 +69,16 @@ const OtpVerificationStep = ({
           Un code de vérification a été envoyé au <strong>{phone}</strong>
         </p>
       </div>
+
+      {!smsSent && devOtp && (
+        <Alert variant="default" className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+            <span className="font-semibold">Mode Test</span> — SMS non délivré. Votre code OTP :
+            <span className="ml-2 font-mono text-lg font-bold tracking-widest">{devOtp}</span>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex justify-center">
         <InputOTP maxLength={6} value={otp} onChange={setOtp}>

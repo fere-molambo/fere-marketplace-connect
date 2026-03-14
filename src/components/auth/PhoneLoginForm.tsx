@@ -1,8 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PhoneInputWithCountry } from "@/components/ui/PhoneInputWithCountry";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import {
   Form,
@@ -22,7 +21,7 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
   const form = useForm<PhoneLoginFormData>({
     resolver: zodResolver(phoneLoginSchema),
     defaultValues: {
-      phone: "+223",
+      phone: "+225",
       pin: "",
     },
   });
@@ -37,14 +36,10 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
             <FormItem>
               <FormLabel>Numéro de téléphone</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    {...field}
-                    placeholder="+22370123456"
-                    className="pl-10"
-                  />
-                </div>
+                <PhoneInputWithCountry
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

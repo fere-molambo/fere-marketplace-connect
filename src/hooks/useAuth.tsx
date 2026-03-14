@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import type { PhoneLoginFormData } from "@/lib/validators";
 
 const SUPABASE_PROJECT_ID = "jajfuajmkjulujnwfqen";
 
@@ -195,6 +196,35 @@ export const useAuth = () => {
     }
   };
 
+  const signInWithPin = async (phone: string, pin: string) => {
+    try {
+      setLoading(true);
+      signOutInProgressRef.current = false;
+
+      const { data, error } = await supabase.functions.invoke("phone-auth", {
+        body: { action: "login", phone, pin },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data && !data.success) throw new Error(data.error);
+
+      // Set session from the returned data
+      if (data?.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        toast.success("Connexion réussie !");
+      }
+    } catch (error: any) {
+      console.error("Sign in with PIN error:", error);
+      toast.error(error.message || "Erreur lors de la connexion");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     user,
     session,
@@ -203,5 +233,6 @@ export const useAuth = () => {
     signIn,
     signUp,
     signOut,
+    signInWithPin,
   };
 };

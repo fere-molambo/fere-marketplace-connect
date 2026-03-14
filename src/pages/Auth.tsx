@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, Eye, EyeOff, User, Phone } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,7 +17,9 @@ import {
 } from "@/components/ui/form";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
-import { loginSchema, signupSchema, LoginFormData, SignupFormData } from "@/lib/validators";
+import { loginSchema, LoginFormData } from "@/lib/validators";
+import PhoneLoginForm from "@/components/auth/PhoneLoginForm";
+import PhoneSignupForm from "@/components/auth/PhoneSignupForm";
 import fereLogo from "@/assets/fere-logo.webp";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,13 +27,14 @@ import { supabase } from "@/integrations/supabase/client";
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { session, signIn, signUp, signOut } = useAuth();
+  const { session, signIn, signUp, signOut, signInWithPin } = useAuth();
   const { roles, isLoading: rolesLoading } = useUserRoles();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "login");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [noDashboardAccess, setNoDashboardAccess] = useState(false);
+  // Login mode: "phone" for phone+PIN, "email" for email+password (admin)
+  const [loginMode, setLoginMode] = useState<"phone" | "email">("phone");
 
   // Récupérer les paramètres de la plateforme
   const { data: platformSettings } = useQuery({
@@ -63,7 +65,6 @@ const Auth = () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!currentSession) {
-          // Clear any stale local storage
           await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         }
       } catch (error) {
@@ -76,22 +77,18 @@ const Auth = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    // Wait for both auth and roles to finish loading
     if (rolesLoading) return;
     
-    // If no session, stay on auth page
     if (!session) {
       setIsRedirecting(false);
       setNoDashboardAccess(false);
       return;
     }
 
-    // Wait for roles to be loaded
     if (session && (!roles || roles.length === 0)) {
       return;
     }
 
-    // Check dashboard access
     const hasDashboardAccess = 
       roles?.includes("super_admin") || 
       roles?.includes("admin") ||
@@ -102,13 +99,12 @@ const Auth = () => {
       setIsRedirecting(true);
       navigate("/dashboard", { replace: true });
     } else {
-      // Clients (membre, livreur) redirect to home page instead of showing error
       setIsRedirecting(true);
       navigate("/", { replace: true });
     }
   }, [session, roles, rolesLoading, navigate]);
 
-  // Login form
+  // Email login form (for admins)
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -117,36 +113,22 @@ const Auth = () => {
     },
   });
 
-  // Signup form
-  const signupForm = useForm<SignupFormData>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: {
-      nom_complet: "",
-      contact: "+223",
-      email: "",
-      password: "",
-      confirmPassword: "",
-      role: "membre",
-    },
-  });
-
-  const onLogin = async (data: LoginFormData) => {
+  const onEmailLogin = async (data: LoginFormData) => {
     try {
       await signIn(data.identifier, data.password);
     } catch (error) {
-      // Error is handled in the hook
+      // Error handled in hook
     }
   };
 
-  const onSignup = async (data: SignupFormData) => {
+  const onPhoneLogin = async (data: { phone: string; pin: string }) => {
     try {
-      await signUp(data.nom_complet, data.contact, data.email, data.password, data.role);
+      await signInWithPin(data.phone, data.pin);
     } catch (error) {
-      // Error is handled in the hook
+      // Error handled in hook
     }
   };
 
-  // Show loading state while redirecting
   if (isRedirecting) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -189,7 +171,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left Panel - Decorative Image (Hidden on mobile) */}
+      {/* Left Panel - Decorative Image */}
       <div className="hidden lg:flex relative bg-gradient-to-br from-primary via-primary/90 to-primary/80 items-center justify-center p-12">
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-20"
@@ -228,237 +210,100 @@ const Auth = () => {
               <TabsTrigger value="signup">Inscription</TabsTrigger>
             </TabsList>
 
-            {/* Login Form */}
+            {/* Login Tab */}
             <TabsContent value="login" className="mt-6">
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
-                  <FormField
-                    control={loginForm.control}
-                    name="identifier"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email ou Téléphone</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              placeholder="email@exemple.com ou +22370123456"
-                              className="pl-10"
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={loginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mot de passe</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              type={showPassword ? "text" : "password"}
-                              placeholder="••••••••"
-                              className="pl-10 pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                            >
-                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end">
+              {loginMode === "phone" ? (
+                <div className="space-y-4">
+                  <PhoneLoginForm onSubmit={onPhoneLogin} />
+                  <div className="text-center">
                     <button
                       type="button"
-                      className="text-sm text-primary hover:underline"
-                      onClick={() => alert("Fonctionnalité à venir")}
+                      className="text-sm text-muted-foreground hover:text-primary underline"
+                      onClick={() => setLoginMode("email")}
                     >
-                      Mot de passe oublié ?
+                      Connexion par email (administrateur)
                     </button>
                   </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Form {...loginForm}>
+                    <form onSubmit={loginForm.handleSubmit(onEmailLogin)} className="space-y-4">
+                      <FormField
+                        control={loginForm.control}
+                        name="identifier"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  {...field}
+                                  placeholder="admin@exemple.com"
+                                  className="pl-10"
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={loginForm.formState.isSubmitting}
-                  >
-                    {loginForm.formState.isSubmitting ? "Connexion..." : "Se connecter"}
-                  </Button>
-                </form>
-              </Form>
+                      <FormField
+                        control={loginForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mot de passe</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  {...field}
+                                  type={showPassword ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  className="pl-10 pr-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                                >
+                                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={loginForm.formState.isSubmitting}
+                      >
+                        {loginForm.formState.isSubmitting ? "Connexion..." : "Se connecter"}
+                      </Button>
+                    </form>
+                  </Form>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      className="text-sm text-muted-foreground hover:text-primary underline"
+                      onClick={() => setLoginMode("phone")}
+                    >
+                      Connexion par téléphone + PIN
+                    </button>
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
-            {/* Signup Form */}
+            {/* Signup Tab — Phone-based only */}
             <TabsContent value="signup" className="mt-6">
-              <Form {...signupForm}>
-                <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
-                  <FormField
-                    control={signupForm.control}
-                    name="nom_complet"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nom complet</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              placeholder="Jean Dupont"
-                              className="pl-10"
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={signupForm.control}
-                    name="contact"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Numéro de téléphone</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              placeholder="+22370123456"
-                              className="pl-10"
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={signupForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              type="email"
-                              placeholder="email@exemple.com"
-                              className="pl-10"
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={signupForm.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vous êtes</FormLabel>
-                        <FormControl>
-                          <select
-                            {...field}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          >
-                            <option value="membre">Membre</option>
-                            <option value="vendeur">Vendeur</option>
-                            <option value="livreur">Livreur</option>
-                          </select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={signupForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mot de passe</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              type={showPassword ? "text" : "password"}
-                              placeholder="••••••••"
-                              className="pl-10 pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                            >
-                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={signupForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirmer le mot de passe</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              {...field}
-                              type={showConfirmPassword ? "text" : "password"}
-                              placeholder="••••••••"
-                              className="pl-10 pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                            >
-                              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={signupForm.formState.isSubmitting}
-                  >
-                    {signupForm.formState.isSubmitting ? "Inscription..." : "S'inscrire"}
-                  </Button>
-                </form>
-              </Form>
+              <PhoneSignupForm onSuccess={() => setActiveTab("login")} />
             </TabsContent>
           </Tabs>
         </div>

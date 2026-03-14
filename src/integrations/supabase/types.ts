@@ -931,6 +931,30 @@ export type Database = {
         }
         Relationships: []
       }
+      login_attempts: {
+        Row: {
+          attempts: number | null
+          blocked_until: string | null
+          id: string
+          last_attempt_at: string | null
+          phone: string
+        }
+        Insert: {
+          attempts?: number | null
+          blocked_until?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          phone: string
+        }
+        Update: {
+          attempts?: number | null
+          blocked_until?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          phone?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string | null
@@ -1243,6 +1267,24 @@ export type Database = {
           },
         ]
       }
+      otp_rate_limits: {
+        Row: {
+          id: string
+          phone: string
+          sent_at: string | null
+        }
+        Insert: {
+          id?: string
+          phone: string
+          sent_at?: string | null
+        }
+        Update: {
+          id?: string
+          phone?: string
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
       payment_transactions: {
         Row: {
           amount: number
@@ -1419,6 +1461,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_registrations: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          otp_attempts: number | null
+          otp_code: string
+          otp_expires_at: string
+          phone: string
+          pin_hash: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          otp_attempts?: number | null
+          otp_code: string
+          otp_expires_at: string
+          phone: string
+          pin_hash: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          otp_attempts?: number | null
+          otp_code?: string
+          otp_expires_at?: string
+          phone?: string
+          pin_hash?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
+      pin_reset_requests: {
+        Row: {
+          id: string
+          processed_at: string | null
+          processed_by_admin: string | null
+          requested_at: string | null
+          status: string | null
+          user_id: string | null
+          user_phone: string
+        }
+        Insert: {
+          id?: string
+          processed_at?: string | null
+          processed_by_admin?: string | null
+          requested_at?: string | null
+          status?: string | null
+          user_id?: string | null
+          user_phone: string
+        }
+        Update: {
+          id?: string
+          processed_at?: string | null
+          processed_by_admin?: string | null
+          requested_at?: string | null
+          status?: string | null
+          user_id?: string | null
+          user_phone?: string
+        }
+        Relationships: []
       }
       platform_settings: {
         Row: {
@@ -3091,6 +3202,30 @@ export type Database = {
           },
         ]
       }
+      user_pins: {
+        Row: {
+          id: string
+          internal_password: string
+          pin_hash: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          internal_password: string
+          pin_hash: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          internal_password?: string
+          pin_hash?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -3218,6 +3353,7 @@ export type Database = {
         Returns: boolean
       }
       can_manage_story_media: { Args: { _file_path: string }; Returns: boolean }
+      cleanup_expired_registrations: { Args: never; Returns: undefined }
       cleanup_expired_stories: { Args: never; Returns: undefined }
       deduct_tokens: {
         Args: {

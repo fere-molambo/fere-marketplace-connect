@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.send-notification]
 verify_jwt = false
+
+[functions.phone-auth]
+verify_jwt = false

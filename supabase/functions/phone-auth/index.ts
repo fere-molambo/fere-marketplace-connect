@@ -51,33 +51,37 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
 }
 
 // ============================================================
-// IKODDI OTP API
+// IKODDI OTP API (managed OTP — Ikoddi generates & verifies)
 // ============================================================
-async function sendOtpIkoddi(phone: string): Promise<{ success: boolean; error?: string }> {
+function getIkoddiConfig() {
   const apiKey = Deno.env.get('IKODDI_API_KEY');
   const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
-
-  if (!apiKey || !otpAppId) {
-    throw new Error('Ikoddi credentials not configured');
+  const orgId = Deno.env.get('IKODDI_ORGANIZATION_ID');
+  if (!apiKey || !otpAppId || !orgId) {
+    throw new Error('Ikoddi credentials not configured (API_KEY, OTP_APP_ID, ORGANIZATION_ID)');
   }
+  return { apiKey, otpAppId, orgId };
+}
 
-  const response = await fetch('https://api.ikoddi.com/v1/otp/send', {
+// Strip '+' from phone for Ikoddi identity
+function toIkoddiIdentity(phone: string): string {
+  return phone.replace('+', '');
+}
+
+async function sendOtpIkoddi(phone: string): Promise<{ otpToken: string }> {
+  const { apiKey, otpAppId, orgId } = getIkoddiConfig();
+  const identity = toIkoddiIdentity(phone);
+
+  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/sms/${identity}`;
+  console.log(`[phone-auth] Ikoddi send OTP → POST ${url}`);
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: phone,
-      length: 6,
-      expiry: 300,
-      app_id: otpAppId,
-      message: "Votre code de vérification Fere : {code}. Valable 5 minutes.",
-    }),
+    headers: { 'x-api-key': apiKey },
   });
 
   const responseText = await response.text();
-  console.log('[phone-auth] Ikoddi send OTP response:', response.status, responseText);
+  console.log('[phone-auth] Ikoddi send response:', response.status, responseText);
 
   if (!response.ok) {
     throw new Error(`Ikoddi OTP send failed: ${response.status} ${responseText}`);
@@ -90,35 +94,37 @@ async function sendOtpIkoddi(phone: string): Promise<{ success: boolean; error?:
     throw new Error(`Ikoddi returned non-JSON: ${responseText}`);
   }
 
-  return { success: true };
-}
-
-async function verifyOtpIkoddi(phone: string, code: string): Promise<{ valid: boolean; message?: string }> {
-  const apiKey = Deno.env.get('IKODDI_API_KEY');
-  const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
-
-  if (!apiKey || !otpAppId) {
-    throw new Error('Ikoddi credentials not configured');
+  if (data.status !== 0 || !data.otpToken) {
+    throw new Error(`Ikoddi OTP error: ${data.message || responseText}`);
   }
 
-  const response = await fetch('https://api.ikoddi.com/v1/otp/verify', {
+  return { otpToken: data.otpToken };
+}
+
+async function verifyOtpIkoddi(phone: string, code: string, otpToken: string): Promise<{ valid: boolean; message?: string }> {
+  const { apiKey, otpAppId, orgId } = getIkoddiConfig();
+  const identity = toIkoddiIdentity(phone);
+
+  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/verify`;
+  console.log(`[phone-auth] Ikoddi verify OTP → POST ${url}`);
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      to: phone,
-      code,
-      app_id: otpAppId,
+      verificationKey: otpToken,
+      otp: code,
+      identity,
     }),
   });
 
   const responseText = await response.text();
-  console.log('[phone-auth] Ikoddi verify OTP response:', response.status, responseText);
+  console.log('[phone-auth] Ikoddi verify response:', response.status, responseText);
 
   if (!response.ok) {
-    // Ikoddi returns non-200 for invalid OTP
     return { valid: false, message: responseText };
   }
 
@@ -129,8 +135,7 @@ async function verifyOtpIkoddi(phone: string, code: string): Promise<{ valid: bo
     return { valid: false, message: responseText };
   }
 
-  // Ikoddi returns status 0 for matched OTP
-  if (data.status === 0 || data.success === true || data.matched === true) {
+  if (data.status === 0) {
     return { valid: true };
   }
 

@@ -610,6 +610,29 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </p>
           </div>
 
+          {/* Sélecteur de rôle - UNIQUEMENT pour le super_admin */}
+          {isSuperAdmin && currentUser?.id !== user?.id && (
+            <div className="space-y-2">
+              <Label>Rôle</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un rôle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="vendeur">Vendeur</SelectItem>
+                  <SelectItem value="livreur">Livreur</SelectItem>
+                  <SelectItem value="membre">Membre</SelectItem>
+                  <SelectItem value="equipe">Équipe</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Changer le rôle de cet utilisateur
+              </p>
+            </div>
+          )}
+
           {/* Départements - UNIQUEMENT pour les admins */}
           {userRoles.includes('admin') && (isSuperAdmin || isAdmin) && departments.length > 0 && (
             <div className="space-y-3">

@@ -897,7 +897,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
                 {isResetting ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
               </Button>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Le mot de passe sera réinitialisé à : fere1234
+                Réservé aux comptes admin/super_admin (connexion email). Les utilisateurs mobile utilisent la réinitialisation de PIN.
               </p>
             </div>
           )}
@@ -943,7 +943,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               <span className="font-semibold">{user?.nom_complet}</span> ?
               <br />
               <br />
-              Le nouveau mot de passe sera : <span className="font-mono font-semibold">fere1234</span>
+              Le mot de passe sera réinitialisé à la valeur par défaut. Cette action ne concerne que les comptes admin/super_admin (connexion email).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

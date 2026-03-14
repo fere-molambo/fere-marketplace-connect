@@ -1,36 +1,55 @@
 
-# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-## Statut : ✅ IMPLÉMENTÉ
+# Correction de l'intégration Ikoddi OTP
 
-### Ce qui a été fait :
+## Problèmes identifiés (CRITIQUES)
 
-1. **Migration SQL** — 5 tables créées :
-   - `pending_registrations` (inscriptions en attente OTP)
-   - `user_pins` (PIN hashé + mot de passe interne)
-   - `login_attempts` (protection brute-force)
-   - `otp_rate_limits` (max 3 OTP/heure)
-   - `pin_reset_requests` (préparé pour Phase 2)
-   - Fonction `cleanup_expired_registrations()`
-   - RLS activé sur toutes les tables, accès via service_role uniquement
+D'après la documentation officielle, **tout est incorrect** dans l'implémentation actuelle :
 
-2. **Edge Function `phone-auth`** — 3 actions :
-   - `register` : validation, hash PIN, OTP, SMS Orange
-   - `verify-registration` : validation OTP, création user Supabase Auth
-   - `login` : vérification PIN, session Supabase via mot de passe interne
+| Élément | Actuel (FAUX) | Correct (doc Ikoddi) |
+|---------|---------------|----------------------|
+| URL Send | `https://api.ikoddi.com/v1/otp/send` | `https://api.ikoddi.com/api/v1/groups/{org_id}/otp/{otp_app_id}/sms/{identity}` |
+| URL Verify | `https://api.ikoddi.com/v1/otp/verify` | `https://api.ikoddi.com/api/v1/groups/{org_id}/otp/{otp_app_id}/verify` |
+| Auth header | `Authorization: Bearer {key}` | `x-api-key: {key}` |
+| Send body | `{ to, length, expiry, app_id, message }` | Pas de body — phone dans l'URL |
+| Send response | Ignorée | Retourne `{ status: 0, otpToken: "..." }` — **le token doit être stocké** |
+| Verify body | `{ to, code, app_id }` | `{ verificationKey: otpToken, otp: code, identity: phone }` |
+| Secret manquant | — | `IKODDI_ORGANIZATION_ID` requis |
+| Format téléphone | `+22370000000` | `22370000000` (sans le `+`) |
 
-3. **Frontend** :
-   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
-   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
-   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
-   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
-   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
-   - `useAuth` : ajout `signInWithPin()`
+## Flux correct selon la doc
 
-### Compatibilité mobile :
-Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
+1. **Send OTP** : `POST /api/v1/groups/{org_id}/otp/{otp_app_id}/sms/{phone_sans_plus}`
+   - Header : `x-api-key: {IKODDI_API_KEY}`
+   - Réponse : `{ status: 0, otpToken: "UCQS2b..." }`
+   - **Il faut stocker `otpToken`** pour la vérification
 
-### Phase 2 (à venir) :
-- Reset PIN (forgot-pin)
-- UI admin pour pin_reset_requests
-- Cron cleanup_expired_registrations
+2. **Verify OTP** : `POST /api/v1/groups/{org_id}/otp/{otp_app_id}/verify`
+   - Header : `x-api-key: {IKODDI_API_KEY}`
+   - Body : `{ verificationKey: otpToken, otp: "629185", identity: "22670707070" }`
+   - Réponse succès : `{ status: 0, message: "OTP Matched for ..." }`
+
+## Changements requis
+
+### 1. Nouveau secret : `IKODDI_ORGANIZATION_ID`
+- À récupérer sur https://app.ikoddi.com/team/details
+
+### 2. Edge Function `phone-auth/index.ts`
+
+**`sendOtpIkoddi(phone)`** :
+- URL : `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/sms/${phone.replace('+','')}`
+- Header : `x-api-key: ${apiKey}`
+- Retourner le `otpToken` de la réponse
+
+**`verifyOtpIkoddi(phone, code, otpToken)`** :
+- URL : `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/verify`
+- Body : `{ verificationKey: otpToken, otp: code, identity: phone.replace('+','') }`
+
+**`handleRegister`** :
+- Stocker `otpToken` dans `pending_registrations.otp_code` (réutiliser la colonne existante au lieu du placeholder `000000`)
+
+**`handleVerifyRegistration`** :
+- Passer `pending.otp_code` comme `verificationKey` à `verifyOtpIkoddi`
+
+### 3. Frontend — Aucun changement
+

@@ -1462,6 +1462,33 @@ export type Database = {
           },
         ]
       }
+      pending_pin_resets: {
+        Row: {
+          created_at: string | null
+          id: string
+          otp_attempts: number | null
+          otp_expires_at: string
+          otp_token: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          otp_attempts?: number | null
+          otp_expires_at: string
+          otp_token: string
+          phone: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          otp_attempts?: number | null
+          otp_expires_at?: string
+          otp_token?: string
+          phone?: string
+        }
+        Relationships: []
+      }
       pending_registrations: {
         Row: {
           created_at: string | null

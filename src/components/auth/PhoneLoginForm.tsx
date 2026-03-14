@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -12,12 +13,17 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { phoneLoginSchema, PhoneLoginFormData } from "@/lib/validators";
+import { KeyRound } from "lucide-react";
+import ResetPinFlow from "./ResetPinFlow";
+import RequestAdminResetDialog from "./RequestAdminResetDialog";
 
 interface PhoneLoginFormProps {
   onSubmit: (data: PhoneLoginFormData) => Promise<void>;
 }
 
 const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
+  const [showResetFlow, setShowResetFlow] = useState(false);
+
   const form = useForm<PhoneLoginFormData>({
     resolver: zodResolver(phoneLoginSchema),
     defaultValues: {
@@ -25,6 +31,10 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
       pin: "",
     },
   });
+
+  if (showResetFlow) {
+    return <ResetPinFlow onBack={() => setShowResetFlow(false)} />;
+  }
 
   return (
     <Form {...form}>
@@ -82,6 +92,18 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
         >
           {form.formState.isSubmitting ? "Connexion..." : "Se connecter"}
         </Button>
+
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            onClick={() => setShowResetFlow(true)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <KeyRound className="h-3 w-3" />
+            PIN oublié ?
+          </button>
+          <RequestAdminResetDialog />
+        </div>
       </form>
     </Form>
   );

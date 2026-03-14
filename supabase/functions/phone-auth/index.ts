@@ -163,8 +163,14 @@ serve(async (req) => {
         return await handleVerifyRegistration(supabaseAdmin, body);
       case 'login':
         return await handleLogin(supabaseAdmin, body);
+      case 'reset-pin-request':
+        return await handleResetPinRequest(supabaseAdmin, body);
+      case 'reset-pin-confirm':
+        return await handleResetPinConfirm(supabaseAdmin, body);
+      case 'request-admin-reset':
+        return await handleRequestAdminReset(supabaseAdmin, body);
       default:
-        throw new Error('Invalid action. Use: register, verify-registration, login');
+        throw new Error('Invalid action. Use: register, verify-registration, login, reset-pin-request, reset-pin-confirm, request-admin-reset');
     }
   } catch (err) {
     const error = err as Error;
@@ -470,6 +476,224 @@ async function handleLogin(supabaseAdmin: any, body: any) {
     success: true,
     session: signInData.session,
   });
+}
+
+// ============================================================
+// RESET PIN REQUEST (self-service via OTP)
+// ============================================================
+async function handleResetPinRequest(supabaseAdmin: any, body: any) {
+  const { phone } = body;
+
+  if (!phone || !/^\+\d{10,15}$/.test(phone)) {
+    throw new Error('Numéro de téléphone invalide');
+  }
+
+  // Check phone exists in profiles
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('contact', phone)
+    .maybeSingle();
+
+  if (!profile) {
+    throw new Error('Aucun compte trouvé avec ce numéro');
+  }
+
+  // Check user has a PIN (not email-only account)
+  const { data: userPin } = await supabaseAdmin
+    .from('user_pins')
+    .select('user_id')
+    .eq('user_id', profile.id)
+    .maybeSingle();
+
+  if (!userPin) {
+    throw new Error('Ce compte utilise la connexion par email');
+  }
+
+  // OTP rate limit
+  const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+  const { count: otpCount } = await supabaseAdmin
+    .from('otp_rate_limits')
+    .select('*', { count: 'exact', head: true })
+    .eq('phone', phone)
+    .gte('sent_at', oneHourAgo);
+
+  if ((otpCount || 0) >= MAX_OTP_PER_HOUR) {
+    throw new Error('Trop de demandes OTP. Réessayez dans 1 heure');
+  }
+
+  // Record rate limit
+  await supabaseAdmin.from('otp_rate_limits').insert({ phone });
+
+  // Send OTP via Ikoddi
+  let otpToken: string | null = null;
+  let smsSent = false;
+  try {
+    const ikoddiResult = await sendOtpIkoddi(phone);
+    otpToken = ikoddiResult.otpToken;
+    smsSent = true;
+  } catch (smsError) {
+    console.error('[phone-auth] Reset PIN OTP error:', smsError);
+  }
+
+  // Store in pending_pin_resets
+  const { error: upsertError } = await supabaseAdmin
+    .from('pending_pin_resets')
+    .upsert({
+      phone,
+      otp_token: otpToken || 'DEV_FALLBACK',
+      otp_expires_at: new Date(Date.now() + 5 * 60000).toISOString(),
+      otp_attempts: 0,
+    }, { onConflict: 'phone' });
+
+  if (upsertError) {
+    console.error('[phone-auth] Reset upsert error:', upsertError);
+    throw new Error('Erreur lors de la demande de réinitialisation');
+  }
+
+  if (!smsSent) {
+    const devOtp = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    await supabaseAdmin
+      .from('pending_pin_resets')
+      .update({ otp_token: `DEV:${devOtp}` })
+      .eq('phone', phone);
+    console.log(`[phone-auth] DEV Reset OTP for ${phone}: ${devOtp}`);
+    return jsonResponse({ success: true, sms_sent: false, dev_otp: devOtp });
+  }
+
+  return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
+}
+
+// ============================================================
+// RESET PIN CONFIRM (verify OTP + set new PIN)
+// ============================================================
+async function handleResetPinConfirm(supabaseAdmin: any, body: any) {
+  const { phone, otp, new_pin } = body;
+
+  if (!phone || !otp) {
+    throw new Error('Téléphone et code OTP requis');
+  }
+  if (!new_pin || !/^\d{6}$/.test(new_pin)) {
+    throw new Error('Le nouveau PIN doit contenir exactement 6 chiffres');
+  }
+
+  // Find pending reset
+  const { data: pending } = await supabaseAdmin
+    .from('pending_pin_resets')
+    .select('*')
+    .eq('phone', phone)
+    .maybeSingle();
+
+  if (!pending) {
+    throw new Error('Aucune demande de réinitialisation en cours');
+  }
+
+  // Verify OTP
+  let otpValid = false;
+  if (pending.otp_token.startsWith('DEV:')) {
+    const devCode = pending.otp_token.replace('DEV:', '');
+    if (new Date(pending.otp_expires_at) < new Date()) {
+      throw new Error('Code expiré. Demandez un nouveau code');
+    }
+    if (devCode !== otp) {
+      const nextAttempts = (pending.otp_attempts || 0) + 1;
+      if (nextAttempts >= 5) {
+        await supabaseAdmin.from('pending_pin_resets').delete().eq('phone', phone);
+        throw new Error('Trop de tentatives. Recommencez la procédure');
+      }
+      await supabaseAdmin
+        .from('pending_pin_resets')
+        .update({ otp_attempts: nextAttempts })
+        .eq('phone', phone);
+      throw new Error(`Code incorrect. ${5 - nextAttempts} tentative(s) restante(s)`);
+    }
+    otpValid = true;
+  } else {
+    const ikoddiResult = await verifyOtpIkoddi(phone, otp, pending.otp_token);
+    otpValid = ikoddiResult.valid;
+    if (!otpValid) {
+      throw new Error('Code de vérification incorrect ou expiré');
+    }
+  }
+
+  // Find user
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('contact', phone)
+    .maybeSingle();
+
+  if (!profile) {
+    throw new Error('Compte introuvable');
+  }
+
+  // Hash new PIN and update
+  const newPinHash = await hashPin(new_pin);
+  const { error: updateError } = await supabaseAdmin
+    .from('user_pins')
+    .update({ pin_hash: newPinHash })
+    .eq('user_id', profile.id);
+
+  if (updateError) {
+    console.error('[phone-auth] PIN update error:', updateError);
+    throw new Error('Erreur lors de la mise à jour du PIN');
+  }
+
+  // Clean up
+  await supabaseAdmin.from('pending_pin_resets').delete().eq('phone', phone);
+
+  console.log(`[phone-auth] PIN reset success for ${phone}`);
+  return jsonResponse({ success: true, message: 'PIN réinitialisé avec succès. Connectez-vous avec votre nouveau PIN.' });
+}
+
+// ============================================================
+// REQUEST ADMIN RESET
+// ============================================================
+async function handleRequestAdminReset(supabaseAdmin: any, body: any) {
+  const { phone } = body;
+
+  if (!phone || !/^\+\d{10,15}$/.test(phone)) {
+    throw new Error('Numéro de téléphone invalide');
+  }
+
+  // Find user
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('contact', phone)
+    .maybeSingle();
+
+  if (!profile) {
+    throw new Error('Aucun compte trouvé avec ce numéro');
+  }
+
+  // Check for existing pending request
+  const { data: existingRequest } = await supabaseAdmin
+    .from('pin_reset_requests')
+    .select('id')
+    .eq('user_phone', phone)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (existingRequest) {
+    return jsonResponse({ success: true, message: 'Une demande est déjà en cours. Un administrateur la traitera bientôt.' });
+  }
+
+  // Insert request
+  const { error: insertError } = await supabaseAdmin
+    .from('pin_reset_requests')
+    .insert({
+      user_phone: phone,
+      user_id: profile.id,
+      status: 'pending',
+    });
+
+  if (insertError) {
+    console.error('[phone-auth] Admin reset request error:', insertError);
+    throw new Error('Erreur lors de la demande');
+  }
+
+  return jsonResponse({ success: true, message: 'Demande envoyée. Un administrateur réinitialisera votre PIN.' });
 }
 
 // ============================================================

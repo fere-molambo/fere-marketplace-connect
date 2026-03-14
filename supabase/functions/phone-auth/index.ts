@@ -460,7 +460,38 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function sendSms(recipientPhone: string, message: string): Promise<void> {
+async function checkSmsBalance(): Promise<boolean> {
+  try {
+    const accessToken = await getAccessToken();
+    const response = await fetch(
+      `${ORANGE_API_BASE}/sms/admin/v1/contracts`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      }
+    );
+    const data = await response.json();
+    console.log('[phone-auth] SMS contracts:', JSON.stringify(data));
+
+    if (!response.ok) return false;
+
+    const contracts = data?.partnerContracts?.contracts || [];
+    for (const contract of contracts) {
+      if (contract.status === 'ACTIVE' && (contract.availableUnits ?? 0) > 0) {
+        console.log(`[phone-auth] Active contract found: ${contract.availableUnits} units remaining`);
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.error('[phone-auth] checkSmsBalance error:', e);
+    return false;
+  }
+}
+
+async function sendSms(recipientPhone: string, message: string): Promise<string | null> {
   const accessToken = await getAccessToken();
 
   const response = await fetch(
@@ -490,6 +521,10 @@ async function sendSms(recipientPhone: string, message: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`SMS sending failed: ${response.status} ${JSON.stringify(data)}`);
   }
+
+  // Return resourceURL for delivery receipt tracking
+  const resourceUrl = data?.outboundSMSMessageRequest?.resourceURL || null;
+  return resourceUrl;
 }
 
 function jsonResponse(data: any, status = 200) {

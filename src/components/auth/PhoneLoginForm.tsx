@@ -36,14 +36,10 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
             <FormItem>
               <FormLabel>Numéro de téléphone</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    {...field}
-                    placeholder="+22370123456"
-                    className="pl-10"
-                  />
-                </div>
+                <PhoneInputWithCountry
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

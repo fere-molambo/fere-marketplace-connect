@@ -439,11 +439,18 @@ async function sendSmsAfricasTalking(recipientPhone: string, message: string): P
     body: params.toString(),
   });
 
-  const data = await response.json();
-  console.log('[phone-auth] AT SMS response:', response.status, JSON.stringify(data));
+  const responseText = await response.text();
+  console.log('[phone-auth] AT SMS response:', response.status, responseText);
 
   if (!response.ok) {
-    throw new Error(`SMS sending failed: ${response.status} ${JSON.stringify(data)}`);
+    throw new Error(`SMS sending failed: ${response.status} ${responseText}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`AT returned non-JSON response: ${responseText}`);
   }
 
   // Check if any recipient failed
@@ -453,7 +460,6 @@ async function sendSmsAfricasTalking(recipientPhone: string, message: string): P
     return;
   }
 
-  // statusCode 401 = insufficient balance, 403 = rejected, etc.
   const statusCode = recipients[0]?.statusCode || 'unknown';
   const status = recipients[0]?.status || data?.SMSMessageData?.Message || 'Unknown error';
   throw new Error(`SMS delivery failed: code=${statusCode}, status=${status}`);

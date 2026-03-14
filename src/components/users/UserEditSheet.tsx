@@ -373,7 +373,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
       // Insérer le nouveau rôle
       const { error: insertRoleError } = await supabase
         .from("user_roles")
-        .insert({ user_id: user.id, role: selectedRole });
+        .insert({ user_id: user.id, role: selectedRole as any });
 
       if (insertRoleError) throw insertRoleError;
 

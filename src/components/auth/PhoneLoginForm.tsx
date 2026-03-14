@@ -21,7 +21,7 @@ const PhoneLoginForm = ({ onSubmit }: PhoneLoginFormProps) => {
   const form = useForm<PhoneLoginFormData>({
     resolver: zodResolver(phoneLoginSchema),
     defaultValues: {
-      phone: "+223",
+      phone: "+225",
       pin: "",
     },
   });

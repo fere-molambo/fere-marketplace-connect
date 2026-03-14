@@ -10,7 +10,7 @@ const ORANGE_API_BASE = 'https://api.orange.com';
 const SMS_SENDER_ADDRESS = 'tel:+2250000';
 const OTP_VALIDITY_MINUTES = 5;
 const MAX_OTP_ATTEMPTS = 5;
-const MAX_OTP_PER_HOUR = 3;
+const MAX_OTP_PER_HOUR = 10;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_BLOCK_MINUTES = 3;
 

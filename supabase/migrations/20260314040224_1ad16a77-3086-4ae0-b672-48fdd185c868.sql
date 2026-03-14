@@ -1,0 +1,1 @@
+DELETE FROM public.otp_rate_limits WHERE sent_at < now() - interval '30 minutes';

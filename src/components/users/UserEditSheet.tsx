@@ -57,6 +57,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
   // Récupérer les rôles de l'utilisateur édité
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState<string>("");
 
   // États vendeur
   const [statutLegal, setStatutLegal] = useState<string>("");

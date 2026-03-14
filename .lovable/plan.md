@@ -1,32 +1,36 @@
 
+# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-# Ajout de l'export Excel (XLSX) pour Paiements et Transactions
+## Statut : ✅ IMPLÉMENTÉ
 
-## Constat
-- La page **Paiements** (`/dashboard/payments`) a deja un export CSV par onglet (en attente, effectues, remboursements).
-- La page **Transactions** (`/dashboard/transactions`) n'a **aucun export**.
-- Le format demande est **Excel (.xlsx)**, pas seulement CSV.
+### Ce qui a été fait :
 
-## Plan
+1. **Migration SQL** — 5 tables créées :
+   - `pending_registrations` (inscriptions en attente OTP)
+   - `user_pins` (PIN hashé + mot de passe interne)
+   - `login_attempts` (protection brute-force)
+   - `otp_rate_limits` (max 3 OTP/heure)
+   - `pin_reset_requests` (préparé pour Phase 2)
+   - Fonction `cleanup_expired_registrations()`
+   - RLS activé sur toutes les tables, accès via service_role uniquement
 
-### 1. Ajouter la librairie `xlsx` (SheetJS)
-Installer `xlsx` pour generer de vrais fichiers `.xlsx` compatibles Excel.
+2. **Edge Function `phone-auth`** — 3 actions :
+   - `register` : validation, hash PIN, OTP, SMS Orange
+   - `verify-registration` : validation OTP, création user Supabase Auth
+   - `login` : vérification PIN, session Supabase via mot de passe interne
 
-### 2. Creer une fonction utilitaire `exportToExcel`
-Dans `src/components/payments/paymentUtils.ts`, ajouter une fonction `exportToExcel(rows, filename)` qui :
-- Cree un workbook avec un worksheet a partir des donnees
-- Telecharge le fichier `.xlsx`
+3. **Frontend** :
+   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
+   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
+   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
+   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
+   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
+   - `useAuth` : ajout `signInWithPin()`
 
-### 3. Modifier la page Paiements
-- Ajouter un bouton "Exporter Excel" a cote du bouton CSV existant dans chaque onglet (en attente, effectues, remboursements), ou remplacer le CSV par Excel selon preference.
+### Compatibilité mobile :
+Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
 
-### 4. Ajouter l'export a la page Transactions
-- Ajouter un bouton "Exporter Excel" dans la zone de filtres de `src/pages/Transactions.tsx`
-- Exporter les transactions filtrees avec colonnes : Date, Reference, Type, Client, Contact, Montant, Devise, Statut
-
-## Fichiers modifies
-- `package.json` : ajout de `xlsx`
-- `src/components/payments/paymentUtils.ts` : ajout `exportToExcel`
-- `src/pages/Payments.tsx` : ajout boutons Excel par onglet
-- `src/pages/Transactions.tsx` : ajout bouton Export Excel
-
+### Phase 2 (à venir) :
+- Reset PIN (forgot-pin)
+- UI admin pour pin_reset_requests
+- Cron cleanup_expired_registrations

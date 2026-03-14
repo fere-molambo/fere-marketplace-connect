@@ -477,7 +477,8 @@ async function checkSmsBalance(): Promise<boolean> {
 
     if (!response.ok) return false;
 
-    const contracts = data?.partnerContracts?.contracts || [];
+    // Orange API may return contracts as a direct array or nested
+    const contracts = Array.isArray(data) ? data : (data?.partnerContracts?.contracts || []);
     for (const contract of contracts) {
       if (contract.status === 'ACTIVE' && (contract.availableUnits ?? 0) > 0) {
         console.log(`[phone-auth] Active contract found: ${contract.availableUnits} units remaining`);

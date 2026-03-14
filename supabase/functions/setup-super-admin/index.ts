@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-setup-secret',
 };
 
 serve(async (req) => {
@@ -12,6 +12,18 @@ serve(async (req) => {
   }
 
   try {
+    // Validate setup secret
+    const setupSecret = req.headers.get('X-Setup-Secret');
+    const expectedSecret = Deno.env.get('SETUP_SECRET');
+    
+    if (!expectedSecret || setupSecret !== expectedSecret) {
+      console.warn('Tentative d\'accès non autorisée à setup-super-admin');
+      return new Response(
+        JSON.stringify({ error: 'Non autorisé' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -47,7 +59,7 @@ serve(async (req) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirmer l'email
+      email_confirm: true,
       user_metadata: {
         nom_complet,
         contact

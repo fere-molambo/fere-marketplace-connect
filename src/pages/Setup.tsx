@@ -46,7 +46,17 @@ export default function Setup() {
     setLoading(true);
 
     try {
+      const setupSecret = prompt('Entrez le secret de configuration (SETUP_SECRET) :');
+      if (!setupSecret) {
+        toast.error('Le secret de configuration est requis');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('setup-super-admin', {
+        headers: {
+          'X-Setup-Secret': setupSecret,
+        },
         body: {
           email: 'superadmin@fere.app',
           password: 'fere1234',

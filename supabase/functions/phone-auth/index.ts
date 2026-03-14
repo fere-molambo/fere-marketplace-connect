@@ -51,33 +51,37 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
 }
 
 // ============================================================
-// IKODDI OTP API
+// IKODDI OTP API (managed OTP — Ikoddi generates & verifies)
 // ============================================================
-async function sendOtpIkoddi(phone: string): Promise<{ success: boolean; error?: string }> {
+function getIkoddiConfig() {
   const apiKey = Deno.env.get('IKODDI_API_KEY');
   const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
-
-  if (!apiKey || !otpAppId) {
-    throw new Error('Ikoddi credentials not configured');
+  const orgId = Deno.env.get('IKODDI_ORGANIZATION_ID');
+  if (!apiKey || !otpAppId || !orgId) {
+    throw new Error('Ikoddi credentials not configured (API_KEY, OTP_APP_ID, ORGANIZATION_ID)');
   }
+  return { apiKey, otpAppId, orgId };
+}
 
-  const response = await fetch('https://api.ikoddi.com/v1/otp/send', {
+// Strip '+' from phone for Ikoddi identity
+function toIkoddiIdentity(phone: string): string {
+  return phone.replace('+', '');
+}
+
+async function sendOtpIkoddi(phone: string): Promise<{ otpToken: string }> {
+  const { apiKey, otpAppId, orgId } = getIkoddiConfig();
+  const identity = toIkoddiIdentity(phone);
+
+  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/sms/${identity}`;
+  console.log(`[phone-auth] Ikoddi send OTP → POST ${url}`);
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: phone,
-      length: 6,
-      expiry: 300,
-      app_id: otpAppId,
-      message: "Votre code de vérification Fere : {code}. Valable 5 minutes.",
-    }),
+    headers: { 'x-api-key': apiKey },
   });
 
   const responseText = await response.text();
-  console.log('[phone-auth] Ikoddi send OTP response:', response.status, responseText);
+  console.log('[phone-auth] Ikoddi send response:', response.status, responseText);
 
   if (!response.ok) {
     throw new Error(`Ikoddi OTP send failed: ${response.status} ${responseText}`);
@@ -90,35 +94,37 @@ async function sendOtpIkoddi(phone: string): Promise<{ success: boolean; error?:
     throw new Error(`Ikoddi returned non-JSON: ${responseText}`);
   }
 
-  return { success: true };
-}
-
-async function verifyOtpIkoddi(phone: string, code: string): Promise<{ valid: boolean; message?: string }> {
-  const apiKey = Deno.env.get('IKODDI_API_KEY');
-  const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
-
-  if (!apiKey || !otpAppId) {
-    throw new Error('Ikoddi credentials not configured');
+  if (data.status !== 0 || !data.otpToken) {
+    throw new Error(`Ikoddi OTP error: ${data.message || responseText}`);
   }
 
-  const response = await fetch('https://api.ikoddi.com/v1/otp/verify', {
+  return { otpToken: data.otpToken };
+}
+
+async function verifyOtpIkoddi(phone: string, code: string, otpToken: string): Promise<{ valid: boolean; message?: string }> {
+  const { apiKey, otpAppId, orgId } = getIkoddiConfig();
+  const identity = toIkoddiIdentity(phone);
+
+  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/verify`;
+  console.log(`[phone-auth] Ikoddi verify OTP → POST ${url}`);
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      to: phone,
-      code,
-      app_id: otpAppId,
+      verificationKey: otpToken,
+      otp: code,
+      identity,
     }),
   });
 
   const responseText = await response.text();
-  console.log('[phone-auth] Ikoddi verify OTP response:', response.status, responseText);
+  console.log('[phone-auth] Ikoddi verify response:', response.status, responseText);
 
   if (!response.ok) {
-    // Ikoddi returns non-200 for invalid OTP
     return { valid: false, message: responseText };
   }
 
@@ -129,8 +135,7 @@ async function verifyOtpIkoddi(phone: string, code: string): Promise<{ valid: bo
     return { valid: false, message: responseText };
   }
 
-  // Ikoddi returns status 0 for matched OTP
-  if (data.status === 0 || data.success === true || data.matched === true) {
+  if (data.status === 0) {
     return { valid: true };
   }
 
@@ -218,7 +223,22 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Hash PIN with PBKDF2
   const pinHash = await hashPin(pin);
 
-  // Upsert pending registration (no otp_code stored — Ikoddi manages it)
+  // Record OTP rate limit
+  await supabaseAdmin.from('otp_rate_limits').insert({ phone });
+
+  // Send OTP via Ikoddi
+  let smsSent = false;
+  let otpToken: string | null = null;
+  try {
+    const ikoddiResult = await sendOtpIkoddi(phone);
+    otpToken = ikoddiResult.otpToken;
+    smsSent = true;
+    console.log(`[phone-auth] OTP sent to ${phone} via Ikoddi, otpToken received`);
+  } catch (smsError) {
+    console.error('[phone-auth] Ikoddi SMS error:', smsError);
+  }
+
+  // Upsert pending registration — store otpToken in otp_code column
   const { error: upsertError } = await supabaseAdmin
     .from('pending_registrations')
     .upsert({
@@ -227,7 +247,7 @@ async function handleRegister(supabaseAdmin: any, body: any) {
       email: email?.trim() || null,
       role,
       pin_hash: pinHash,
-      otp_code: '000000', // placeholder — Ikoddi manages the real OTP
+      otp_code: otpToken || 'DEV_FALLBACK',
       otp_expires_at: new Date(Date.now() + 5 * 60000).toISOString(),
       otp_attempts: 0,
     }, { onConflict: 'phone' });
@@ -237,26 +257,13 @@ async function handleRegister(supabaseAdmin: any, body: any) {
     throw new Error('Erreur lors de l\'enregistrement');
   }
 
-  // Record OTP rate limit
-  await supabaseAdmin.from('otp_rate_limits').insert({ phone });
-
-  // Send OTP via Ikoddi
-  let smsSent = false;
-  try {
-    await sendOtpIkoddi(phone);
-    smsSent = true;
-    console.log(`[phone-auth] OTP sent to ${phone} via Ikoddi`);
-  } catch (smsError) {
-    console.error('[phone-auth] Ikoddi SMS error:', smsError);
-  }
-
   if (!smsSent) {
     // Fallback: generate a dev OTP for testing
     const devOtp = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
-    // Store it so verify can check it locally
+    // Store devOtp for local verification
     await supabaseAdmin
       .from('pending_registrations')
-      .update({ otp_code: devOtp })
+      .update({ otp_code: `DEV:${devOtp}` })
       .eq('phone', phone);
     console.log(`[phone-auth] DEV OTP for ${phone}: ${devOtp}`);
     return jsonResponse({ success: true, sms_sent: false, dev_otp: devOtp, message: 'SMS non envoyé — mode test' });
@@ -286,22 +293,16 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
     throw new Error('Aucune inscription en attente pour ce numéro');
   }
 
-  // Try Ikoddi verification first (if SMS was sent via Ikoddi)
+  // Determine verification mode based on stored otp_code
   let otpValid = false;
 
-  if (pending.otp_code === '000000') {
-    // OTP was sent via Ikoddi — verify through Ikoddi API
-    const ikoddiResult = await verifyOtpIkoddi(phone, otp);
-    otpValid = ikoddiResult.valid;
-    if (!otpValid) {
-      throw new Error('Code de vérification incorrect ou expiré');
-    }
-  } else {
-    // Fallback: local OTP verification (dev mode)
+  if (pending.otp_code.startsWith('DEV:')) {
+    // Dev fallback mode — local verification
+    const devCode = pending.otp_code.replace('DEV:', '');
     if (new Date(pending.otp_expires_at) < new Date()) {
       throw new Error('Code expiré. Cliquez sur « Renvoyer le code » pour recevoir un nouveau OTP');
     }
-    if (pending.otp_code !== otp) {
+    if (devCode !== otp) {
       const nextAttempts = (pending.otp_attempts || 0) + 1;
       if (nextAttempts >= 5) {
         await supabaseAdmin.from('pending_registrations').delete().eq('phone', phone);
@@ -314,6 +315,13 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
       throw new Error(`Code incorrect. ${5 - nextAttempts} tentative(s) restante(s)`);
     }
     otpValid = true;
+  } else {
+    // Ikoddi mode — verify via API using stored otpToken
+    const ikoddiResult = await verifyOtpIkoddi(phone, otp, pending.otp_code);
+    otpValid = ikoddiResult.valid;
+    if (!otpValid) {
+      throw new Error('Code de vérification incorrect ou expiré');
+    }
   }
 
   // OTP is valid — create user

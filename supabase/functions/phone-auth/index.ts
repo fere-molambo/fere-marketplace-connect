@@ -143,6 +143,8 @@ async function verifyOtpIkoddi(phone: string, code: string, otpToken: string): P
 }
 
 serve(async (req) => {
+  console.log(`[phone-auth] Request received: ${req.method} ${req.url}`);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

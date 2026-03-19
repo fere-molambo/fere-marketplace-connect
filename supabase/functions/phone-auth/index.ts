@@ -185,8 +185,10 @@ serve(async (req) => {
         return await handleResetPinConfirm(supabaseAdmin, body);
       case 'request-admin-reset':
         return await handleRequestAdminReset(supabaseAdmin, body);
+      case 'admin-fix-user':
+        return await handleAdminFixUser(supabaseAdmin, body, req);
       default:
-        throw new Error('Invalid action. Use: register, verify-registration, login, reset-pin-request, reset-pin-confirm, request-admin-reset');
+        throw new Error('Invalid action. Use: register, verify-registration, login, reset-pin-request, reset-pin-confirm, request-admin-reset, admin-fix-user');
     }
   } catch (err) {
     const error = err as Error;

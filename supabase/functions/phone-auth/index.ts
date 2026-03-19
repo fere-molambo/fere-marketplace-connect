@@ -138,7 +138,7 @@ async function sendSmsIkoddi(phone: string, message: string): Promise<boolean> {
     body: JSON.stringify({
       sentTo: [identity],
       message,
-      from: 'Fere',
+      from: 'Ikoddi',
       smsBroadCast: 'OTP',
       countryNumberCode: countryCode,
       countryStringCode: isoCode,

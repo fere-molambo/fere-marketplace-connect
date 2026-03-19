@@ -68,3 +68,25 @@ La fonction `create-user` créait les utilisateurs avec email+password standard,
 4. **`phone-auth` action `admin-fix-user`** :
    - Permet aux admins de réparer un compte cassé (mauvais internal_password)
    - Prend phone + nouveau PIN, regénère UUID, met à jour auth.users et user_pins
+
+---
+
+# Phase 1c — Synchronisation Web ↔ Mobile
+
+## Statut : ✅ IMPLÉMENTÉ (Mars 2026)
+
+### Bugs corrigés :
+
+1. **`generateInternalPassword()`** dans `phone-auth/index.ts` :
+   - **Avant** : base36 custom → produisait des chaînes invalides (ex: `026c031o532z...`)
+   - **Après** : `crypto.randomUUID()` → compatible avec Supabase Auth
+   - Impact : les utilisateurs inscrits depuis mobile peuvent maintenant se connecter
+
+2. **Sender SMS Ikoddi** :
+   - **Avant** : `from: 'Fere'` → rejeté par Ikoddi (sender non autorisé)
+   - **Après** : `from: 'Ikoddi'` → SMS livrés correctement
+
+### Documentation mobile mise à jour :
+- `docs/BOLT_CLIENT_APP.md` : section auth → flux phone-auth Edge Function
+- `docs/BOLT_DRIVER_APP.md` : section auth → flux phone-auth + auto-inscription livreur
+- `docs/MOBILE_API_REFERENCE.md` : section auth → flux phone-auth

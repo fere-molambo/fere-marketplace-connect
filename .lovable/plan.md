@@ -1,164 +1,92 @@
 
+# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-# Plan approuvé — 2 parties
+## Statut : ✅ IMPLÉMENTÉ
 
-## Partie 1 : Corrections côté Lovable (à implémenter maintenant)
+### Ce qui a été fait :
 
-### 1a. Fix `generateInternalPassword()` dans `phone-auth/index.ts` (ligne 742-746)
-Remplacer par `return crypto.randomUUID();`
+1. **Migration SQL** — 5 tables créées :
+   - `pending_registrations` (inscriptions en attente OTP)
+   - `user_pins` (PIN hashé + mot de passe interne)
+   - `login_attempts` (protection brute-force)
+   - `otp_rate_limits` (max 10 OTP/heure)
+   - `pin_reset_requests` (préparé pour Phase 2)
+   - Fonction `cleanup_expired_registrations()`
+   - RLS activé sur toutes les tables, accès via service_role uniquement
 
-### 1b. Fix sender SMS Ikoddi (ligne 141)
-Changer `from: 'Fere'` en `from: 'Ikoddi'`
+2. **Edge Function `phone-auth`** — 7 actions :
+   - `register` : validation, hash PIN, génération OTP locale, envoi SMS simple via Ikoddi
+   - `verify-registration` : vérification OTP locale (hash PBKDF2), création user Supabase Auth
+   - `login` : vérification PIN, session Supabase via mot de passe interne
+   - `reset-pin-request` : OTP par SMS pour réinitialisation PIN
+   - `reset-pin-confirm` : vérification OTP + nouveau PIN
+   - `request-admin-reset` : demande manuelle à un admin
+   - `admin-fix-user` : réparation de comptes créés hors du flux normal (admin only)
 
-### 1c. Mettre à jour `docs/BOLT_CLIENT_APP.md` (lignes 20-49)
-Remplacer la section auth email/password par le flux phone-auth Edge Function.
+3. **Frontend** :
+   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
+   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
+   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
+   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
+   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
+   - `useAuth` : ajout `signInWithPin()`
 
-### 1d. Mettre à jour `docs/BOLT_DRIVER_APP.md` (lignes 20-33)
-Idem avec `role: "livreur"` et auto-inscription.
+### Changement OTP (v2) — Mars 2026 :
+- **Avant** : API OTP managée d'Ikoddi (Ikoddi génère + vérifie le code) → problème d'expiration trop courte côté Ikoddi
+- **Après** : Génération OTP locale + envoi via API SMS simple d'Ikoddi + vérification locale (hash PBKDF2)
+- Contrôle total de l'expiration (5 minutes côté serveur)
+- Plus de dépendance à l'API verify d'Ikoddi
+- Le secret `IKODDI_OTP_APP_ID` n'est plus nécessaire
 
-### 1e. Mettre à jour `docs/MOBILE_API_REFERENCE.md` section Auth (~lignes 370-400)
-Remplacer par le flux phone-auth.
-
----
-
-## Partie 2 : Texte exact à copier-coller dans Bolt.new
-
-Voici le message à envoyer à Bolt.new (pour les DEUX apps — client et livreur) :
-
----
-
-**⚠️ CORRECTION CRITIQUE — Authentification**
-
-L'authentification a été mise à jour côté backend. Il faut **supprimer tout le code qui utilise `supabase.auth.signUp()` et `supabase.auth.signInWithPassword()` directement**. Toute l'authentification passe désormais par une Edge Function appelée `phone-auth`.
-
-**INSCRIPTION (nouveau compte) :**
-
-```typescript
-// Étape 1 : Enregistrer l'utilisateur (envoie un SMS OTP)
-const { data, error } = await supabase.functions.invoke("phone-auth", {
-  body: {
-    action: "register",
-    phone: "+2250777992271",  // format international avec + obligatoire
-    full_name: "Nom Complet",
-    pin: "123456",            // exactement 6 chiffres
-    role: "membre",           // "membre" pour client, "livreur" pour livreur, "vendeur" pour vendeur
-    email: ""                 // optionnel, laisser vide si pas d'email
-  }
-});
-
-if (data?.success) {
-  // Un SMS avec un code OTP a été envoyé au numéro
-  // Afficher l'écran de saisie OTP
-  // En mode dev/test : le code est dans data.dev_otp (si le SMS échoue)
-}
-
-// Étape 2 : Vérifier le code OTP reçu par SMS
-const { data: verifyData } = await supabase.functions.invoke("phone-auth", {
-  body: {
-    action: "verify-registration",
-    phone: "+2250777992271",
-    otp: "123456"  // code reçu par SMS
-  }
-});
-
-if (verifyData?.success) {
-  // Compte créé ! L'utilisateur doit maintenant se connecter
-  // Rediriger vers l'écran de connexion
-}
-```
-
-**CONNEXION :**
-
-```typescript
-const { data, error } = await supabase.functions.invoke("phone-auth", {
-  body: {
-    action: "login",
-    phone: "+2250777992271",
-    pin: "123456"
-  }
-});
-
-if (data?.success && data?.session) {
-  // OBLIGATOIRE : établir la session Supabase avec les tokens retournés
-  await supabase.auth.setSession({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  });
-  // L'utilisateur est maintenant connecté
-  // Rediriger vers l'écran principal
-}
-```
-
-**RÉINITIALISATION DU PIN (mot de passe oublié) :**
-
-```typescript
-// Étape 1 : Demander un code OTP par SMS
-const { data } = await supabase.functions.invoke("phone-auth", {
-  body: {
-    action: "reset-pin-request",
-    phone: "+2250777992271"
-  }
-});
-
-// Étape 2 : Confirmer avec le code OTP + nouveau PIN
-const { data: confirmData } = await supabase.functions.invoke("phone-auth", {
-  body: {
-    action: "reset-pin-confirm",
-    phone: "+2250777992271",
-    otp: "123456",
-    new_pin: "654321"
-  }
-});
-```
-
-**DÉCONNEXION :**
-
-```typescript
-await supabase.auth.signOut();
-```
-
-**RÉCUPÉRER LE PROFIL :**
-
-```typescript
-const { data: { user } } = await supabase.auth.getUser();
-const { data: profile } = await supabase
-  .from("profiles")
-  .select("*")
-  .eq("id", user.id)
-  .single();
-```
-
-**RÉCUPÉRER LE RÔLE :**
-
-```typescript
-const { data: roles } = await supabase
-  .from("user_roles")
-  .select("role")
-  .eq("user_id", user.id);
-```
-
-**RÈGLES OBLIGATOIRES :**
-1. Le numéro de téléphone doit TOUJOURS être au format international avec le `+` (ex: `+2250777992271`)
-2. Le PIN est TOUJOURS exactement 6 chiffres
-3. Le rôle pour les clients est `"membre"` (PAS `"client"`)
-4. Le rôle pour les livreurs est `"livreur"`
-5. Le rôle pour les vendeurs est `"vendeur"`
-6. Ne JAMAIS appeler `supabase.auth.signUp()` directement
-7. Ne JAMAIS appeler `supabase.auth.signInWithPassword()` directement
-8. Après un login réussi, TOUJOURS appeler `supabase.auth.setSession()` avec les tokens retournés par la Edge Function
-9. Pour vérifier si l'utilisateur est connecté : `supabase.auth.getUser()`
-10. Pour écouter les changements d'état : `supabase.auth.onAuthStateChange()`
-
-Remplace TOUTE la logique d'authentification existante par ce nouveau flux. Les écrans d'inscription et de connexion doivent utiliser le numéro de téléphone + PIN (pas email + mot de passe).
+### Compatibilité mobile :
+Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
 
 ---
 
-## Fichiers modifiés
+# Phase 1b — Création d'utilisateurs admin compatible phone+PIN
 
-| Fichier | Changement |
-|---|---|
-| `supabase/functions/phone-auth/index.ts` | Fix UUID + fix sender SMS |
-| `docs/BOLT_CLIENT_APP.md` | Section auth → phone-auth |
-| `docs/BOLT_DRIVER_APP.md` | Section auth → phone-auth |
-| `docs/MOBILE_API_REFERENCE.md` | Section auth → phone-auth |
+## Statut : ✅ IMPLÉMENTÉ
 
+### Problème résolu :
+La fonction `create-user` créait les utilisateurs avec email+password standard, sans entrée `user_pins`. Les utilisateurs créés par un admin ne pouvaient pas se connecter via phone+PIN.
+
+### Changements :
+
+1. **`create-user` Edge Function** — logique bifurquée :
+   - **Rôles admin (super_admin, admin)** : email réel + mot de passe (inchangé)
+   - **Rôles phone-based (vendeur, livreur, membre, equipe)** : email fictif (`{phone}@phone.fere.app`), UUID internal_password, PIN hashé PBKDF2, insertion `user_pins`
+
+2. **`CreateUserDialog`** — formulaire adaptatif :
+   - Le rôle est sélectionné en premier et détermine le mode du formulaire
+   - Admin : email + mot de passe
+   - Autres : contact (téléphone) + PIN 6 chiffres (InputOTP)
+
+3. **Validators** — deux schémas séparés :
+   - `createUserAdminSchema` (email + password)
+   - `createUserPhoneSchema` (contact + PIN)
+
+4. **`phone-auth` action `admin-fix-user`** :
+   - Permet aux admins de réparer un compte cassé (mauvais internal_password)
+   - Prend phone + nouveau PIN, regénère UUID, met à jour auth.users et user_pins
+
+---
+
+# Phase 1c — Synchronisation Web ↔ Mobile
+
+## Statut : ✅ IMPLÉMENTÉ (Mars 2026)
+
+### Bugs corrigés :
+
+1. **`generateInternalPassword()`** dans `phone-auth/index.ts` :
+   - **Avant** : base36 custom → produisait des chaînes invalides (ex: `026c031o532z...`)
+   - **Après** : `crypto.randomUUID()` → compatible avec Supabase Auth
+   - Impact : les utilisateurs inscrits depuis mobile peuvent maintenant se connecter
+
+2. **Sender SMS Ikoddi** :
+   - **Avant** : `from: 'Fere'` → rejeté par Ikoddi (sender non autorisé)
+   - **Après** : `from: 'Ikoddi'` → SMS livrés correctement
+
+### Documentation mobile mise à jour :
+- `docs/BOLT_CLIENT_APP.md` : section auth → flux phone-auth Edge Function
+- `docs/BOLT_DRIVER_APP.md` : section auth → flux phone-auth + auto-inscription livreur
+- `docs/MOBILE_API_REFERENCE.md` : section auth → flux phone-auth

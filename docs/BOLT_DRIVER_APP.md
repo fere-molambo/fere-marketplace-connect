@@ -17,20 +17,71 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 ---
 
-## 🔐 Authentification
+## 🔐 Authentification (Phone + PIN via Edge Function)
 
-Le livreur se connecte avec email + mot de passe. Son compte est créé par l'admin sur le dashboard web. Le livreur a le rôle `livreur`.
+> **⚠️ IMPORTANT** : Ne JAMAIS utiliser `supabase.auth.signUp()` ni `supabase.auth.signInWithPassword()`. Toute l'authentification passe par la Edge Function `phone-auth`.
+
+Le livreur peut s'inscrire lui-même ou être créé par un admin. Il a le rôle `livreur`.
+
+### Inscription (auto-inscription livreur)
+
+```typescript
+// Étape 1 : Enregistrer
+const { data, error } = await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "register",
+    phone: "+2250777992271",
+    full_name: "Nom du Livreur",
+    pin: "123456",
+    role: "livreur",
+    email: ""
+  }
+});
+// data.dev_otp contient le code si le SMS échoue (mode dev)
+
+// Étape 2 : Vérifier OTP
+const { data: verifyData } = await supabase.functions.invoke("phone-auth", {
+  body: { action: "verify-registration", phone: "+2250777992271", otp: "123456" }
+});
+```
 
 ### Connexion
 
 ```typescript
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: "livreur@example.com",
-  password: "motdepasse",
+const { data, error } = await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "login",
+    phone: "+2250777992271",
+    pin: "123456"
+  }
 });
-// data.session contient le token JWT
-// data.user contient les infos utilisateur
+
+if (data?.success && data?.session) {
+  await supabase.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+}
 ```
+
+### Réinitialisation du PIN
+
+```typescript
+await supabase.functions.invoke("phone-auth", {
+  body: { action: "reset-pin-request", phone: "+2250777992271" }
+});
+
+await supabase.functions.invoke("phone-auth", {
+  body: { action: "reset-pin-confirm", phone: "+2250777992271", otp: "123456", new_pin: "654321" }
+});
+```
+
+### Règles
+1. Téléphone au format international avec `+`
+2. PIN = 6 chiffres exactement
+3. Rôle = `"livreur"`
+4. Après login, TOUJOURS appeler `supabase.auth.setSession()`
+5. Ne JAMAIS appeler `supabase.auth.signUp()` ou `supabase.auth.signInWithPassword()`
 
 ### Vérifier le rôle
 

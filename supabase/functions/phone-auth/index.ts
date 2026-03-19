@@ -138,7 +138,7 @@ async function sendSmsIkoddi(phone: string, message: string): Promise<boolean> {
     body: JSON.stringify({
       sentTo: [identity],
       message,
-      from: 'Fere',
+      from: 'Ikoddi',
       smsBroadCast: 'OTP',
       countryNumberCode: countryCode,
       countryStringCode: isoCode,
@@ -740,9 +740,7 @@ async function recordFailedLogin(supabaseAdmin: any, phone: string) {
 }
 
 function generateInternalPassword(): string {
-  const array = new Uint8Array(24);
-  crypto.getRandomValues(array);
-  return Array.from(array, b => b.toString(36).padStart(2, '0')).join('').substring(0, 32);
+  return crypto.randomUUID();
 }
 
 function jsonResponse(data: any, status = 200) {

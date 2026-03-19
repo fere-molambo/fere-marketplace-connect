@@ -17,46 +17,106 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 ---
 
-## 🔐 Authentification
+## 🔐 Authentification (Phone + PIN via Edge Function)
+
+> **⚠️ IMPORTANT** : Ne JAMAIS utiliser `supabase.auth.signUp()` ni `supabase.auth.signInWithPassword()` directement. Toute l'authentification passe par la Edge Function `phone-auth`.
 
 ### Inscription (nouveau client)
 
 ```typescript
-const { data, error } = await supabase.auth.signUp({
-  email: "client@example.com",
-  password: "motdepasse",
-  options: {
-    data: {
-      nom_complet: "Jean Dupont",
-      contact: "+22370000000",
-    },
-  },
+// Étape 1 : Enregistrer l'utilisateur (envoie un SMS OTP)
+const { data, error } = await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "register",
+    phone: "+2250777992271",  // format international avec + obligatoire
+    full_name: "Jean Dupont",
+    pin: "123456",            // exactement 6 chiffres
+    role: "membre",           // TOUJOURS "membre" pour les clients
+    email: ""                 // optionnel
+  }
 });
 
-// Après inscription, assigner le rôle client
-if (data.user) {
-  await supabase.rpc("assign_self_role", { role_name: "membre" });
+if (data?.success) {
+  // Un SMS OTP a été envoyé
+  // En mode dev/test : le code est dans data.dev_otp si le SMS échoue
+}
+
+// Étape 2 : Vérifier le code OTP reçu par SMS
+const { data: verifyData } = await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "verify-registration",
+    phone: "+2250777992271",
+    otp: "123456"  // code reçu par SMS
+  }
+});
+
+if (verifyData?.success) {
+  // Compte créé ! Rediriger vers l'écran de connexion
 }
 ```
 
 ### Connexion
 
 ```typescript
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: "client@example.com",
-  password: "motdepasse",
+const { data, error } = await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "login",
+    phone: "+2250777992271",
+    pin: "123456"
+  }
 });
+
+if (data?.success && data?.session) {
+  // OBLIGATOIRE : établir la session Supabase
+  await supabase.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+}
+```
+
+### Réinitialisation du PIN
+
+```typescript
+// Étape 1 : Demander un code OTP
+await supabase.functions.invoke("phone-auth", {
+  body: { action: "reset-pin-request", phone: "+2250777992271" }
+});
+
+// Étape 2 : Confirmer avec le code + nouveau PIN
+await supabase.functions.invoke("phone-auth", {
+  body: {
+    action: "reset-pin-confirm",
+    phone: "+2250777992271",
+    otp: "123456",
+    new_pin: "654321"
+  }
+});
+```
+
+### Déconnexion
+
+```typescript
+await supabase.auth.signOut();
 ```
 
 ### Récupérer le profil
 
 ```typescript
+const { data: { user } } = await supabase.auth.getUser();
 const { data: profile } = await supabase
   .from("profiles")
   .select("*")
-  .eq("id", userId)
+  .eq("id", user.id)
   .single();
 ```
+
+### Règles obligatoires
+1. Téléphone au format international avec `+` (ex: `+2250777992271`)
+2. PIN = exactement 6 chiffres
+3. Rôle client = `"membre"` (PAS `"client"`)
+4. Après login, TOUJOURS appeler `supabase.auth.setSession()` avec les tokens retournés
+5. Ne JAMAIS appeler `supabase.auth.signUp()` ou `supabase.auth.signInWithPassword()`
 
 ### Mettre à jour le profil
 

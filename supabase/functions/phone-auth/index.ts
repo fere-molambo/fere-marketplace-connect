@@ -740,9 +740,7 @@ async function recordFailedLogin(supabaseAdmin: any, phone: string) {
 }
 
 function generateInternalPassword(): string {
-  const array = new Uint8Array(24);
-  crypto.getRandomValues(array);
-  return Array.from(array, b => b.toString(36).padStart(2, '0')).join('').substring(0, 32);
+  return crypto.randomUUID();
 }
 
 function jsonResponse(data: any, status = 200) {

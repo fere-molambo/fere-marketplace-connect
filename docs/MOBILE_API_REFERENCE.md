@@ -288,32 +288,54 @@ Maps drivers to their active zones.
 
 ---
 
-## 🔐 Authentication
+## 🔐 Authentication (Phone + PIN via Edge Function)
 
-### Sign Up
+> **⚠️** Ne JAMAIS utiliser `supabase.auth.signUp()` ni `supabase.auth.signInWithPassword()`. Utiliser la Edge Function `phone-auth`.
+
+### Register
 ```typescript
-const { data, error } = await supabase.auth.signUp({
-  email: 'user@example.com',
-  password: 'password123',
-  options: {
-    data: {
-      nom_complet: 'John Doe',
-      contact: '+22370000000'
-    }
-  }
+// Step 1: Send OTP
+const { data } = await supabase.functions.invoke('phone-auth', {
+  body: { action: 'register', phone: '+2250777992271', full_name: 'John Doe', pin: '123456', role: 'membre', email: '' }
 });
+// data.dev_otp contains OTP if SMS fails (dev mode)
 
-// Assign role after signup
-await supabase.rpc('assign_self_role', { role_name: 'client' });
+// Step 2: Verify OTP
+const { data: verify } = await supabase.functions.invoke('phone-auth', {
+  body: { action: 'verify-registration', phone: '+2250777992271', otp: '123456' }
+});
 ```
 
 ### Sign In
 ```typescript
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: 'user@example.com',
-  password: 'password123'
+const { data } = await supabase.functions.invoke('phone-auth', {
+  body: { action: 'login', phone: '+2250777992271', pin: '123456' }
+});
+
+if (data?.success && data?.session) {
+  await supabase.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+}
+```
+
+### Reset PIN
+```typescript
+await supabase.functions.invoke('phone-auth', {
+  body: { action: 'reset-pin-request', phone: '+2250777992271' }
+});
+
+await supabase.functions.invoke('phone-auth', {
+  body: { action: 'reset-pin-confirm', phone: '+2250777992271', otp: '123456', new_pin: '654321' }
 });
 ```
+
+### Rules
+- Phone: international format with `+` (e.g. `+2250777992271`)
+- PIN: exactly 6 digits
+- Role: `membre` (client), `livreur` (driver), `vendeur` (vendor) — NOT `client`
+- After login: ALWAYS call `supabase.auth.setSession()` with returned tokens
 
 ---
 

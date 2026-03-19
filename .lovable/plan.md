@@ -14,13 +14,14 @@
    - Fonction `cleanup_expired_registrations()`
    - RLS activé sur toutes les tables, accès via service_role uniquement
 
-2. **Edge Function `phone-auth`** — 6 actions :
+2. **Edge Function `phone-auth`** — 7 actions :
    - `register` : validation, hash PIN, génération OTP locale, envoi SMS simple via Ikoddi
    - `verify-registration` : vérification OTP locale (hash PBKDF2), création user Supabase Auth
    - `login` : vérification PIN, session Supabase via mot de passe interne
    - `reset-pin-request` : OTP par SMS pour réinitialisation PIN
    - `reset-pin-confirm` : vérification OTP + nouveau PIN
    - `request-admin-reset` : demande manuelle à un admin
+   - `admin-fix-user` : réparation de comptes créés hors du flux normal (admin only)
 
 3. **Frontend** :
    - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
@@ -39,3 +40,31 @@
 
 ### Compatibilité mobile :
 Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
+
+---
+
+# Phase 1b — Création d'utilisateurs admin compatible phone+PIN
+
+## Statut : ✅ IMPLÉMENTÉ
+
+### Problème résolu :
+La fonction `create-user` créait les utilisateurs avec email+password standard, sans entrée `user_pins`. Les utilisateurs créés par un admin ne pouvaient pas se connecter via phone+PIN.
+
+### Changements :
+
+1. **`create-user` Edge Function** — logique bifurquée :
+   - **Rôles admin (super_admin, admin)** : email réel + mot de passe (inchangé)
+   - **Rôles phone-based (vendeur, livreur, membre, equipe)** : email fictif (`{phone}@phone.fere.app`), UUID internal_password, PIN hashé PBKDF2, insertion `user_pins`
+
+2. **`CreateUserDialog`** — formulaire adaptatif :
+   - Le rôle est sélectionné en premier et détermine le mode du formulaire
+   - Admin : email + mot de passe
+   - Autres : contact (téléphone) + PIN 6 chiffres (InputOTP)
+
+3. **Validators** — deux schémas séparés :
+   - `createUserAdminSchema` (email + password)
+   - `createUserPhoneSchema` (contact + PIN)
+
+4. **`phone-auth` action `admin-fix-user`** :
+   - Permet aux admins de réparer un compte cassé (mauvais internal_password)
+   - Prend phone + nouveau PIN, regénère UUID, met à jour auth.users et user_pins

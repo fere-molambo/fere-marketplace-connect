@@ -1,41 +1,54 @@
 
-# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-## Statut : ✅ IMPLÉMENTÉ
+# Corriger la création d'utilisateurs depuis l'interface admin
 
-### Ce qui a été fait :
+## Probleme
 
-1. **Migration SQL** — 5 tables créées :
-   - `pending_registrations` (inscriptions en attente OTP)
-   - `user_pins` (PIN hashé + mot de passe interne)
-   - `login_attempts` (protection brute-force)
-   - `otp_rate_limits` (max 10 OTP/heure)
-   - `pin_reset_requests` (préparé pour Phase 2)
-   - Fonction `cleanup_expired_registrations()`
-   - RLS activé sur toutes les tables, accès via service_role uniquement
+La fonction `create-user` crée l'utilisateur dans auth.users avec un email réel et un mot de passe, mais ne crée **pas** d'entrée dans `user_pins`. Quand l'utilisateur essaie de se connecter via phone+PIN, le login échoue car `user_pins` est vide pour cet utilisateur.
 
-2. **Edge Function `phone-auth`** — 6 actions :
-   - `register` : validation, hash PIN, génération OTP locale, envoi SMS simple via Ikoddi
-   - `verify-registration` : vérification OTP locale (hash PBKDF2), création user Supabase Auth
-   - `login` : vérification PIN, session Supabase via mot de passe interne
-   - `reset-pin-request` : OTP par SMS pour réinitialisation PIN
-   - `reset-pin-confirm` : vérification OTP + nouveau PIN
-   - `request-admin-reset` : demande manuelle à un admin
+Pour les rôles phone-based (membre, vendeur, livreur, équipe), il faut :
+- Utiliser l'email fictif (`{phone}@phone.fere.app`) dans auth.users
+- Générer un `internal_password` (UUID) pour le mot de passe auth
+- Stocker le PIN hashé + internal_password dans `user_pins`
 
-3. **Frontend** :
-   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
-   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
-   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
-   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
-   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
-   - `useAuth` : ajout `signInWithPin()`
+## Changements
 
-### Changement OTP (v2) — Mars 2026 :
-- **Avant** : API OTP managée d'Ikoddi (Ikoddi génère + vérifie le code) → problème d'expiration trop courte côté Ikoddi
-- **Après** : Génération OTP locale + envoi via API SMS simple d'Ikoddi + vérification locale (hash PBKDF2)
-- Contrôle total de l'expiration (5 minutes côté serveur)
-- Plus de dépendance à l'API verify d'Ikoddi
-- Le secret `IKODDI_OTP_APP_ID` n'est plus nécessaire
+### 1. `supabase/functions/create-user/index.ts`
 
-### Compatibilité mobile :
-Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
+Adapter la logique selon le rôle :
+
+- **Rôles admin (super_admin, admin)** : garder le comportement actuel (email réel + mot de passe)
+- **Rôles phone-based (vendeur, livreur, membre, equipe)** :
+  - Demander un PIN (6 chiffres) au lieu d'un mot de passe
+  - Créer l'utilisateur avec l'email fictif (`{contact_sans_plus}@phone.fere.app`) et un UUID comme internal_password
+  - Hasher le PIN avec PBKDF2
+  - Insérer dans `user_pins` (pin_hash + internal_password)
+
+### 2. `src/components/users/CreateUserDialog.tsx`
+
+- Conditionner le formulaire selon le rôle sélectionné :
+  - **admin/super_admin** : afficher email + mot de passe (comme aujourd'hui)
+  - **Autres rôles** : afficher contact (téléphone) + PIN (6 chiffres) + confirmation PIN. Email optionnel (stocké dans profile uniquement)
+
+### 3. `src/lib/validators.ts`
+
+- Adapter `createUserSchema` pour supporter les deux modes (email+password ou phone+PIN selon le rôle)
+
+### 4. Correction du compte "themis"
+
+- Ajouter une action `admin-fix-user` dans `phone-auth` edge function qui :
+  - Prend phone + nouveau PIN
+  - Regénère un internal_password (UUID)
+  - Met à jour auth.users via `admin.updateUserById` avec le nouvel internal_password
+  - Upsert `user_pins` avec le nouveau pin_hash et internal_password
+  - Accessible uniquement par super_admin/admin
+
+## Fichiers impactés
+
+| Fichier | Action |
+|---|---|
+| `supabase/functions/create-user/index.ts` | Ajouter logique phone-based (fictive email, PIN, user_pins) |
+| `src/components/users/CreateUserDialog.tsx` | Formulaire adaptatif selon le rôle |
+| `src/lib/validators.ts` | Schéma adaptatif pour les deux modes |
+| `supabase/functions/phone-auth/index.ts` | Ajouter action `admin-fix-user` |
+

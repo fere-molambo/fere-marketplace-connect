@@ -62,8 +62,9 @@ export const CreateUserDialog = ({ onUserCreated }: { onUserCreated?: () => void
     resolver: zodResolver(createUserPhoneSchema),
   });
 
-  const activeForm = isPhoneMode ? phoneForm : adminForm;
-  const errors = activeForm.formState.errors;
+  // Use `any` to avoid union register incompatibility
+  const activeForm: any = isPhoneMode ? phoneForm : adminForm;
+  const errors: Record<string, any> = activeForm.formState.errors;
 
   const handleRoleChange = (value: string) => {
     setSelectedRole(value);

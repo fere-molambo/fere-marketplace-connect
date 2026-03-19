@@ -1,70 +1,31 @@
 
-# Phase 1 — Inscription et Connexion Phone + PIN (compatible mobile)
 
-## Statut : ✅ IMPLÉMENTÉ
+# Repartir de zéro avec le numéro +2250777992271
 
-### Ce qui a été fait :
+## Etat actuel
 
-1. **Migration SQL** — 5 tables créées :
-   - `pending_registrations` (inscriptions en attente OTP)
-   - `user_pins` (PIN hashé + mot de passe interne)
-   - `login_attempts` (protection brute-force)
-   - `otp_rate_limits` (max 10 OTP/heure)
-   - `pin_reset_requests` (préparé pour Phase 2)
-   - Fonction `cleanup_expired_registrations()`
-   - RLS activé sur toutes les tables, accès via service_role uniquement
+- L'utilisateur "themis" a bien été supprimé (aucune trace dans `auth.users`, `profiles`, `user_pins`)
+- Le code `create-user` est déjà correct : pour les rôles phone-based, il crée un email fictif, un UUID `internal_password`, et insère le PIN hashé dans `user_pins`
+- Le formulaire `CreateUserDialog` est adaptatif (PIN pour les rôles mobiles, mot de passe pour admin)
+- **Données parasites restantes** : `login_attempts` (6 tentatives) et `otp_rate_limits` pour ce numéro
 
-2. **Edge Function `phone-auth`** — 7 actions :
-   - `register` : validation, hash PIN, génération OTP locale, envoi SMS simple via Ikoddi
-   - `verify-registration` : vérification OTP locale (hash PBKDF2), création user Supabase Auth
-   - `login` : vérification PIN, session Supabase via mot de passe interne
-   - `reset-pin-request` : OTP par SMS pour réinitialisation PIN
-   - `reset-pin-confirm` : vérification OTP + nouveau PIN
-   - `request-admin-reset` : demande manuelle à un admin
-   - `admin-fix-user` : réparation de comptes créés hors du flux normal (admin only)
+## Actions
 
-3. **Frontend** :
-   - `PhoneLoginForm` : téléphone + PIN 6 chiffres (InputOTP)
-   - `PhoneSignupForm` : nom, téléphone, email optionnel, rôle, PIN + étape OTP
-   - `OtpVerificationStep` : saisie OTP avec timer 5 min et renvoi
-   - `Auth.tsx` : mode phone (défaut) + bascule vers email (admin)
-   - Validators : `phoneLoginSchema`, `phoneSignupSchema`
-   - `useAuth` : ajout `signInWithPin()`
+### 1. Migration SQL : nettoyer les données résiduelles
+Supprimer les entrées dans `login_attempts` et `otp_rate_limits` pour `+2250777992271` afin d'éviter tout blocage.
 
-### Changement OTP (v2) — Mars 2026 :
-- **Avant** : API OTP managée d'Ikoddi (Ikoddi génère + vérifie le code) → problème d'expiration trop courte côté Ikoddi
-- **Après** : Génération OTP locale + envoi via API SMS simple d'Ikoddi + vérification locale (hash PBKDF2)
-- Contrôle total de l'expiration (5 minutes côté serveur)
-- Plus de dépendance à l'API verify d'Ikoddi
-- Le secret `IKODDI_OTP_APP_ID` n'est plus nécessaire
+### 2. Redéployer les edge functions
+S'assurer que `create-user` et `phone-auth` sont à jour avec le dernier code (fictive email + PIN hash).
 
-### Compatibilité mobile :
-Le mobile appelle directement `supabase.functions.invoke('phone-auth', { body: { action, ... } })`.
+### 3. Test de bout en bout
+Après déploiement :
+1. Créer un utilisateur "membre" depuis le dashboard `/dashboard/users` avec le numéro `+2250777992271` et un PIN à 6 chiffres
+2. Se connecter avec ce numéro et ce PIN depuis la page de login
 
----
+## Fichiers impactés
 
-# Phase 1b — Création d'utilisateurs admin compatible phone+PIN
+| Fichier | Action |
+|---|---|
+| Migration SQL | Nettoyer login_attempts + otp_rate_limits |
+| Edge functions | Redéployer create-user et phone-auth |
 
-## Statut : ✅ IMPLÉMENTÉ
-
-### Problème résolu :
-La fonction `create-user` créait les utilisateurs avec email+password standard, sans entrée `user_pins`. Les utilisateurs créés par un admin ne pouvaient pas se connecter via phone+PIN.
-
-### Changements :
-
-1. **`create-user` Edge Function** — logique bifurquée :
-   - **Rôles admin (super_admin, admin)** : email réel + mot de passe (inchangé)
-   - **Rôles phone-based (vendeur, livreur, membre, equipe)** : email fictif (`{phone}@phone.fere.app`), UUID internal_password, PIN hashé PBKDF2, insertion `user_pins`
-
-2. **`CreateUserDialog`** — formulaire adaptatif :
-   - Le rôle est sélectionné en premier et détermine le mode du formulaire
-   - Admin : email + mot de passe
-   - Autres : contact (téléphone) + PIN 6 chiffres (InputOTP)
-
-3. **Validators** — deux schémas séparés :
-   - `createUserAdminSchema` (email + password)
-   - `createUserPhoneSchema` (contact + PIN)
-
-4. **`phone-auth` action `admin-fix-user`** :
-   - Permet aux admins de réparer un compte cassé (mauvais internal_password)
-   - Prend phone + nouveau PIN, regénère UUID, met à jour auth.users et user_pins

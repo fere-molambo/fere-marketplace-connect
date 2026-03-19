@@ -751,3 +751,87 @@ function jsonResponse(data: any, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+// ============================================================
+// ADMIN FIX USER (repair broken accounts created via web admin)
+// ============================================================
+async function handleAdminFixUser(supabaseAdmin: any, body: any, req: Request) {
+  const { phone, new_pin } = body;
+
+  if (!phone || !/^\+\d{10,15}$/.test(phone)) {
+    throw new Error('Numéro de téléphone invalide');
+  }
+  if (!new_pin || !/^\d{6}$/.test(new_pin)) {
+    throw new Error('Le nouveau PIN doit contenir exactement 6 chiffres');
+  }
+
+  // Verify caller is admin
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) throw new Error('Non authentifié');
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user: caller }, error: callerError } = await supabaseAdmin.auth.getUser(token);
+  if (callerError || !caller) throw new Error('Non authentifié');
+
+  const { data: callerRoles } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', caller.id);
+
+  const roles = callerRoles?.map((r: any) => r.role) || [];
+  if (!roles.includes('super_admin') && !roles.includes('admin')) {
+    throw new Error('Seuls les administrateurs peuvent réparer des comptes');
+  }
+
+  // Find user by phone
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('contact', phone)
+    .maybeSingle();
+
+  if (!profile) {
+    throw new Error('Aucun compte trouvé avec ce numéro');
+  }
+
+  const userId = profile.id;
+  const newInternalPassword = crypto.randomUUID();
+  const fictiveEmail = `${phone.replace('+', '')}@phone.fere.app`;
+
+  // Update auth.users password and email
+  const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    email: fictiveEmail,
+    password: newInternalPassword,
+    email_confirm: true,
+  });
+
+  if (updateAuthError) {
+    console.error('[phone-auth] Admin fix - auth update error:', updateAuthError);
+    throw new Error('Erreur lors de la mise à jour du compte: ' + updateAuthError.message);
+  }
+
+  // Hash new PIN
+  const newPinHash = await hashPin(new_pin);
+
+  // Upsert user_pins
+  const { error: pinError } = await supabaseAdmin
+    .from('user_pins')
+    .upsert({
+      user_id: userId,
+      pin_hash: newPinHash,
+      internal_password: newInternalPassword,
+    }, { onConflict: 'user_id' });
+
+  if (pinError) {
+    console.error('[phone-auth] Admin fix - pin upsert error:', pinError);
+    throw new Error('Erreur lors de la mise à jour du PIN');
+  }
+
+  // Reset login attempts
+  await supabaseAdmin
+    .from('login_attempts')
+    .upsert({ phone, attempts: 0, last_attempt_at: new Date().toISOString(), blocked_until: null }, { onConflict: 'phone' });
+
+  console.log(`[phone-auth] Admin fix success for ${phone} (user: ${userId})`);
+  return jsonResponse({ success: true, message: 'Compte réparé avec succès. L\'utilisateur peut se connecter avec le nouveau PIN.' });
+}

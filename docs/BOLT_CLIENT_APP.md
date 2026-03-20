@@ -21,10 +21,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 > **⚠️ IMPORTANT** : Ne JAMAIS utiliser `supabase.auth.signUp()` ni `supabase.auth.signInWithPassword()` directement. Toute l'authentification passe par la Edge Function `phone-auth`.
 
+> **🔑 OTP géré par Ikoddi** : L'OTP est généré, envoyé et vérifié par Ikoddi (OTP As A Service). Le backend ne retourne JAMAIS le code OTP au frontend. Le champ `dev_otp` n'existe plus.
+
+> **📱 Tests App Store / Play Store** : Une liste blanche Ikoddi est configurée avec des numéros de test pour les reviewers Apple et Google. Ces numéros reçoivent automatiquement un OTP prédéfini sans passer par un vrai SMS.
+
 ### Inscription (nouveau client)
 
 ```typescript
-// Étape 1 : Enregistrer l'utilisateur (envoie un SMS OTP)
+// Étape 1 : Enregistrer l'utilisateur (envoie un SMS OTP via Ikoddi)
 const { data, error } = await supabase.functions.invoke("phone-auth", {
   body: {
     action: "register",
@@ -36,9 +40,12 @@ const { data, error } = await supabase.functions.invoke("phone-auth", {
   }
 });
 
-if (data?.success) {
-  // Un SMS OTP a été envoyé
-  // En mode dev/test : le code est dans data.dev_otp si le SMS échoue
+// Réponse : { success: true, sms_sent: true, message: "..." }
+// Si sms_sent === false → l'envoi SMS a échoué, l'utilisateur doit réessayer
+// Il n'y a PAS de dev_otp. L'OTP est envoyé par SMS uniquement.
+
+if (data?.success && data?.sms_sent) {
+  // Rediriger vers l'écran de saisie OTP
 }
 
 // Étape 2 : Vérifier le code OTP reçu par SMS
@@ -46,10 +53,11 @@ const { data: verifyData } = await supabase.functions.invoke("phone-auth", {
   body: {
     action: "verify-registration",
     phone: "+2250777992271",
-    otp: "123456"  // code reçu par SMS
+    otp: "123456"  // code reçu par SMS (6 chiffres)
   }
 });
 
+// Réponse : { success: true, message: "Compte créé avec succès..." }
 if (verifyData?.success) {
   // Compte créé ! Rediriger vers l'écran de connexion
 }
@@ -66,32 +74,48 @@ const { data, error } = await supabase.functions.invoke("phone-auth", {
   }
 });
 
+// Réponse : { success: true, session: { access_token, refresh_token, user } }
 if (data?.success && data?.session) {
-  // OBLIGATOIRE : établir la session Supabase
+  // OBLIGATOIRE : établir la session Supabase avec les tokens NESTED
   await supabase.auth.setSession({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
+    access_token: data.session.access_token,   // PAS data.access_token
+    refresh_token: data.session.refresh_token,  // PAS data.refresh_token
   });
 }
+
+// ⚠️ En cas de compte bloqué (brute-force, 5 tentatives) :
+// Réponse HTTP 429 : { success: false, error: "...", blocked_until: "...", remaining_seconds: 180 }
 ```
 
-### Réinitialisation du PIN
+### Réinitialisation du PIN (self-service via OTP)
 
 ```typescript
-// Étape 1 : Demander un code OTP
-await supabase.functions.invoke("phone-auth", {
+// Étape 1 : Demander un code OTP (envoyé par SMS via Ikoddi)
+const { data } = await supabase.functions.invoke("phone-auth", {
   body: { action: "reset-pin-request", phone: "+2250777992271" }
 });
+// Réponse : { success: true, sms_sent: true }
 
 // Étape 2 : Confirmer avec le code + nouveau PIN
-await supabase.functions.invoke("phone-auth", {
+const { data: confirmData } = await supabase.functions.invoke("phone-auth", {
   body: {
     action: "reset-pin-confirm",
     phone: "+2250777992271",
-    otp: "123456",
-    new_pin: "654321"
+    otp: "123456",       // code reçu par SMS
+    new_pin: "654321"    // nouveau PIN (6 chiffres)
   }
 });
+// Réponse : { success: true, message: "PIN réinitialisé avec succès..." }
+```
+
+### Demander une réinitialisation admin
+
+```typescript
+// Si l'utilisateur n'a pas accès à son numéro, il peut demander à un admin
+const { data } = await supabase.functions.invoke("phone-auth", {
+  body: { action: "request-admin-reset", phone: "+2250777992271" }
+});
+// L'admin verra la demande et pourra réinitialiser le PIN à 123456
 ```
 
 ### Déconnexion
@@ -100,23 +124,54 @@ await supabase.functions.invoke("phone-auth", {
 await supabase.auth.signOut();
 ```
 
-### Récupérer le profil
+### Récupérer le profil et le rôle
 
 ```typescript
 const { data: { user } } = await supabase.auth.getUser();
+
+// Profil (table profiles) — clés : nom_complet, contact (PAS full_name, PAS phone)
 const { data: profile } = await supabase
   .from("profiles")
   .select("*")
   .eq("id", user.id)
   .single();
+
+// Rôle (table user_roles)
+const { data: roles } = await supabase
+  .from("user_roles")
+  .select("role")
+  .eq("user_id", user.id);
+
+const userRole = roles?.[0]?.role; // "membre", "vendeur", "livreur", "equipe"
+```
+
+### Redirection selon le rôle
+
+```typescript
+// Après login, rediriger selon le rôle :
+switch (userRole) {
+  case "membre":
+    // → Écran client (catalogue, panier, commandes)
+    break;
+  case "vendeur":
+  case "equipe":
+    // → Interface vendeur (gestion boutique, produits, commandes)
+    break;
+  case "livreur":
+    // → Interface livreur (livraisons disponibles, carte)
+    break;
+}
 ```
 
 ### Règles obligatoires
-1. Téléphone au format international avec `+` (ex: `+2250777992271`)
+1. Téléphone au format international avec `+` (ex: `+2250777992271` pour CI, `+22370000000` pour Mali)
 2. PIN = exactement 6 chiffres
 3. Rôle client = `"membre"` (PAS `"client"`)
-4. Après login, TOUJOURS appeler `supabase.auth.setSession()` avec les tokens retournés
+4. Après login, TOUJOURS appeler `supabase.auth.setSession()` avec `data.session.access_token` et `data.session.refresh_token` (tokens **nested** dans `session`)
 5. Ne JAMAIS appeler `supabase.auth.signUp()` ou `supabase.auth.signInWithPassword()`
+6. Ne JAMAIS chercher `data.access_token` directement — c'est `data.session.access_token`
+7. Les métadonnées utilisateur utilisent `nom_complet` et `contact` (PAS `full_name`, PAS `phone`)
+8. L'indicatif par défaut doit être `+225` (Côte d'Ivoire) avec possibilité de choisir `+223` (Mali)
 
 ### Mettre à jour le profil
 

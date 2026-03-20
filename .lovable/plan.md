@@ -1,102 +1,54 @@
 
 
-# Plan : Rédiger et intégrer CGU, Privacy Policy et Cookies
+# Plan : Corriger les CGU, Privacy Policy et Cookies
 
-## Contexte
+## Problèmes identifiés dans le contenu actuel en base
 
-L'application Fere (Fere SARL) est une marketplace Mali/Côte d'Ivoire avec :
-- **Rôles** : membres (clients), vendeurs, livreurs, équipe, admins
-- **Données collectées** : téléphone, nom, GPS temps réel (livreurs), photos, messages, historique commandes, favoris, avis
-- **Paiement** : exclusivement Orange Money (FCFA)
-- **Auth** : OTP via Ikoddi + PIN local
-- **Infrastructure** : Supabase (hébergement cloud)
+### CGU — Erreurs à corriger
 
-La table `platform_settings` a déjà `cgu` et `cookies` mais pas `privacy_policy`. Le footer a déjà les liens `/cgu`, `/privacy`, `/cookies` mais ces routes n'existent pas.
+1. **Article 2 — Définitions** : contient encore la définition des "Tokens" → supprimer
+2. **Article 3.1** : "PIN à 4 chiffres" → corriger en **6 chiffres**
+3. **Article 4.2** : "Disposer d'un solde de Tokens suffisant..." → supprimer cette obligation
+4. **Article 4.3** : "Confirmer la livraison uniquement après remise effective au destinataire" → c'est le **client** qui confirme réception, pas le livreur. Remplacer par : "Remettre la commande au destinataire ou à la personne présente à l'adresse de livraison."
+5. **Article 5.3 — Retrait en boutique** : supprimer entièrement (pas de retrait en boutique)
+6. **Article 7 — Système de Tokens** : supprimer entièrement
+7. **Article 9 — Annulations** : réécrire selon les règles réelles :
+   - Avant expédition → remboursement de l'acompte
+   - À l'arrivée du livreur/vendeur → pas de remboursement de l'acompte
+   - Remboursements et versements traités manuellement par Fere
+8. **Article 14.1** : "perte des Tokens" → supprimer la mention des Tokens
+9. Renuméroter les articles après suppression de l'Article 7
+
+### Privacy Policy — Erreurs à corriger
+
+1. **Section 3.4** : "Solde et historique des Tokens" → supprimer cette ligne
+2. **Section 5 — tableau** : "Google Maps" → remplacer par **OpenStreetMap** (l'app utilise OSM, pas Google Maps)
+
+### Cookies — OK
+
+Pas d'erreur identifiée.
+
+### Couverture web + mobile
+
+Les 3 documents mentionnent déjà "site web et applications mobiles (iOS et Android)" → OK pour les stores.
+
+### Conformité Apple/Google
+
+Les documents couvrent les exigences obligatoires :
+- ✅ Données collectées par catégorie
+- ✅ Finalités et bases légales
+- ✅ Partage avec tiers nommés
+- ✅ Droits des utilisateurs (accès, suppression, portabilité)
+- ✅ Sécurité et chiffrement
+- ✅ Mineurs (-18 ans)
+- ✅ Notifications push avec consentement
+- ✅ Contact du responsable
 
 ## Ce qui sera fait
 
-### 1. Générer les 3 documents juridiques
+1. Réécrire le CGU corrigé complet (sans tokens, sans retrait boutique, PIN 6 chiffres, Article 9 corrigé, confirmation réception par le client, articles renumérotés)
+2. Corriger la Privacy Policy (supprimer tokens, remplacer Google Maps par OpenStreetMap)
+3. Injecter les 2 documents corrigés en base via l'API Supabase
 
-Fichier `/mnt/documents/fere_legal_documents.md` contenant :
-
-**CGU (~2500 mots)** :
-- Objet et définitions (Fere, Utilisateur, Vendeur, Livreur, Tokens)
-- Inscription et authentification (téléphone + OTP + PIN)
-- Rôles et obligations de chaque partie
-- Commandes, livraisons et flux de paiement (acompte + solde Orange Money)
-- Système de tokens (monnaie interne)
-- Annulations et remboursements (manuels, pas d'API refund automatique)
-- Réservations de services et frais de déplacement
-- Messagerie et avis
-- Propriété intellectuelle
-- Responsabilité et limitation
-- Résiliation et suspension
-- Droit applicable (Mali) et juridiction
-
-**Politique de confidentialité (~2000 mots)** — conforme RGPD + exigences Apple/Google :
-- Responsable du traitement : Fere SARL
-- Données collectées par catégorie (identité, localisation, transactions, contenus, technique)
-- Finalités et bases légales
-- Partage avec tiers : Ikoddi (SMS/OTP), Orange Money (paiements), Supabase (hébergement)
-- Durée de conservation
-- Droits des utilisateurs (accès, rectification, suppression, portabilité)
-- Sécurité (chiffrement PIN PBKDF2, HTTPS, RLS)
-- Transferts internationaux
-- Mineurs (interdit -18 ans)
-- Modifications et contact
-
-**Politique de cookies (~500 mots)** :
-- Pas de cookies publicitaires
-- Stockage local uniquement (localStorage/sessionStorage pour auth et panier)
-- Pas de tracking tiers
-- Gestion par l'utilisateur
-
-### 2. Migration DB : ajouter `privacy_policy`
-
-Nouvelle migration SQL :
-```sql
-ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS privacy_policy text;
-```
-
-### 3. Créer la page publique `LegalPage.tsx`
-
-Page générique qui :
-- Accepte un paramètre de route (`/cgu`, `/privacy`, `/cookies`)
-- Charge le contenu correspondant depuis `platform_settings` (`cgu`, `privacy_policy`, `cookies`)
-- Affiche en Markdown rendu ou texte simple avec mise en forme
-- Inclut le header/footer du site
-
-### 4. Ajouter les 3 routes dans `App.tsx`
-
-```
-/cgu → LegalPage (champ: cgu)
-/privacy → LegalPage (champ: privacy_policy)
-/cookies → LegalPage (champ: cookies)
-```
-
-### 5. Ajouter textarea Privacy Policy dans PlatformSettings
-
-Section "Documents légaux" : ajouter un 3e textarea "Politique de confidentialité" pour `privacy_policy`, à côté des existants `cgu` et `cookies`.
-
-### 6. Mettre à jour types.ts
-
-Ajouter `privacy_policy` au type `platform_settings`.
-
-## Fichiers modifiés
-
-| Fichier | Action |
-|---|---|
-| `/mnt/documents/fere_legal_documents.md` | **Nouveau** — 3 documents juridiques complets |
-| `supabase/migrations/[new].sql` | Migration ajout colonne `privacy_policy` |
-| `src/integrations/supabase/types.ts` | Ajouter `privacy_policy` |
-| `src/pages/LegalPage.tsx` | **Nouveau** — page publique légale |
-| `src/App.tsx` | 3 nouvelles routes |
-| `src/components/settings/PlatformSettings.tsx` | Textarea privacy policy |
-
-## Résultat
-
-- 3 documents juridiques professionnels prêts pour Apple/Google
-- URLs publiques fonctionnelles pour les stores
-- Contenu éditable par l'admin depuis le dashboard
-- L'app mobile peut ouvrir ces URLs en WebView
+Aucun fichier de code à modifier — uniquement du contenu en base de données.
 

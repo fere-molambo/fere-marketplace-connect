@@ -906,7 +906,25 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
-          {(isSuperAdmin || isAdmin) && (
+          {(isSuperAdmin || isAdmin) && isPhoneBasedUser && (
+            <div className="border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowResetPinDialog(true)}
+                disabled={isResettingPin || isLoading}
+                className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                {isResettingPin ? "Réinitialisation..." : "Réinitialiser le PIN (123456)"}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Le PIN sera réinitialisé à la valeur par défaut 123456.
+              </p>
+            </div>
+          )}
+
+          {(isSuperAdmin || isAdmin) && !isPhoneBasedUser && (
             <div className="border-t pt-4">
               <Button
                 type="button"
@@ -919,7 +937,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
                 {isResetting ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
               </Button>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Réservé aux comptes admin/super_admin (connexion email). Les utilisateurs mobile utilisent la réinitialisation de PIN.
+                Réservé aux comptes admin/super_admin (connexion email).
               </p>
             </div>
           )}

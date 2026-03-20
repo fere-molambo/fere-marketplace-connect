@@ -1,32 +1,49 @@
 
 
-# Nettoyer les données résiduelles des comptes test supprimés
+# Plan : Finaliser le workflow auth + Prompt Bolt.new
 
-## Données à supprimer
+## Analyse du code actuel
 
-1. **`pending_registrations`** : 1 entrée orpheline (montcho, phone +2230777992271, email montchovideme@gmail.com)
-2. **`login_attempts`** : 1 entrée orpheline (phone +2250777992271)
-3. **`otp_rate_limits`** : 6 entrées de test (divers numéros)
+Le backend (`phone-auth/index.ts` et `create-user/index.ts`) est **complet et fonctionnel** :
+- Inscription avec OTP via Ikoddi SMS
+- Connexion phone + PIN
+- Reset PIN self-service (OTP)
+- Reset PIN admin (`admin-fix-user` avec PIN par défaut)
+- Création d'équipe par vendeur (via `create-user`)
 
-## Ce qui est conservé (pas touché)
+## Seul problème identifié
 
-- Tous les profils admin/super_admin (4 comptes)
-- Le livreur vivi (637bd145) + son `user_pins`
-- Toutes les autres tables (aucune donnée orpheline détectée)
+Le `UserEditSheet.tsx` affiche uniquement un bouton **"Réinitialiser le mot de passe"** (pour admins email). Il manque un bouton **"Réinitialiser le PIN"** pour les utilisateurs phone-based (membre, vendeur, livreur, equipe). L'action `admin-fix-user` existe déjà dans le backend mais n'est pas connectée dans l'UI admin.
 
-## Méthode
+## Modifications
 
-Exécuter 3 requêtes DELETE via l'outil d'insertion Supabase :
+### 1. `UserEditSheet.tsx` — Ajouter bouton "Réinitialiser le PIN"
 
-```sql
-DELETE FROM pending_registrations;
-DELETE FROM login_attempts;
-DELETE FROM otp_rate_limits;
-```
+Après le bloc actuel "Réinitialiser le mot de passe" (ligne 887-903), ajouter conditionnellement :
+- Si l'utilisateur édité a un rôle phone-based (membre/vendeur/livreur/equipe) : afficher **"Réinitialiser le PIN (123456)"**
+- Ce bouton appelle `supabase.functions.invoke("phone-auth", { body: { action: "admin-fix-user", phone: user.contact, new_pin: "123456" } })`
+- Garder le bouton "Réinitialiser le mot de passe" existant uniquement pour les rôles admin/super_admin
 
-Ces tables ne contiennent que des données temporaires/de session — les vider entièrement est sans risque.
+### 2. Docs — Prompt Bolt.new complet
+
+Mettre à jour `docs/BOLT_CLIENT_APP.md` et `docs/BOLT_DRIVER_APP.md` pour inclure une section claire sur la liste blanche Ikoddi pour les tests App Store/Play Store.
+
+### 3. Générer le prompt Bolt.new
+
+Après implémentation, je fournirai le prompt complet et détaillé à copier-coller dans Bolt.new couvrant :
+- Connexion Supabase (URL + anon key)
+- Inscription (phone-auth register + verify-registration)
+- Connexion (phone-auth login + setSession)
+- Reset PIN (self-service + admin)
+- Profil et rôles (tables profiles, user_roles)
+- Redirection selon le rôle
+- Règles obligatoires (format phone, PIN 6 chiffres, etc.)
 
 ## Fichiers modifiés
 
-Aucun fichier de code modifié. Uniquement des opérations de nettoyage en base de données.
+| Fichier | Changement |
+|---|---|
+| `src/components/users/UserEditSheet.tsx` | Bouton "Réinitialiser le PIN" pour users phone-based |
+| `docs/BOLT_CLIENT_APP.md` | Section tests App Store + liste blanche Ikoddi |
+| `docs/BOLT_DRIVER_APP.md` | Idem |
 

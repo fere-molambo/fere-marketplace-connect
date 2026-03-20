@@ -507,6 +507,26 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
     }
   };
 
+  const handlePinReset = async () => {
+    try {
+      setIsResettingPin(true);
+      const { data, error } = await supabase.functions.invoke('phone-auth', {
+        body: { action: 'admin-fix-user', phone: user.contact, new_pin: '123456' }
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erreur inconnue");
+      toast.success("PIN réinitialisé à 123456 avec succès !");
+      setShowResetPinDialog(false);
+    } catch (error: any) {
+      console.error('Error resetting PIN:', error);
+      toast.error(error.message || "Erreur lors de la réinitialisation du PIN");
+    } finally {
+      setIsResettingPin(false);
+    }
+  };
+
+  const isPhoneBasedUser = userRoles.some(r => ['membre', 'vendeur', 'livreur', 'equipe'].includes(r));
+
   const canDeleteUser = () => {
     if (!user) return false;
     // Cannot delete yourself

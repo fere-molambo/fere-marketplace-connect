@@ -1016,6 +1016,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>

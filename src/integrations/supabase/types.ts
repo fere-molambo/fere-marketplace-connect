@@ -1592,6 +1592,7 @@ export type Database = {
           max_delivery_acceptance_hour: number | null
           partner_logos: Json | null
           payout_delay_hours: number | null
+          privacy_policy: string | null
           support_email: string | null
           support_phone: string | null
           tva_rate: number | null
@@ -1630,6 +1631,7 @@ export type Database = {
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           payout_delay_hours?: number | null
+          privacy_policy?: string | null
           support_email?: string | null
           support_phone?: string | null
           tva_rate?: number | null
@@ -1668,6 +1670,7 @@ export type Database = {
           max_delivery_acceptance_hour?: number | null
           partner_logos?: Json | null
           payout_delay_hours?: number | null
+          privacy_policy?: string | null
           support_email?: string | null
           support_phone?: string | null
           tva_rate?: number | null

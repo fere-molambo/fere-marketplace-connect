@@ -49,7 +49,9 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.photo_profil);
   const [isResetting, setIsResetting] = useState(false);
+  const [isResettingPin, setIsResettingPin] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showResetPinDialog, setShowResetPinDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -505,6 +507,26 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
     }
   };
 
+  const handlePinReset = async () => {
+    try {
+      setIsResettingPin(true);
+      const { data, error } = await supabase.functions.invoke('phone-auth', {
+        body: { action: 'admin-fix-user', phone: user.contact, new_pin: '123456' }
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erreur inconnue");
+      toast.success("PIN réinitialisé à 123456 avec succès !");
+      setShowResetPinDialog(false);
+    } catch (error: any) {
+      console.error('Error resetting PIN:', error);
+      toast.error(error.message || "Erreur lors de la réinitialisation du PIN");
+    } finally {
+      setIsResettingPin(false);
+    }
+  };
+
+  const isPhoneBasedUser = userRoles.some(r => ['membre', 'vendeur', 'livreur', 'equipe'].includes(r));
+
   const canDeleteUser = () => {
     if (!user) return false;
     // Cannot delete yourself
@@ -884,7 +906,25 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
-          {(isSuperAdmin || isAdmin) && (
+          {(isSuperAdmin || isAdmin) && isPhoneBasedUser && (
+            <div className="border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowResetPinDialog(true)}
+                disabled={isResettingPin || isLoading}
+                className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                {isResettingPin ? "Réinitialisation..." : "Réinitialiser le PIN (123456)"}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Le PIN sera réinitialisé à la valeur par défaut 123456.
+              </p>
+            </div>
+          )}
+
+          {(isSuperAdmin || isAdmin) && !isPhoneBasedUser && (
             <div className="border-t pt-4">
               <Button
                 type="button"
@@ -897,7 +937,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
                 {isResetting ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
               </Button>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Réservé aux comptes admin/super_admin (connexion email). Les utilisateurs mobile utilisent la réinitialisation de PIN.
+                Réservé aux comptes admin/super_admin (connexion email).
               </p>
             </div>
           )}
@@ -950,6 +990,27 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             <AlertDialogCancel disabled={isResetting}>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handlePasswordReset} disabled={isResetting}>
               {isResetting ? "Réinitialisation..." : "Confirmer la réinitialisation"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showResetPinDialog} onOpenChange={setShowResetPinDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser le PIN</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir réinitialiser le PIN de{" "}
+              <span className="font-semibold">{user?.nom_complet}</span> ?
+              <br />
+              <br />
+              Le PIN sera réinitialisé à <span className="font-mono font-bold">123456</span>. L'utilisateur devra le changer après connexion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResettingPin}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePinReset} disabled={isResettingPin}>
+              {isResettingPin ? "Réinitialisation..." : "Confirmer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

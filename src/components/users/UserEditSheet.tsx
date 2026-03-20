@@ -995,7 +995,27 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showResetPinDialog} onOpenChange={setShowResetPinDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser le PIN</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir réinitialiser le PIN de{" "}
+              <span className="font-semibold">{user?.nom_complet}</span> ?
+              <br />
+              <br />
+              Le PIN sera réinitialisé à <span className="font-mono font-bold">123456</span>. L'utilisateur devra le changer après connexion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResettingPin}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePinReset} disabled={isResettingPin}>
+              {isResettingPin ? "Réinitialisation..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>

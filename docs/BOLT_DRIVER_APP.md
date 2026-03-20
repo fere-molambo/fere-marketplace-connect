@@ -21,12 +21,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 > **⚠️ IMPORTANT** : Ne JAMAIS utiliser `supabase.auth.signUp()` ni `supabase.auth.signInWithPassword()`. Toute l'authentification passe par la Edge Function `phone-auth`.
 
+> **🔑 OTP géré par Ikoddi** : L'OTP est généré, envoyé et vérifié par Ikoddi (OTP As A Service). Le backend ne retourne JAMAIS le code OTP au frontend. Le champ `dev_otp` n'existe plus.
+
+> **📱 Tests App Store / Play Store** : Une liste blanche Ikoddi est configurée avec des numéros de test pour les reviewers Apple et Google.
+
 Le livreur peut s'inscrire lui-même ou être créé par un admin. Il a le rôle `livreur`.
 
 ### Inscription (auto-inscription livreur)
 
 ```typescript
-// Étape 1 : Enregistrer
+// Étape 1 : Enregistrer (envoie un SMS OTP via Ikoddi)
 const { data, error } = await supabase.functions.invoke("phone-auth", {
   body: {
     action: "register",
@@ -37,12 +41,14 @@ const { data, error } = await supabase.functions.invoke("phone-auth", {
     email: ""
   }
 });
-// data.dev_otp contient le code si le SMS échoue (mode dev)
+// Réponse : { success: true, sms_sent: true }
+// PAS de dev_otp — l'OTP est envoyé par SMS uniquement
 
 // Étape 2 : Vérifier OTP
 const { data: verifyData } = await supabase.functions.invoke("phone-auth", {
   body: { action: "verify-registration", phone: "+2250777992271", otp: "123456" }
 });
+// Réponse : { success: true, message: "Compte créé avec succès..." }
 ```
 
 ### Connexion
@@ -56,10 +62,12 @@ const { data, error } = await supabase.functions.invoke("phone-auth", {
   }
 });
 
+// Réponse : { success: true, session: { access_token, refresh_token, user } }
 if (data?.success && data?.session) {
+  // OBLIGATOIRE : tokens NESTED dans data.session
   await supabase.auth.setSession({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
+    access_token: data.session.access_token,   // PAS data.access_token
+    refresh_token: data.session.refresh_token,  // PAS data.refresh_token
   });
 }
 ```
@@ -67,21 +75,35 @@ if (data?.success && data?.session) {
 ### Réinitialisation du PIN
 
 ```typescript
+// Étape 1 : Demander OTP
 await supabase.functions.invoke("phone-auth", {
   body: { action: "reset-pin-request", phone: "+2250777992271" }
 });
 
+// Étape 2 : Confirmer
 await supabase.functions.invoke("phone-auth", {
   body: { action: "reset-pin-confirm", phone: "+2250777992271", otp: "123456", new_pin: "654321" }
 });
 ```
 
+### Demander une réinitialisation admin
+
+```typescript
+await supabase.functions.invoke("phone-auth", {
+  body: { action: "request-admin-reset", phone: "+2250777992271" }
+});
+// L'admin réinitialisera le PIN à 123456
+```
+
 ### Règles
-1. Téléphone au format international avec `+`
+1. Téléphone au format international avec `+` (ex: `+2250777992271` CI, `+22370000000` Mali)
 2. PIN = 6 chiffres exactement
 3. Rôle = `"livreur"`
-4. Après login, TOUJOURS appeler `supabase.auth.setSession()`
+4. Après login, TOUJOURS appeler `supabase.auth.setSession()` avec `data.session.access_token` (tokens **nested**)
 5. Ne JAMAIS appeler `supabase.auth.signUp()` ou `supabase.auth.signInWithPassword()`
+6. Ne JAMAIS chercher `data.access_token` — c'est `data.session.access_token`
+7. Métadonnées : `nom_complet` et `contact` (PAS `full_name`, PAS `phone`)
+8. Indicatif par défaut : `+225` (CI) avec possibilité `+223` (Mali)
 
 ### Vérifier le rôle
 

@@ -1,94 +1,102 @@
 
 
-# Plan : Passer à l'API OTP As A Service d'Ikoddi
+# Plan : Rédiger et intégrer CGU, Privacy Policy et Cookies
 
-## Diagnostic confirmé par la documentation officielle
+## Contexte
 
-La documentation Ikoddi confirme deux API distinctes :
+L'application Fere (Fere SARL) est une marketplace Mali/Côte d'Ivoire avec :
+- **Rôles** : membres (clients), vendeurs, livreurs, équipe, admins
+- **Données collectées** : téléphone, nom, GPS temps réel (livreurs), photos, messages, historique commandes, favoris, avis
+- **Paiement** : exclusivement Orange Money (FCFA)
+- **Auth** : OTP via Ikoddi + PIN local
+- **Infrastructure** : Supabase (hébergement cloud)
 
-```text
-SMS Simple (actuel, ne livre pas) :
-  POST /groups/{orgId}/sms
-  → Retourne un statut générique, SMS non délivré
+La table `platform_settings` a déjà `cgu` et `cookies` mais pas `privacy_policy`. Le footer a déjà les liens `/cgu`, `/privacy`, `/cookies` mais ces routes n'existent pas.
 
-OTP As A Service (à utiliser) :
-  Envoi :  POST /groups/{orgId}/otp/{otpAppId}/sms/{identity}
-           → { status: 0, otpToken: "..." }
-  Vérif : POST /groups/{orgId}/otp/{otpAppId}/verify
-           body: { verificationKey: otpToken, otp: "123456", identity: "2250777992271" }
-           → { status: 0, message: "OTP Matched for ..." }
+## Ce qui sera fait
+
+### 1. Générer les 3 documents juridiques
+
+Fichier `/mnt/documents/fere_legal_documents.md` contenant :
+
+**CGU (~2500 mots)** :
+- Objet et définitions (Fere, Utilisateur, Vendeur, Livreur, Tokens)
+- Inscription et authentification (téléphone + OTP + PIN)
+- Rôles et obligations de chaque partie
+- Commandes, livraisons et flux de paiement (acompte + solde Orange Money)
+- Système de tokens (monnaie interne)
+- Annulations et remboursements (manuels, pas d'API refund automatique)
+- Réservations de services et frais de déplacement
+- Messagerie et avis
+- Propriété intellectuelle
+- Responsabilité et limitation
+- Résiliation et suspension
+- Droit applicable (Mali) et juridiction
+
+**Politique de confidentialité (~2000 mots)** — conforme RGPD + exigences Apple/Google :
+- Responsable du traitement : Fere SARL
+- Données collectées par catégorie (identité, localisation, transactions, contenus, technique)
+- Finalités et bases légales
+- Partage avec tiers : Ikoddi (SMS/OTP), Orange Money (paiements), Supabase (hébergement)
+- Durée de conservation
+- Droits des utilisateurs (accès, rectification, suppression, portabilité)
+- Sécurité (chiffrement PIN PBKDF2, HTTPS, RLS)
+- Transferts internationaux
+- Mineurs (interdit -18 ans)
+- Modifications et contact
+
+**Politique de cookies (~500 mots)** :
+- Pas de cookies publicitaires
+- Stockage local uniquement (localStorage/sessionStorage pour auth et panier)
+- Pas de tracking tiers
+- Gestion par l'utilisateur
+
+### 2. Migration DB : ajouter `privacy_policy`
+
+Nouvelle migration SQL :
+```sql
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS privacy_policy text;
 ```
 
-Avec l'API OTP, **Ikoddi génère et envoie le code lui-même**. On ne contrôle plus le code OTP — on stocke le `otpToken` retourné et on appelle `/verify` pour valider.
+### 3. Créer la page publique `LegalPage.tsx`
 
-## Modification unique : `supabase/functions/phone-auth/index.ts`
+Page générique qui :
+- Accepte un paramètre de route (`/cgu`, `/privacy`, `/cookies`)
+- Charge le contenu correspondant depuis `platform_settings` (`cgu`, `privacy_policy`, `cookies`)
+- Affiche en Markdown rendu ou texte simple avec mise en forme
+- Inclut le header/footer du site
 
-### Supprimer (plus nécessaire)
-- `generateOtpCode()` — Ikoddi génère le code
-- `hashOtp()` — plus de hash OTP local
-- `verifyOtpHash()` — Ikoddi vérifie
-- `sendSmsIkoddi()` — remplacée par `sendOtpIkoddi()`
+### 4. Ajouter les 3 routes dans `App.tsx`
 
-### Conserver (inchangé)
-- `hashPin()` / `verifyPin()` — le PIN reste hashé localement
-- Toute la logique login, admin-fix-user, rate limits, brute-force protection
-
-### Nouvelles fonctions
-
-**`sendOtpIkoddi(phone)`** :
-```text
-POST https://api.ikoddi.com/api/v1/groups/10183434/otp/cmmysmq7x1wp54jyk39ri1s3w/sms/{identity}
-Headers: x-api-key: ..., Content-Type: application/json
-→ { status: 0, otpToken: "UCQS2b..." }
 ```
-Retourne le `otpToken` ou `null` si échec (status !== 0).
-
-**`verifyOtpIkoddi(phone, otp, otpToken)`** :
-```text
-POST https://api.ikoddi.com/api/v1/groups/10183434/otp/cmmysmq7x1wp54jyk39ri1s3w/verify
-Body: { verificationKey: otpToken, otp: "123456", identity: "2250777992271" }
-→ { status: 0, message: "OTP Matched" }
+/cgu → LegalPage (champ: cgu)
+/privacy → LegalPage (champ: privacy_policy)
+/cookies → LegalPage (champ: cookies)
 ```
-Retourne `true` si status === 0.
 
-### Impacts par action
+### 5. Ajouter textarea Privacy Policy dans PlatformSettings
 
-| Action | Avant | Après |
-|---|---|---|
-| `register` | Génère OTP → hash → SMS simple → stocke hash | Appelle `sendOtpIkoddi` → stocke `otpToken` dans `otp_code` |
-| `verify-registration` | Compare hash PBKDF2 local | Appelle `verifyOtpIkoddi(phone, otp, storedOtpToken)` |
-| `reset-pin-request` | Génère OTP → hash → SMS simple → stocke hash | Appelle `sendOtpIkoddi` → stocke `otpToken` dans `otp_token` |
-| `reset-pin-confirm` | Compare hash PBKDF2 local | Appelle `verifyOtpIkoddi(phone, otp, storedOtpToken)` |
-| `login` | Aucun changement | Aucun changement |
-| `admin-fix-user` | Aucun changement | Aucun changement |
+Section "Documents légaux" : ajouter un 3e textarea "Politique de confidentialité" pour `privacy_policy`, à côté des existants `cgu` et `cookies`.
 
-### Réponses au frontend (inchangées)
+### 6. Mettre à jour types.ts
 
-- Register : `{ success: true, sms_sent: true/false }` — plus de `dev_otp` (Ikoddi gère le code)
-- Si `sendOtpIkoddi` échoue : `sms_sent: false`, pas de fallback dev_otp
-- Verify : `{ success: true }`
-- Login : `{ success: true, session: { access_token, refresh_token, user } }`
-
-### Pas de migration DB nécessaire
-
-Les colonnes `otp_code` (pending_registrations) et `otp_token` (pending_pin_resets) sont de type `text` — elles peuvent stocker le `otpToken` d'Ikoddi directement.
+Ajouter `privacy_policy` au type `platform_settings`.
 
 ## Fichiers modifiés
 
-| Fichier | Changement |
+| Fichier | Action |
 |---|---|
-| `supabase/functions/phone-auth/index.ts` | Remplacer SMS simple par API OTP As A Service |
+| `/mnt/documents/fere_legal_documents.md` | **Nouveau** — 3 documents juridiques complets |
+| `supabase/migrations/[new].sql` | Migration ajout colonne `privacy_policy` |
+| `src/integrations/supabase/types.ts` | Ajouter `privacy_policy` |
+| `src/pages/LegalPage.tsx` | **Nouveau** — page publique légale |
+| `src/App.tsx` | 3 nouvelles routes |
+| `src/components/settings/PlatformSettings.tsx` | Textarea privacy policy |
 
-## Ce qui ne change PAS
+## Résultat
 
-- Aucun fichier frontend (web ou mobile)
-- Aucune table DB
-- Format des réponses JSON identique
-- PIN hash PBKDF2 conservé
-- Rate limiting et brute-force protection conservés
-- Secrets déjà configurés (`IKODDI_API_KEY`, `IKODDI_OTP_APP_ID`, `IKODDI_ORGANIZATION_ID`)
-
-## Après implémentation
-
-Je te fournirai les instructions mises à jour pour Bolt.new, précisant que l'OTP est désormais géré par Ikoddi (pas de `dev_otp` retourné) et que le mobile n'a rien à changer.
+- 3 documents juridiques professionnels prêts pour Apple/Google
+- URLs publiques fonctionnelles pour les stores
+- Contenu éditable par l'admin depuis le dashboard
+- L'app mobile peut ouvrir ces URLs en WebView
 

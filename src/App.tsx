@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/contexts/CartContext";
 import { CartModal } from "@/components/cart/CartModal";
 import Home from "./pages/Home";
+import { CguPage, PrivacyPage, CookiesPage } from "./pages/LegalPage";
 import Auth from "./pages/Auth";
 import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
@@ -72,6 +73,9 @@ const App = () => (
           <Route path="/mes-favoris" element={<Favorites />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/cgu" element={<CguPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/cookies" element={<CookiesPage />} />
           <Route
             path="/messages"
             element={

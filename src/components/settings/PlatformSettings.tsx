@@ -337,7 +337,7 @@ export const PlatformSettings = () => {
         <CardHeader>
           <CardTitle>Documents légaux</CardTitle>
           <CardDescription>
-            Conditions générales et politique de cookies
+            Conditions générales, politique de confidentialité et cookies
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -352,35 +352,13 @@ export const PlatformSettings = () => {
             />
           </div>
           <div>
-            <Label htmlFor="cookies">Politique de cookies</Label>
+            <Label htmlFor="privacy_policy">Politique de confidentialité</Label>
             <Textarea
-              id="cookies"
-              defaultValue={settings?.cookies || ""}
-              onBlur={(e) => handleTextUpdate("cookies", e.target.value)}
+              id="privacy_policy"
+              defaultValue={(settings as any)?.privacy_policy || ""}
+              onBlur={(e) => handleTextUpdate("privacy_policy", e.target.value)}
               rows={6}
-              placeholder="Votre politique de cookies..."
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Documents légaux */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Documents légaux</CardTitle>
-          <CardDescription>
-            Conditions générales et politique de cookies
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="cgu">Conditions générales d'utilisation (CGU)</Label>
-            <Textarea
-              id="cgu"
-              defaultValue={settings?.cgu || ""}
-              onBlur={(e) => handleTextUpdate("cgu", e.target.value)}
-              rows={6}
-              placeholder="Vos conditions générales d'utilisation..."
+              placeholder="Votre politique de confidentialité..."
             />
           </div>
           <div>

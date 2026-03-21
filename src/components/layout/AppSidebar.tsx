@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare, MapPin, ShoppingBag, Receipt, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, Store, MessageSquare, MapPin, ShoppingBag, Receipt, Wallet, Mail } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -42,6 +42,7 @@ const getNavigationItems = (roles: string[]) => {
     gestionItems.push({ title: "Paiements", icon: Wallet, href: "/dashboard/payments" });
     gestionItems.push({ title: "Transactions", icon: Receipt, href: "/dashboard/transactions" });
     gestionItems.push({ title: "Zones de livraison", icon: MapPin, href: "/dashboard/delivery-zones" });
+    gestionItems.push({ title: "Demandes", icon: Mail, href: "/dashboard/contact-requests" });
   }
 
   // Ajouter Ma Boutique pour vendeur

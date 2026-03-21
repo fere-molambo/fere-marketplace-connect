@@ -57,7 +57,7 @@ export const Navbar = () => {
     { href: "/vendeurs", label: "Vendeurs" },
     { href: "/produits-services", label: "Produits & Prestations" },
     { href: "/aide", label: "Aide & Tutos" },
-    { href: "/#contact", label: "Contact" },
+    { href: "/contact", label: "Contact" },
   ];
 
   const handleSignOut = async () => {

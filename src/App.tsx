@@ -35,6 +35,8 @@ import DeliveryZones from "./pages/DeliveryZones";
 import Orders from "./pages/Orders";
 import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
+import Contact from "./pages/Contact";
+import ContactRequests from "./pages/ContactRequests";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -73,6 +75,7 @@ const App = () => (
           <Route path="/mes-favoris" element={<Favorites />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/cgu" element={<CguPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
@@ -104,6 +107,7 @@ const App = () => (
             <Route path="orders" element={<Orders />} />
             <Route path="payments" element={<Payments />} />
             <Route path="transactions" element={<Transactions />} />
+            <Route path="contact-requests" element={<ContactRequests />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

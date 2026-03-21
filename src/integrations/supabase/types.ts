@@ -297,6 +297,51 @@ export type Database = {
           },
         ]
       }
+      contact_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          message: string
+          phone: string | null
+          replied_at: string | null
+          replied_by: string | null
+          status: string
+          subject: string
+          updated_at: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          message: string
+          phone?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          status?: string
+          subject: string
+          updated_at?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          message?: string
+          phone?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string

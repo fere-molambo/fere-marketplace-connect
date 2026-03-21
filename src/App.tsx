@@ -75,6 +75,7 @@ const App = () => (
           <Route path="/mes-favoris" element={<Favorites />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/cgu" element={<CguPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />

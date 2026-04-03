@@ -25,7 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, KeyRound, MapPin, Trash2 } from "lucide-react";
+import { Upload, KeyRound, MapPin, Trash2, ShieldBan, ShieldCheck } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import {
@@ -53,6 +54,10 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showResetPinDialog, setShowResetPinDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showUnblockDialog, setShowUnblockDialog] = useState(false);
+  const [blockReason, setBlockReason] = useState("");
+  const [isBlocking, setIsBlocking] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
@@ -527,23 +532,75 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
   const isPhoneBasedUser = userRoles.some(r => ['membre', 'vendeur', 'livreur', 'equipe'].includes(r));
 
-  const canDeleteUser = () => {
+  const canBlockUser = () => {
     if (!user) return false;
-    // Cannot delete yourself
     if (currentUser?.id === user.id) return false;
-    
     const targetIsSuperAdmin = userRoles.includes('super_admin');
     const targetIsAdmin = userRoles.includes('admin');
-
-    // Super admin can delete anyone except themselves
-    if (isSuperAdmin) return true;
-
-    // Admin can delete non-admin and non-super_admin users
-    if (isAdmin) {
-      return !targetIsSuperAdmin && !targetIsAdmin;
-    }
-
+    if (isSuperAdmin) return !targetIsSuperAdmin;
+    if (isAdmin) return !targetIsSuperAdmin && !targetIsAdmin;
     return false;
+  };
+
+  const canDeleteUser = () => {
+    if (!user) return false;
+    if (currentUser?.id === user.id) return false;
+    const targetIsSuperAdmin = userRoles.includes('super_admin');
+    const targetIsAdmin = userRoles.includes('admin');
+    if (isSuperAdmin) return true;
+    if (isAdmin) return !targetIsSuperAdmin && !targetIsAdmin;
+    return false;
+  };
+
+  const handleBlockUser = async () => {
+    if (!user || !blockReason.trim()) return;
+    try {
+      setIsBlocking(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_blocked: true,
+          blocked_reason: blockReason.trim(),
+          blocked_at: new Date().toISOString(),
+          blocked_by: currentUser?.id,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast.success(`${user.nom_complet} a été bloqué`);
+      setShowBlockDialog(false);
+      setBlockReason("");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onUserUpdated?.();
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors du blocage");
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!user) return;
+    try {
+      setIsBlocking(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_blocked: false,
+          blocked_reason: null,
+          blocked_at: null,
+          blocked_by: null,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast.success(`${user.nom_complet} a été débloqué`);
+      setShowUnblockDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onUserUpdated?.();
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors du déblocage");
+    } finally {
+      setIsBlocking(false);
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -942,6 +999,45 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
+          {/* Block/Unblock section */}
+          {(isSuperAdmin || isAdmin) && canBlockUser() && (
+            <div className="border-t pt-4">
+              {user?.is_blocked ? (
+                <>
+                  <div className="rounded-md bg-destructive/10 p-3 mb-3">
+                    <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                      <ShieldBan className="h-4 w-4" /> Utilisateur bloqué
+                    </p>
+                    {user.blocked_reason && (
+                      <p className="text-xs text-muted-foreground mt-1">Raison : {user.blocked_reason}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowUnblockDialog(true)}
+                    disabled={isBlocking || isLoading}
+                    className="w-full"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    {isBlocking ? "Déblocage..." : "Débloquer l'utilisateur"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowBlockDialog(true)}
+                  disabled={isBlocking || isLoading}
+                  className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                >
+                  <ShieldBan className="h-4 w-4 mr-2" />
+                  {isBlocking ? "Blocage..." : "Bloquer l'utilisateur"}
+                </Button>
+              )}
+            </div>
+          )}
+
           {(isSuperAdmin || isAdmin) && canDeleteUser() && (
             <div className="border-t pt-4">
               <Button
@@ -1036,6 +1132,54 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleting ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bloquer {user?.nom_complet} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cet utilisateur ne pourra plus se connecter à l'application. Veuillez indiquer la raison du blocage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="block-reason">Raison du blocage *</Label>
+            <Textarea
+              id="block-reason"
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="Ex: Violation des conditions d'utilisation..."
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBlocking}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBlockUser}
+              disabled={isBlocking || !blockReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBlocking ? "Blocage..." : "Bloquer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showUnblockDialog} onOpenChange={setShowUnblockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Débloquer {user?.nom_complet} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cet utilisateur pourra à nouveau se connecter et utiliser l'application.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBlocking}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnblockUser} disabled={isBlocking}>
+              {isBlocking ? "Déblocage..." : "Confirmer le déblocage"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -421,13 +421,32 @@ async function handleLogin(supabaseAdmin: any, body: any) {
   // Find profile by phone
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('id')
+    .select('id, is_blocked, blocked_reason')
     .eq('contact', phone)
     .maybeSingle();
 
   if (!profile) {
     await recordFailedLogin(supabaseAdmin, phone);
     throw new Error('Identifiants incorrects');
+  }
+
+  // Check if user is blocked by admin
+  if (profile.is_blocked) {
+    // Get support contact info from platform_settings
+    const { data: settings } = await supabaseAdmin
+      .from('platform_settings')
+      .select('support_email, support_phone')
+      .limit(1)
+      .maybeSingle();
+
+    return jsonResponse({
+      success: false,
+      error: 'account_blocked',
+      message: 'Votre compte a été suspendu.',
+      reason: profile.blocked_reason || 'Contactez le support pour plus d\'informations.',
+      support_phone: settings?.support_phone || '+22300000000',
+      support_email: settings?.support_email || 'support@fere.app',
+    }, 403);
   }
 
   // Get user PIN data

@@ -532,23 +532,75 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
 
   const isPhoneBasedUser = userRoles.some(r => ['membre', 'vendeur', 'livreur', 'equipe'].includes(r));
 
-  const canDeleteUser = () => {
+  const canBlockUser = () => {
     if (!user) return false;
-    // Cannot delete yourself
     if (currentUser?.id === user.id) return false;
-    
     const targetIsSuperAdmin = userRoles.includes('super_admin');
     const targetIsAdmin = userRoles.includes('admin');
-
-    // Super admin can delete anyone except themselves
-    if (isSuperAdmin) return true;
-
-    // Admin can delete non-admin and non-super_admin users
-    if (isAdmin) {
-      return !targetIsSuperAdmin && !targetIsAdmin;
-    }
-
+    if (isSuperAdmin) return !targetIsSuperAdmin;
+    if (isAdmin) return !targetIsSuperAdmin && !targetIsAdmin;
     return false;
+  };
+
+  const canDeleteUser = () => {
+    if (!user) return false;
+    if (currentUser?.id === user.id) return false;
+    const targetIsSuperAdmin = userRoles.includes('super_admin');
+    const targetIsAdmin = userRoles.includes('admin');
+    if (isSuperAdmin) return true;
+    if (isAdmin) return !targetIsSuperAdmin && !targetIsAdmin;
+    return false;
+  };
+
+  const handleBlockUser = async () => {
+    if (!user || !blockReason.trim()) return;
+    try {
+      setIsBlocking(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_blocked: true,
+          blocked_reason: blockReason.trim(),
+          blocked_at: new Date().toISOString(),
+          blocked_by: currentUser?.id,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast.success(`${user.nom_complet} a été bloqué`);
+      setShowBlockDialog(false);
+      setBlockReason("");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onUserUpdated?.();
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors du blocage");
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!user) return;
+    try {
+      setIsBlocking(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_blocked: false,
+          blocked_reason: null,
+          blocked_at: null,
+          blocked_by: null,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast.success(`${user.nom_complet} a été débloqué`);
+      setShowUnblockDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onUserUpdated?.();
+    } catch (error: any) {
+      toast.error(error.message || "Erreur lors du déblocage");
+    } finally {
+      setIsBlocking(false);
+    }
   };
 
   const handleDeleteUser = async () => {

@@ -1924,6 +1924,9 @@ export type Database = {
       profiles: {
         Row: {
           adresse: string | null
+          blocked_at: string | null
+          blocked_by: string | null
+          blocked_reason: string | null
           contact: string
           contrat_url: string | null
           created_at: string | null
@@ -1938,6 +1941,7 @@ export type Database = {
           geolocalisation_lng: number | null
           id: string
           is_available: boolean | null
+          is_blocked: boolean
           is_online: boolean | null
           last_location_update: string | null
           nom_complet: string
@@ -1961,6 +1965,9 @@ export type Database = {
         }
         Insert: {
           adresse?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
+          blocked_reason?: string | null
           contact: string
           contrat_url?: string | null
           created_at?: string | null
@@ -1975,6 +1982,7 @@ export type Database = {
           geolocalisation_lng?: number | null
           id: string
           is_available?: boolean | null
+          is_blocked?: boolean
           is_online?: boolean | null
           last_location_update?: string | null
           nom_complet: string
@@ -1998,6 +2006,9 @@ export type Database = {
         }
         Update: {
           adresse?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
+          blocked_reason?: string | null
           contact?: string
           contrat_url?: string | null
           created_at?: string | null
@@ -2012,6 +2023,7 @@ export type Database = {
           geolocalisation_lng?: number | null
           id?: string
           is_available?: boolean | null
+          is_blocked?: boolean
           is_online?: boolean | null
           last_location_update?: string | null
           nom_complet?: string

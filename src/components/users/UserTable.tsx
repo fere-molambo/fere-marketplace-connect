@@ -231,7 +231,12 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
                         {getInitials(user.nom_complet)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{user.nom_complet}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{user.nom_complet}</span>
+                      {user.is_blocked && (
+                        <Badge variant="destructive" className="text-xs">Bloqué</Badge>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>{user.email}</TableCell>

@@ -1136,6 +1136,54 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bloquer {user?.nom_complet} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cet utilisateur ne pourra plus se connecter à l'application. Veuillez indiquer la raison du blocage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="block-reason">Raison du blocage *</Label>
+            <Textarea
+              id="block-reason"
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="Ex: Violation des conditions d'utilisation..."
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBlocking}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBlockUser}
+              disabled={isBlocking || !blockReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBlocking ? "Blocage..." : "Bloquer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showUnblockDialog} onOpenChange={setShowUnblockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Débloquer {user?.nom_complet} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cet utilisateur pourra à nouveau se connecter et utiliser l'application.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBlocking}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnblockUser} disabled={isBlocking}>
+              {isBlocking ? "Déblocage..." : "Confirmer le déblocage"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 };

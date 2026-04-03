@@ -145,7 +145,12 @@ export const UserTable = ({ users, onUserUpdated }: UserTableProps) => {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium">{user.nom_complet}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{user.nom_complet}</p>
+                    {user.is_blocked && (
+                      <Badge variant="destructive" className="text-xs">Bloqué</Badge>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {user.roles?.map((roleItem: any) => (
                       <Badge key={roleItem.role} variant="secondary" className="text-xs">

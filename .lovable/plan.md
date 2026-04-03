@@ -1,86 +1,88 @@
 
 
-# Plan : Page Contact publique + Gestion des demandes admin
+# Plan : Blocage utilisateurs par admin + Prompt Bolt.new pour création boutique vendeur
 
-## Ce qui sera fait
+## Partie 1 : Blocage d'utilisateurs par admin/super_admin
 
-### 1. Migration DB : table `contact_requests`
+### Contexte actuel
+- La table `blocked_users` existe deja mais est concue pour le blocage entre utilisateurs dans la messagerie (blocker_id/blocked_id).
+- La table `profiles` n'a pas de champ `is_blocked`.
+- Il n'existe aucun mecanisme pour empecher un utilisateur bloque de se connecter ou d'utiliser l'app.
+- Les vendeurs peuvent etre desactives via `verification_status` sur leur boutique, mais pas bloques au niveau compte.
 
-Nouvelle table pour stocker les demandes de contact :
+### Ce qui sera fait
+
+#### 1. Migration DB : ajouter des champs de blocage sur `profiles`
+
 ```sql
-CREATE TABLE public.contact_requests (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  full_name text NOT NULL,
-  email text,
-  phone text,
-  subject text NOT NULL,
-  message text NOT NULL,
-  status text NOT NULL DEFAULT 'new', -- new, read, replied, archived
-  replied_by uuid REFERENCES auth.users(id),
-  replied_at timestamptz,
-  admin_notes text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.contact_requests ENABLE ROW LEVEL SECURITY;
-
--- Tout le monde peut soumettre une demande
-CREATE POLICY "Anyone can submit contact" ON public.contact_requests
-  FOR INSERT TO public WITH CHECK (true);
-
--- Admins voient et gèrent tout
-CREATE POLICY "Admins can manage contacts" ON public.contact_requests
-  FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'super_admin') OR has_role(auth.uid(), 'admin'));
+ALTER TABLE public.profiles
+  ADD COLUMN is_blocked boolean NOT NULL DEFAULT false,
+  ADD COLUMN blocked_reason text,
+  ADD COLUMN blocked_at timestamptz,
+  ADD COLUMN blocked_by uuid REFERENCES auth.users(id);
 ```
 
-### 2. Page publique `/contact`
+C'est plus simple et plus performant qu'une table separee : le blocage admin est un attribut du compte, pas une relation entre utilisateurs.
 
-Formulaire avec :
-- Nom complet (requis)
-- Téléphone (requis)
-- Email (optionnel)
-- Sujet (select : Question générale, Partenariat, Problème technique, Réclamation, Autre)
-- Message (requis, textarea)
-- Bouton envoyer → insert dans `contact_requests`
-- Design cohérent avec le reste du site (Navbar + Footer)
+#### 2. Edge function `phone-auth` : bloquer la connexion
 
-### 3. Navbar : changer le lien Contact
+Dans les actions `login` et `verify-login-otp`, apres avoir identifie l'utilisateur, verifier `profiles.is_blocked`. Si bloque, retourner une erreur avec le motif et les coordonnees du support :
 
-`/#contact` → `/contact`
+```json
+{
+  "success": false,
+  "error": "account_blocked",
+  "message": "Votre compte a été suspendu.",
+  "reason": "Violation des conditions d'utilisation",
+  "support_phone": "+223...",
+  "support_email": "support@fere.app"
+}
+```
 
-### 4. Page dashboard `/dashboard/contact-requests`
+Les coordonnees du support seront lues depuis `platform_settings` (on ajoutera `support_email` et `support_phone` si absents).
 
-Table listant les demandes avec :
-- Date, Nom, Sujet, Statut (badge coloré)
-- Filtres par statut
-- Sheet de détail au clic avec possibilité de :
-  - Changer le statut (new → read → replied → archived)
-  - Ajouter des notes admin
+#### 3. Interface admin : bouton Bloquer/Debloquer dans UserEditSheet
 
-### 5. Sidebar : menu "Demandes" pour admins
+- Ajouter un bouton "Bloquer cet utilisateur" (rouge) dans le sheet d'edition utilisateur
+- Dialog de confirmation avec champ raison (obligatoire)
+- Ne pas pouvoir se bloquer soi-meme, ni bloquer un super_admin
+- Un admin ne peut bloquer que des utilisateurs de rang inferieur (pas d'autres admins)
+- Bouton "Debloquer" si deja bloque, avec confirmation
 
-Ajouter une entrée "Demandes" (icône `Mail`) dans le sidebar, visible uniquement pour super_admin et admin, après "Zones de livraison".
+#### 4. Indicateur visuel dans UserTable
 
-### 6. Routes dans App.tsx
+- Badge rouge "Bloque" a cote du nom des utilisateurs bloques
+- Filtre optionnel pour voir les utilisateurs bloques
 
-- `/contact` → nouvelle page publique Contact
-- `/dashboard/contact-requests` → page admin (dans le layout dashboard)
+#### 5. Migration DB : champs support dans platform_settings (si absents)
 
-### 7. Types Supabase
+```sql
+ALTER TABLE public.platform_settings
+  ADD COLUMN IF NOT EXISTS support_email text DEFAULT 'support@fere.app',
+  ADD COLUMN IF NOT EXISTS support_phone text DEFAULT '+22300000000';
+```
 
-Ajouter le type `contact_requests` dans `types.ts`.
-
-## Fichiers modifiés
+### Fichiers modifies
 
 | Fichier | Action |
 |---|---|
-| `supabase/migrations/[new].sql` | Table `contact_requests` + RLS |
-| `src/integrations/supabase/types.ts` | Type `contact_requests` |
-| `src/pages/Contact.tsx` | **Nouveau** — page publique formulaire |
-| `src/pages/ContactRequests.tsx` | **Nouveau** — page admin listing |
-| `src/components/landing/Navbar.tsx` | Lien `/#contact` → `/contact` |
-| `src/components/layout/AppSidebar.tsx` | Menu "Demandes" admins |
-| `src/App.tsx` | 2 nouvelles routes |
+| `supabase/migrations/[new].sql` | Champs `is_blocked`, `blocked_reason`, `blocked_at`, `blocked_by` sur profiles + support sur platform_settings |
+| `supabase/functions/phone-auth/index.ts` | Verifier blocage a la connexion |
+| `src/components/users/UserEditSheet.tsx` | Bouton bloquer/debloquer + dialog |
+| `src/components/users/UserTable.tsx` | Badge "Bloque" |
+
+---
+
+## Partie 2 : Prompt Bolt.new pour creation boutique vendeur
+
+Pas de code a modifier ici. Je vais fournir un prompt complet et pret a copier-coller dans Bolt.new, couvrant :
+
+1. **Inscription vendeur** : utiliser `phone-auth` avec `role: "vendeur"`
+2. **Creation de boutique** : INSERT dans `shops` avec `verification_status: 'pending'`, `owner_id` = l'utilisateur connecte
+3. **Ajout produits/services** : INSERT dans `products`/`services` avec `is_active: true` (visible pour le vendeur mais la boutique n'etant pas verifiee, rien n'est visible publiquement)
+4. **Notification admin** : INSERT dans `notifications` ou appel a `send-notification` pour alerter les admins qu'une nouvelle boutique a ete creee
+5. **Visibilite** : expliquer que les boutiques `pending` ne sont pas visibles sur le catalogue public, et que l'admin les active depuis le dashboard web
+6. **Desactivation produits/services** : le vendeur peut toggle `is_active` sur ses produits/services
+
+Le prompt sera fourni directement dans le message d'implementation.
 

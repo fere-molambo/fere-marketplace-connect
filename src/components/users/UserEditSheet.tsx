@@ -999,7 +999,45 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
-          {(isSuperAdmin || isAdmin) && canDeleteUser() && (
+          {/* Block/Unblock section */}
+          {(isSuperAdmin || isAdmin) && canBlockUser() && (
+            <div className="border-t pt-4">
+              {user?.is_blocked ? (
+                <>
+                  <div className="rounded-md bg-destructive/10 p-3 mb-3">
+                    <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                      <ShieldBan className="h-4 w-4" /> Utilisateur bloqué
+                    </p>
+                    {user.blocked_reason && (
+                      <p className="text-xs text-muted-foreground mt-1">Raison : {user.blocked_reason}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowUnblockDialog(true)}
+                    disabled={isBlocking || isLoading}
+                    className="w-full"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    {isBlocking ? "Déblocage..." : "Débloquer l'utilisateur"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowBlockDialog(true)}
+                  disabled={isBlocking || isLoading}
+                  className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                >
+                  <ShieldBan className="h-4 w-4 mr-2" />
+                  {isBlocking ? "Blocage..." : "Bloquer l'utilisateur"}
+                </Button>
+              )}
+            </div>
+          )}
+
             <div className="border-t pt-4">
               <Button
                 type="button"

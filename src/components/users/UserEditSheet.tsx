@@ -1038,6 +1038,7 @@ export const UserEditSheet = ({ user, open, onOpenChange, onUserUpdated }: UserE
             </div>
           )}
 
+          {(isSuperAdmin || isAdmin) && canDeleteUser() && (
             <div className="border-t pt-4">
               <Button
                 type="button"

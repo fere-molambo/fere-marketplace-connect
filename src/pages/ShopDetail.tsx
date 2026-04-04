@@ -151,3 +151,62 @@ export default function ShopDetail() {
     </div>
   );
 }
+
+function ShopVerificationBar({ shop, onUpdate }: { shop: any; onUpdate: () => void }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const updateStatus = async (newStatus: string) => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("shops")
+        .update({ verification_status: newStatus })
+        .eq("id", shop.id);
+      if (error) throw error;
+      toast.success(
+        newStatus === "verified" ? "Boutique activée" :
+        newStatus === "rejected" ? "Boutique rejetée" : "Boutique mise en attente"
+      );
+      onUpdate();
+    } catch {
+      toast.error("Erreur lors de la mise à jour du statut");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const status = shop.verification_status || "pending";
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-card">
+      <span className="text-sm font-medium text-muted-foreground">Statut :</span>
+      {status === "verified" && (
+        <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Vérifiée</Badge>
+      )}
+      {status === "pending" && (
+        <Badge variant="outline" className="text-amber-600 border-amber-300"><Clock className="h-3 w-3 mr-1" />En attente</Badge>
+      )}
+      {status === "rejected" && (
+        <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejetée</Badge>
+      )}
+
+      <div className="flex gap-2 ml-auto">
+        {status !== "verified" && (
+          <Button size="sm" onClick={() => updateStatus("verified")} disabled={isUpdating}>
+            <CheckCircle className="h-3 w-3 mr-1" />Activer
+          </Button>
+        )}
+        {status !== "pending" && (
+          <Button size="sm" variant="outline" onClick={() => updateStatus("pending")} disabled={isUpdating}>
+            <Clock className="h-3 w-3 mr-1" />En attente
+          </Button>
+        )}
+        {status !== "rejected" && (
+          <Button size="sm" variant="destructive" onClick={() => updateStatus("rejected")} disabled={isUpdating}>
+            <XCircle className="h-3 w-3 mr-1" />Rejeter
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}

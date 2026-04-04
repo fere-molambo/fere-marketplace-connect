@@ -22,7 +22,10 @@ import { ConfigTab } from "@/components/shops/tabs/ConfigTab";
 export default function ShopDetail() {
   const { shopId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("infos");
+  const { isSuperAdmin, isAdmin } = useUserRoles();
+  const isAdminUser = isSuperAdmin || isAdmin;
 
   const { data: shop, isLoading, refetch } = useQuery({
     queryKey: ["shop", shopId],

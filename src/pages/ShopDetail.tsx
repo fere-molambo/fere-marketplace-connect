@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ShopImageUpload } from "@/components/shops/ShopImageUpload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, CheckCircle, XCircle, Clock } from "lucide-react";
 import { ShopInfoSection } from "@/components/shops/ShopInfoSection";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { toast } from "sonner";
 import { ShopStoriesSection } from "@/components/shops/ShopStoriesSection";
 import { ProductsServicesTab } from "@/components/shops/tabs/ProductsServicesTab";
 import { OrdersTab } from "@/components/shops/tabs/OrdersTab";
@@ -19,7 +22,10 @@ import { ConfigTab } from "@/components/shops/tabs/ConfigTab";
 export default function ShopDetail() {
   const { shopId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("infos");
+  const { isSuperAdmin, isAdmin } = useUserRoles();
+  const isAdminUser = isSuperAdmin || isAdmin;
 
   const { data: shop, isLoading, refetch } = useQuery({
     queryKey: ["shop", shopId],
@@ -91,6 +97,11 @@ export default function ShopDetail() {
         <p className="text-sm text-muted-foreground truncate">@{shop.owner?.nom_complet}</p>
       </div>
 
+      {/* Admin verification controls */}
+      {isAdminUser && (
+        <ShopVerificationBar shop={shop} onUpdate={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["shops"] }); }} />
+      )}
+
       {/* Stories Section */}
       <ShopStoriesSection shopId={shop.id} />
 
@@ -137,6 +148,65 @@ export default function ShopDetail() {
           </TabsContent>
         </div>
       </Tabs>
+    </div>
+  );
+}
+
+function ShopVerificationBar({ shop, onUpdate }: { shop: any; onUpdate: () => void }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const updateStatus = async (newStatus: string) => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("shops")
+        .update({ verification_status: newStatus })
+        .eq("id", shop.id);
+      if (error) throw error;
+      toast.success(
+        newStatus === "verified" ? "Boutique activée" :
+        newStatus === "rejected" ? "Boutique rejetée" : "Boutique mise en attente"
+      );
+      onUpdate();
+    } catch {
+      toast.error("Erreur lors de la mise à jour du statut");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const status = shop.verification_status || "pending";
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-card">
+      <span className="text-sm font-medium text-muted-foreground">Statut :</span>
+      {status === "verified" && (
+        <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Vérifiée</Badge>
+      )}
+      {status === "pending" && (
+        <Badge variant="outline" className="text-amber-600 border-amber-300"><Clock className="h-3 w-3 mr-1" />En attente</Badge>
+      )}
+      {status === "rejected" && (
+        <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Rejetée</Badge>
+      )}
+
+      <div className="flex gap-2 ml-auto">
+        {status !== "verified" && (
+          <Button size="sm" onClick={() => updateStatus("verified")} disabled={isUpdating}>
+            <CheckCircle className="h-3 w-3 mr-1" />Activer
+          </Button>
+        )}
+        {status !== "pending" && (
+          <Button size="sm" variant="outline" onClick={() => updateStatus("pending")} disabled={isUpdating}>
+            <Clock className="h-3 w-3 mr-1" />En attente
+          </Button>
+        )}
+        {status !== "rejected" && (
+          <Button size="sm" variant="destructive" onClick={() => updateStatus("rejected")} disabled={isUpdating}>
+            <XCircle className="h-3 w-3 mr-1" />Rejeter
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -37,6 +37,7 @@ import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
 import Contact from "./pages/Contact";
 import ContactRequests from "./pages/ContactRequests";
+import DeleteAccount from "./pages/DeleteAccount";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 
@@ -76,6 +77,7 @@ const App = () => (
           <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
           <Route path="/cgu" element={<CguPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />

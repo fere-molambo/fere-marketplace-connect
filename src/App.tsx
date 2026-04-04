@@ -37,6 +37,7 @@ import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
 import Contact from "./pages/Contact";
 import ContactRequests from "./pages/ContactRequests";
+import DeleteAccount from "./pages/DeleteAccount";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 

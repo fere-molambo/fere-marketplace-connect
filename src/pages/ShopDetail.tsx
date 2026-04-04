@@ -97,6 +97,11 @@ export default function ShopDetail() {
         <p className="text-sm text-muted-foreground truncate">@{shop.owner?.nom_complet}</p>
       </div>
 
+      {/* Admin verification controls */}
+      {isAdminUser && (
+        <ShopVerificationBar shop={shop} onUpdate={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["shops"] }); }} />
+      )}
+
       {/* Stories Section */}
       <ShopStoriesSection shopId={shop.id} />
 

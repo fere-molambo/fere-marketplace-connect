@@ -1,88 +1,107 @@
 
 
-# Plan : Blocage utilisateurs par admin + Prompt Bolt.new pour création boutique vendeur
+# Plan : Demandes de suppression de compte + Bouton activation boutique admin
 
-## Partie 1 : Blocage d'utilisateurs par admin/super_admin
+## Partie 1 : Systeme de demande de suppression de compte
 
-### Contexte actuel
-- La table `blocked_users` existe deja mais est concue pour le blocage entre utilisateurs dans la messagerie (blocker_id/blocked_id).
-- La table `profiles` n'a pas de champ `is_blocked`.
-- Il n'existe aucun mecanisme pour empecher un utilisateur bloque de se connecter ou d'utiliser l'app.
-- Les vendeurs peuvent etre desactives via `verification_status` sur leur boutique, mais pas bloques au niveau compte.
+### Contexte
+Google Play Store exige un lien permettant aux utilisateurs de demander la suppression de leur compte. La fonction `delete-user` existe deja mais est reservee aux admins. Il faut un systeme de **demandes** que les utilisateurs soumettent et que les admins traitent.
 
-### Ce qui sera fait
-
-#### 1. Migration DB : ajouter des champs de blocage sur `profiles`
+### 1.1 Migration DB : table `account_deletion_requests`
 
 ```sql
-ALTER TABLE public.profiles
-  ADD COLUMN is_blocked boolean NOT NULL DEFAULT false,
-  ADD COLUMN blocked_reason text,
-  ADD COLUMN blocked_at timestamptz,
-  ADD COLUMN blocked_by uuid REFERENCES auth.users(id);
+CREATE TABLE public.account_deletion_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  reason text,
+  status text NOT NULL DEFAULT 'pending' 
+    CHECK (status IN ('pending', 'approved', 'rejected', 'completed')),
+  admin_note text,
+  processed_by uuid REFERENCES auth.users(id),
+  processed_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.account_deletion_requests ENABLE ROW LEVEL SECURITY;
+
+-- Users can insert their own requests
+CREATE POLICY "Users can create own deletion request"
+  ON public.account_deletion_requests FOR INSERT
+  TO authenticated WITH CHECK (auth.uid() = user_id);
+
+-- Users can view their own requests
+CREATE POLICY "Users can view own requests"
+  ON public.account_deletion_requests FOR SELECT
+  TO authenticated USING (auth.uid() = user_id);
+
+-- Admins can view and manage all requests
+CREATE POLICY "Admins can manage all requests"
+  ON public.account_deletion_requests FOR ALL
+  TO authenticated USING (
+    has_role(auth.uid(), 'super_admin') OR has_role(auth.uid(), 'admin')
+  );
+
+-- Allow anonymous inserts for public page
+CREATE POLICY "Public can create deletion request"
+  ON public.account_deletion_requests FOR INSERT
+  TO anon WITH CHECK (true);
 ```
 
-C'est plus simple et plus performant qu'une table separee : le blocage admin est un attribut du compte, pas une relation entre utilisateurs.
+### 1.2 Page publique `/delete-account`
 
-#### 2. Edge function `phone-auth` : bloquer la connexion
+Creer `src/pages/DeleteAccount.tsx` :
+- Formulaire simple : numero de telephone ou email, raison (optionnel)
+- Si l'utilisateur est connecte, pre-remplir et lier a son `user_id`
+- Si non connecte, enregistrer la demande avec le contact fourni (ajouter un champ `contact_info` a la table)
+- Message de confirmation : "Votre demande a ete enregistree. L'equipe Fere vous contactera dans un delai de 30 jours."
+- Ajouter la route dans `App.tsx`
 
-Dans les actions `login` et `verify-login-otp`, apres avoir identifie l'utilisateur, verifier `profiles.is_blocked`. Si bloque, retourner une erreur avec le motif et les coordonnees du support :
+### 1.3 Onglet admin dans la page Utilisateurs
 
-```json
-{
-  "success": false,
-  "error": "account_blocked",
-  "message": "Votre compte a été suspendu.",
-  "reason": "Violation des conditions d'utilisation",
-  "support_phone": "+223...",
-  "support_email": "support@fere.app"
-}
-```
+Ajouter un onglet "Demandes de suppression" dans `src/pages/Users.tsx` :
+- Liste des demandes avec statut (En attente, Approuvee, Rejetee, Terminee)
+- Pour chaque demande : nom de l'utilisateur, date, raison, actions
+- Bouton "Approuver et supprimer" : appelle `delete-user` puis met le statut a `completed`
+- Bouton "Rejeter" avec note admin
+- Compteur badge sur l'onglet pour les demandes en attente
 
-Les coordonnees du support seront lues depuis `platform_settings` (on ajoutera `support_email` et `support_phone` si absents).
+### Fichiers modifies/crees
 
-#### 3. Interface admin : bouton Bloquer/Debloquer dans UserEditSheet
+| Fichier | Action |
+|---|---|
+| `supabase/migrations/[new].sql` | Table `account_deletion_requests` + RLS |
+| `src/pages/DeleteAccount.tsx` | Nouvelle page publique |
+| `src/App.tsx` | Ajouter route `/delete-account` |
+| `src/pages/Users.tsx` | Ajouter onglet "Demandes de suppression" |
+| `src/integrations/supabase/types.ts` | Auto-mis a jour |
 
-- Ajouter un bouton "Bloquer cet utilisateur" (rouge) dans le sheet d'edition utilisateur
-- Dialog de confirmation avec champ raison (obligatoire)
-- Ne pas pouvoir se bloquer soi-meme, ni bloquer un super_admin
-- Un admin ne peut bloquer que des utilisateurs de rang inferieur (pas d'autres admins)
-- Bouton "Debloquer" si deja bloque, avec confirmation
+---
 
-#### 4. Indicateur visuel dans UserTable
+## Partie 2 : Bouton activation/desactivation boutique par admin
 
-- Badge rouge "Bloque" a cote du nom des utilisateurs bloques
-- Filtre optionnel pour voir les utilisateurs bloques
+### Probleme
+Le statut `verification_status` existe sur les boutiques mais il n'y a aucun bouton dans la page de detail pour le changer. Les admins voient "En attente" mais ne peuvent pas activer.
 
-#### 5. Migration DB : champs support dans platform_settings (si absents)
-
-```sql
-ALTER TABLE public.platform_settings
-  ADD COLUMN IF NOT EXISTS support_email text DEFAULT 'support@fere.app',
-  ADD COLUMN IF NOT EXISTS support_phone text DEFAULT '+22300000000';
-```
+### Solution
+Ajouter dans `ShopDetail.tsx`, juste sous le nom de la boutique, un bandeau d'action admin visible uniquement pour les admins/super_admins :
+- Badge du statut actuel (En attente / Verifiee / Rejetee)
+- Bouton "Activer" (passe a `verified`) ou "Desactiver" (passe a `pending`) ou "Rejeter" (passe a `rejected`)
+- Confirmation avant changement
 
 ### Fichiers modifies
 
 | Fichier | Action |
 |---|---|
-| `supabase/migrations/[new].sql` | Champs `is_blocked`, `blocked_reason`, `blocked_at`, `blocked_by` sur profiles + support sur platform_settings |
-| `supabase/functions/phone-auth/index.ts` | Verifier blocage a la connexion |
-| `src/components/users/UserEditSheet.tsx` | Bouton bloquer/debloquer + dialog |
-| `src/components/users/UserTable.tsx` | Badge "Bloque" |
+| `src/pages/ShopDetail.tsx` | Ajouter bandeau admin avec boutons activer/desactiver/rejeter |
 
 ---
 
-## Partie 2 : Prompt Bolt.new pour creation boutique vendeur
+## Partie 3 : Prompt Bolt.new pour suppression de compte mobile
 
-Pas de code a modifier ici. Je vais fournir un prompt complet et pret a copier-coller dans Bolt.new, couvrant :
-
-1. **Inscription vendeur** : utiliser `phone-auth` avec `role: "vendeur"`
-2. **Creation de boutique** : INSERT dans `shops` avec `verification_status: 'pending'`, `owner_id` = l'utilisateur connecte
-3. **Ajout produits/services** : INSERT dans `products`/`services` avec `is_active: true` (visible pour le vendeur mais la boutique n'etant pas verifiee, rien n'est visible publiquement)
-4. **Notification admin** : INSERT dans `notifications` ou appel a `send-notification` pour alerter les admins qu'une nouvelle boutique a ete creee
-5. **Visibilite** : expliquer que les boutiques `pending` ne sont pas visibles sur le catalogue public, et que l'admin les active depuis le dashboard web
-6. **Desactivation produits/services** : le vendeur peut toggle `is_active` sur ses produits/services
-
-Le prompt sera fourni directement dans le message d'implementation.
+Le prompt sera fourni dans le message d'implementation, indiquant a Bolt.new :
+- Ajouter un bouton "Supprimer mon compte" dans les parametres du profil
+- INSERT dans `account_deletion_requests` avec `user_id` et `reason`
+- Afficher confirmation
+- Lien vers `https://fere.app/delete-account` en alternative
 

@@ -160,7 +160,10 @@ function ShopVerificationBar({ shop, onUpdate }: { shop: any; onUpdate: () => vo
     try {
       const { error } = await supabase
         .from("shops")
-        .update({ verification_status: newStatus })
+        .update({ 
+          verification_status: newStatus,
+          is_active: newStatus === "verified"
+        })
         .eq("id", shop.id);
       if (error) throw error;
       toast.success(

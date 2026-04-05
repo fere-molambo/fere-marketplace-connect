@@ -1,107 +1,56 @@
 
 
-# Plan : Demandes de suppression de compte + Bouton activation boutique admin
+# Correction : Boutique reste "inactive" apres activation par l'admin
 
-## Partie 1 : Systeme de demande de suppression de compte
+## Probleme identifie
 
-### Contexte
-Google Play Store exige un lien permettant aux utilisateurs de demander la suppression de leur compte. La fonction `delete-user` existe deja mais est reservee aux admins. Il faut un systeme de **demandes** que les utilisateurs soumettent et que les admins traitent.
+Il y a deux champs distincts sur la table `shops` :
+- **`is_active`** (boolean, defaut `true`) : utilise par l'app mobile pour afficher/masquer la boutique
+- **`verification_status`** (string : `pending`, `verified`, `rejected`) : utilise par l'admin pour valider la boutique
 
-### 1.1 Migration DB : table `account_deletion_requests`
+Quand l'admin clique "Activer" sur le dashboard web, seul `verification_status` passe a `verified`. Le champ `is_active` reste inchange. L'app mobile verifie probablement `is_active` (ou les deux), d'ou le message "Boutique inactive".
 
+## Correction cote web (Lovable)
+
+Dans `ShopDetail.tsx`, la fonction `updateStatus` sera modifiee pour aussi mettre a jour `is_active` :
+- `verified` → `is_active = true`
+- `rejected` ou `pending` → `is_active = false`
+
+## Prompt pour Bolt.new
+
+Voici ce que tu dois dire a Bolt.new :
+
+---
+
+**Correction : logique d'affichage "Boutique inactive"**
+
+Actuellement, l'app mobile affiche "Boutique inactive - activez-la dans les parametres" en se basant sur le champ `is_active` de la table `shops`. Cependant, l'activation d'une boutique par un admin se fait via le champ `verification_status`.
+
+**Changements a effectuer :**
+
+1. **Remplacer la verification** : au lieu de verifier uniquement `is_active`, verifier `verification_status`. Une boutique est operationnelle quand `verification_status === 'verified'`.
+
+2. **Adapter le bandeau d'alerte** :
+   - Si `verification_status === 'pending'` → afficher "Votre boutique est en attente de validation par l'equipe Fere. Vous serez notifie une fois qu'elle sera activee."
+   - Si `verification_status === 'rejected'` → afficher "Votre boutique a ete rejetee. Contactez le support pour plus d'informations."
+   - Si `verification_status === 'verified'` → ne rien afficher (boutique operationnelle)
+
+3. **Supprimer le message "activez-la dans les parametres"** : le vendeur ne peut PAS activer sa propre boutique. C'est l'admin qui le fait depuis le dashboard. Le vendeur doit juste attendre.
+
+4. **Ne PAS ajouter de bouton d'activation dans les parametres du vendeur** : ce n'est pas au vendeur d'activer sa boutique.
+
+5. **Requete Supabase** : quand vous chargez la boutique du vendeur, incluez `verification_status` dans le SELECT :
 ```sql
-CREATE TABLE public.account_deletion_requests (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  reason text,
-  status text NOT NULL DEFAULT 'pending' 
-    CHECK (status IN ('pending', 'approved', 'rejected', 'completed')),
-  admin_note text,
-  processed_by uuid REFERENCES auth.users(id),
-  processed_at timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.account_deletion_requests ENABLE ROW LEVEL SECURITY;
-
--- Users can insert their own requests
-CREATE POLICY "Users can create own deletion request"
-  ON public.account_deletion_requests FOR INSERT
-  TO authenticated WITH CHECK (auth.uid() = user_id);
-
--- Users can view their own requests
-CREATE POLICY "Users can view own requests"
-  ON public.account_deletion_requests FOR SELECT
-  TO authenticated USING (auth.uid() = user_id);
-
--- Admins can view and manage all requests
-CREATE POLICY "Admins can manage all requests"
-  ON public.account_deletion_requests FOR ALL
-  TO authenticated USING (
-    has_role(auth.uid(), 'super_admin') OR has_role(auth.uid(), 'admin')
-  );
-
--- Allow anonymous inserts for public page
-CREATE POLICY "Public can create deletion request"
-  ON public.account_deletion_requests FOR INSERT
-  TO anon WITH CHECK (true);
+SELECT *, verification_status FROM shops WHERE owner_id = user_id
 ```
 
-### 1.2 Page publique `/delete-account`
-
-Creer `src/pages/DeleteAccount.tsx` :
-- Formulaire simple : numero de telephone ou email, raison (optionnel)
-- Si l'utilisateur est connecte, pre-remplir et lier a son `user_id`
-- Si non connecte, enregistrer la demande avec le contact fourni (ajouter un champ `contact_info` a la table)
-- Message de confirmation : "Votre demande a ete enregistree. L'equipe Fere vous contactera dans un delai de 30 jours."
-- Ajouter la route dans `App.tsx`
-
-### 1.3 Onglet admin dans la page Utilisateurs
-
-Ajouter un onglet "Demandes de suppression" dans `src/pages/Users.tsx` :
-- Liste des demandes avec statut (En attente, Approuvee, Rejetee, Terminee)
-- Pour chaque demande : nom de l'utilisateur, date, raison, actions
-- Bouton "Approuver et supprimer" : appelle `delete-user` puis met le statut a `completed`
-- Bouton "Rejeter" avec note admin
-- Compteur badge sur l'onglet pour les demandes en attente
-
-### Fichiers modifies/crees
-
-| Fichier | Action |
-|---|---|
-| `supabase/migrations/[new].sql` | Table `account_deletion_requests` + RLS |
-| `src/pages/DeleteAccount.tsx` | Nouvelle page publique |
-| `src/App.tsx` | Ajouter route `/delete-account` |
-| `src/pages/Users.tsx` | Ajouter onglet "Demandes de suppression" |
-| `src/integrations/supabase/types.ts` | Auto-mis a jour |
+6. **Condition de visibilite publique** : les produits et services ne doivent etre visibles pour les clients QUE si `verification_status = 'verified'` ET `is_active = true`.
 
 ---
 
-## Partie 2 : Bouton activation/desactivation boutique par admin
+## Fichiers modifies cote Lovable
 
-### Probleme
-Le statut `verification_status` existe sur les boutiques mais il n'y a aucun bouton dans la page de detail pour le changer. Les admins voient "En attente" mais ne peuvent pas activer.
-
-### Solution
-Ajouter dans `ShopDetail.tsx`, juste sous le nom de la boutique, un bandeau d'action admin visible uniquement pour les admins/super_admins :
-- Badge du statut actuel (En attente / Verifiee / Rejetee)
-- Bouton "Activer" (passe a `verified`) ou "Desactiver" (passe a `pending`) ou "Rejeter" (passe a `rejected`)
-- Confirmation avant changement
-
-### Fichiers modifies
-
-| Fichier | Action |
+| Fichier | Modification |
 |---|---|
-| `src/pages/ShopDetail.tsx` | Ajouter bandeau admin avec boutons activer/desactiver/rejeter |
-
----
-
-## Partie 3 : Prompt Bolt.new pour suppression de compte mobile
-
-Le prompt sera fourni dans le message d'implementation, indiquant a Bolt.new :
-- Ajouter un bouton "Supprimer mon compte" dans les parametres du profil
-- INSERT dans `account_deletion_requests` avec `user_id` et `reason`
-- Afficher confirmation
-- Lien vers `https://fere.app/delete-account` en alternative
+| `src/pages/ShopDetail.tsx` | `updateStatus` met aussi a jour `is_active` en fonction du statut |
 

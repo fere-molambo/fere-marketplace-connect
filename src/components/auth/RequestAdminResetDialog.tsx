@@ -12,6 +12,7 @@ import {
 import { Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeFunction } from "@/lib/parseFunctionError";
 
 const RequestAdminResetDialog = () => {
   const [open, setOpen] = useState(false);

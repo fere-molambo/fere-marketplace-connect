@@ -5,6 +5,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeFunction } from "@/lib/parseFunctionError";
 
 interface ResetPinFlowProps {
   onBack: () => void;
@@ -27,11 +28,7 @@ const ResetPinFlow = ({ onBack }: ResetPinFlowProps) => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "reset-pin-request", phone },
-      });
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "reset-pin-request", phone });
       toast.success(data.message || "Code envoyé par SMS");
       setStep("otp");
     } catch (err: any) {
@@ -52,11 +49,7 @@ const ResetPinFlow = ({ onBack }: ResetPinFlowProps) => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "reset-pin-confirm", phone, otp, new_pin: newPin },
-      });
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "reset-pin-confirm", phone, otp, new_pin: newPin });
       toast.success(data.message || "PIN réinitialisé avec succès");
       onBack();
     } catch (err: any) {

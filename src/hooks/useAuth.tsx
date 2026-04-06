@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import type { PhoneLoginFormData } from "@/lib/validators";
+import { invokeFunction } from "@/lib/parseFunctionError";
 
 const SUPABASE_PROJECT_ID = "jajfuajmkjulujnwfqen";
 
@@ -201,12 +202,7 @@ export const useAuth = () => {
       setLoading(true);
       signOutInProgressRef.current = false;
 
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "login", phone, pin },
-      });
-
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "login", phone, pin });
 
       // Set session from the returned data
       if (data?.session) {

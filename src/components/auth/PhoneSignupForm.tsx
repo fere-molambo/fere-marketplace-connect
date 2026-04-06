@@ -71,16 +71,11 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
   const handleVerifyOtp = async (otp: string) => {
     setIsVerifying(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke("phone-auth", {
-        body: {
-          action: "verify-registration",
-          phone: registeredPhone,
-          otp,
-        },
+      await invokeFunction(supabase, "phone-auth", {
+        action: "verify-registration",
+        phone: registeredPhone,
+        otp,
       });
-
-      if (error) throw new Error(error.message);
-      if (result && !result.success) throw new Error(result.error);
 
       toast.success("Compte créé avec succès ! Connectez-vous maintenant.");
       onSuccess();

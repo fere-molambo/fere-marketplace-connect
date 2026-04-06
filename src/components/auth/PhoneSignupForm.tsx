@@ -89,19 +89,14 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
   const handleResendOtp = async () => {
     if (!formData) return;
     try {
-      const { data: result, error } = await supabase.functions.invoke("phone-auth", {
-        body: {
-          action: "register",
-          phone: formData.phone,
-          full_name: formData.nom_complet,
-          pin: formData.pin,
-          role: formData.role,
-          email: formData.email || undefined,
-        },
+      const result = await invokeFunction(supabase, "phone-auth", {
+        action: "register",
+        phone: formData.phone,
+        full_name: formData.nom_complet,
+        pin: formData.pin,
+        role: formData.role,
+        email: formData.email || undefined,
       });
-
-      if (error) throw new Error(error.message);
-      if (result && !result.success) throw new Error(result.error);
 
       setSmsSent(result?.sms_sent !== false);
       setDevOtp(result?.dev_otp || null);

@@ -49,11 +49,7 @@ const ResetPinFlow = ({ onBack }: ResetPinFlowProps) => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "reset-pin-confirm", phone, otp, new_pin: newPin },
-      });
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "reset-pin-confirm", phone, otp, new_pin: newPin });
       toast.success(data.message || "PIN réinitialisé avec succès");
       onBack();
     } catch (err: any) {

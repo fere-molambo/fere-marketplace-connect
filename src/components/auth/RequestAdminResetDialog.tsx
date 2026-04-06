@@ -26,11 +26,7 @@ const RequestAdminResetDialog = () => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "request-admin-reset", phone },
-      });
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "request-admin-reset", phone });
       toast.success(data.message || "Demande envoyée");
       setOpen(false);
       setPhone("+225");

@@ -28,11 +28,7 @@ const ResetPinFlow = ({ onBack }: ResetPinFlowProps) => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("phone-auth", {
-        body: { action: "reset-pin-request", phone },
-      });
-      if (error) throw new Error(error.message);
-      if (data && !data.success) throw new Error(data.error);
+      const data = await invokeFunction(supabase, "phone-auth", { action: "reset-pin-request", phone });
       toast.success(data.message || "Code envoyé par SMS");
       setStep("otp");
     } catch (err: any) {

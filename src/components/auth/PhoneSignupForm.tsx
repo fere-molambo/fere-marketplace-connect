@@ -46,19 +46,14 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
 
   const onSubmitForm = async (data: PhoneSignupFormData) => {
     try {
-      const { data: result, error } = await supabase.functions.invoke("phone-auth", {
-        body: {
-          action: "register",
-          phone: data.phone,
-          full_name: data.nom_complet,
-          pin: data.pin,
-          role: data.role,
-          email: data.email || undefined,
-        },
+      const result = await invokeFunction(supabase, "phone-auth", {
+        action: "register",
+        phone: data.phone,
+        full_name: data.nom_complet,
+        pin: data.pin,
+        role: data.role,
+        email: data.email || undefined,
       });
-
-      if (error) throw new Error(error.message);
-      if (result && !result.success) throw new Error(result.error);
 
       setRegisteredPhone(data.phone);
       setFormData(data);

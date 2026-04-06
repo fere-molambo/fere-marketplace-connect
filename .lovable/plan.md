@@ -1,49 +1,44 @@
 
+But
 
-# Plan : Corriger le crash de l'edge function phone-auth
+Corriger la vraie cause du message générique sur le web, et donner la même correction à Bolt pour le mobile.
 
-## Probleme
+Diagnostic confirmé
 
-L'edge function `phone-auth` crash au demarrage (boot → shutdown sans traiter aucune requete). Les logs montrent uniquement des cycles boot/shutdown sans aucun log applicatif (`[phone-auth] Request received` n'apparait jamais). Cela indique un echec lors de l'import ou de l'initialisation.
+- `phone-auth` ne plante plus.
+- Les logs montrent qu’elle reçoit bien les requêtes et renvoie des erreurs métier normales (`Identifiants incorrects`, blocage temporaire, etc.).
+- Le problème actuel est côté client : tous les appels à `supabase.functions.invoke("phone-auth")` font `throw new Error(error.message)`. Quand Supabase renvoie une erreur HTTP 4xx/5xx, `error.message` devient seulement `Edge Function returned a non-2xx status code`, donc le vrai message backend est perdu.
+- Sur la capture, le numéro saisi semble incomplet, donc le dernier échec visible est cohérent avec une vraie erreur d’identifiants, pas avec un crash serveur.
 
-**Cause probable** : les imports utilisent des URLs flottantes (`https://esm.sh/@supabase/supabase-js@2`) qui peuvent resoudre vers une version incompatible avec l'edge runtime, ou `serve` de `deno.land/std@0.168.0` est devenu incompatible.
+Plan d’implémentation
 
-## Solution
+1. Centraliser le parsing des erreurs d’Edge Functions
+- Ajouter un helper commun (ex. `src/lib/parseFunctionError.ts`).
+- Gérer `FunctionsHttpError` et lire `await error.context.json()`.
+- Extraire proprement `message`, `error`, `reason`, `remaining_seconds`, `support_phone`, `support_email`.
+- Prévoir un fallback clair pour `FunctionsRelayError` / `FunctionsFetchError`.
 
-Mettre a jour `supabase/functions/phone-auth/index.ts` pour utiliser les imports stables recommandes :
+2. Corriger tous les appels `phone-auth` côté web
+- `src/hooks/useAuth.tsx` : login PIN
+- `src/components/auth/PhoneSignupForm.tsx` : register, verify-registration, resend
+- `src/components/auth/ResetPinFlow.tsx` : reset PIN
+- `src/components/auth/RequestAdminResetDialog.tsx` : demande admin
+- Remplacer partout la logique actuelle par le helper commun pour enfin afficher les vrais messages backend.
 
-1. **Remplacer l'import `serve`** : utiliser `Deno.serve` natif au lieu de `serve` de `deno.land/std`
-2. **Remplacer l'import supabase** : utiliser `npm:@supabase/supabase-js@2` au lieu de `esm.sh`
+3. Améliorer légèrement l’UX du champ téléphone
+- Empêcher les envois manifestement incomplets, ou au minimum afficher une validation plus claire avant l’appel backend.
+- Cela évitera les faux “bugs” quand le numéro saisi ne correspond pas au compte réel.
 
-### Changements concrets
+4. Corriger aussi l’instruction mobile/Bolt
+- Le mobile doit appliquer exactement le même parsing d’erreur.
+- Aucun changement backend supplémentaire n’est prioritaire : l’API renvoie déjà les bonnes infos, c’est leur affichage qui est mauvais.
 
-```typescript
-// AVANT (ligne 1-2)
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+Prompt Bolt.new
 
-// APRES
-import { createClient } from "npm:@supabase/supabase-js@2";
-```
+“Corrigez la gestion des erreurs pour tous les appels à `supabase.functions.invoke("phone-auth")`. N’affichez plus `error.message` brut quand Supabase renvoie une erreur HTTP. Si l’erreur est une `FunctionsHttpError`, lisez `await error.context.json()` et affichez `payload.message || payload.error`. Gérez aussi explicitement `403` (compte suspendu) et `429` (compte temporairement bloqué avec `remaining_seconds`). Appliquez cela au login, à l’inscription OTP, au reset PIN et à la demande admin. Ne changez pas l’API backend ; corrigez seulement le parsing et l’affichage des erreurs.”
 
-```typescript
-// AVANT (ligne 156)
-serve(async (req) => {
+Détails techniques
 
-// APRES
-Deno.serve(async (req) => {
-```
-
-3. **Appliquer les memes corrections aux autres edge functions** qui utilisent le meme pattern (verifier et corriger en batch).
-
-## Fichiers modifies
-
-| Fichier | Modification |
-|---|---|
-| `supabase/functions/phone-auth/index.ts` | Imports modernes + Deno.serve |
-| Potentiellement les autres edge functions | Meme pattern d'import si elles ont le meme probleme |
-
-## Impact
-
-Aucun changement de logique metier. Seuls les imports et le point d'entree sont mis a jour pour etre compatibles avec le runtime actuel.
-
+- Fichiers concernés : `src/hooks/useAuth.tsx`, `src/components/auth/PhoneSignupForm.tsx`, `src/components/auth/ResetPinFlow.tsx`, `src/components/auth/RequestAdminResetDialog.tsx`, plus un helper commun.
+- Le dernier diagnostic invalide l’hypothèse d’un crash de la fonction : la vraie panne visible pour l’utilisateur est l’affichage d’erreur trop générique.
+- Vérifications à faire après implémentation : login invalide, compte bloqué, compte suspendu, inscription avec numéro déjà utilisé, OTP invalide, login valide.

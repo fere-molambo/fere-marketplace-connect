@@ -1,56 +1,49 @@
 
 
-# Correction : Boutique reste "inactive" apres activation par l'admin
+# Plan : Corriger le crash de l'edge function phone-auth
 
-## Probleme identifie
+## Probleme
 
-Il y a deux champs distincts sur la table `shops` :
-- **`is_active`** (boolean, defaut `true`) : utilise par l'app mobile pour afficher/masquer la boutique
-- **`verification_status`** (string : `pending`, `verified`, `rejected`) : utilise par l'admin pour valider la boutique
+L'edge function `phone-auth` crash au demarrage (boot → shutdown sans traiter aucune requete). Les logs montrent uniquement des cycles boot/shutdown sans aucun log applicatif (`[phone-auth] Request received` n'apparait jamais). Cela indique un echec lors de l'import ou de l'initialisation.
 
-Quand l'admin clique "Activer" sur le dashboard web, seul `verification_status` passe a `verified`. Le champ `is_active` reste inchange. L'app mobile verifie probablement `is_active` (ou les deux), d'ou le message "Boutique inactive".
+**Cause probable** : les imports utilisent des URLs flottantes (`https://esm.sh/@supabase/supabase-js@2`) qui peuvent resoudre vers une version incompatible avec l'edge runtime, ou `serve` de `deno.land/std@0.168.0` est devenu incompatible.
 
-## Correction cote web (Lovable)
+## Solution
 
-Dans `ShopDetail.tsx`, la fonction `updateStatus` sera modifiee pour aussi mettre a jour `is_active` :
-- `verified` → `is_active = true`
-- `rejected` ou `pending` → `is_active = false`
+Mettre a jour `supabase/functions/phone-auth/index.ts` pour utiliser les imports stables recommandes :
 
-## Prompt pour Bolt.new
+1. **Remplacer l'import `serve`** : utiliser `Deno.serve` natif au lieu de `serve` de `deno.land/std`
+2. **Remplacer l'import supabase** : utiliser `npm:@supabase/supabase-js@2` au lieu de `esm.sh`
 
-Voici ce que tu dois dire a Bolt.new :
+### Changements concrets
 
----
+```typescript
+// AVANT (ligne 1-2)
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-**Correction : logique d'affichage "Boutique inactive"**
-
-Actuellement, l'app mobile affiche "Boutique inactive - activez-la dans les parametres" en se basant sur le champ `is_active` de la table `shops`. Cependant, l'activation d'une boutique par un admin se fait via le champ `verification_status`.
-
-**Changements a effectuer :**
-
-1. **Remplacer la verification** : au lieu de verifier uniquement `is_active`, verifier `verification_status`. Une boutique est operationnelle quand `verification_status === 'verified'`.
-
-2. **Adapter le bandeau d'alerte** :
-   - Si `verification_status === 'pending'` → afficher "Votre boutique est en attente de validation par l'equipe Fere. Vous serez notifie une fois qu'elle sera activee."
-   - Si `verification_status === 'rejected'` → afficher "Votre boutique a ete rejetee. Contactez le support pour plus d'informations."
-   - Si `verification_status === 'verified'` → ne rien afficher (boutique operationnelle)
-
-3. **Supprimer le message "activez-la dans les parametres"** : le vendeur ne peut PAS activer sa propre boutique. C'est l'admin qui le fait depuis le dashboard. Le vendeur doit juste attendre.
-
-4. **Ne PAS ajouter de bouton d'activation dans les parametres du vendeur** : ce n'est pas au vendeur d'activer sa boutique.
-
-5. **Requete Supabase** : quand vous chargez la boutique du vendeur, incluez `verification_status` dans le SELECT :
-```sql
-SELECT *, verification_status FROM shops WHERE owner_id = user_id
+// APRES
+import { createClient } from "npm:@supabase/supabase-js@2";
 ```
 
-6. **Condition de visibilite publique** : les produits et services ne doivent etre visibles pour les clients QUE si `verification_status = 'verified'` ET `is_active = true`.
+```typescript
+// AVANT (ligne 156)
+serve(async (req) => {
 
----
+// APRES
+Deno.serve(async (req) => {
+```
 
-## Fichiers modifies cote Lovable
+3. **Appliquer les memes corrections aux autres edge functions** qui utilisent le meme pattern (verifier et corriger en batch).
+
+## Fichiers modifies
 
 | Fichier | Modification |
 |---|---|
-| `src/pages/ShopDetail.tsx` | `updateStatus` met aussi a jour `is_active` en fonction du statut |
+| `supabase/functions/phone-auth/index.ts` | Imports modernes + Deno.serve |
+| Potentiellement les autres edge functions | Meme pattern d'import si elles ont le meme probleme |
+
+## Impact
+
+Aucun changement de logique metier. Seuls les imports et le point d'entree sont mis a jour pour etre compatibles avec le runtime actuel.
 

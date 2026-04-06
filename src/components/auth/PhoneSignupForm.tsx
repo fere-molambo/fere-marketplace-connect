@@ -18,6 +18,7 @@ import { phoneSignupSchema, PhoneSignupFormData } from "@/lib/validators";
 import OtpVerificationStep from "./OtpVerificationStep";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeFunction } from "@/lib/parseFunctionError";
 
 interface PhoneSignupFormProps {
   onSuccess: () => void;

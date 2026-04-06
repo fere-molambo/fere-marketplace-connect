@@ -29,7 +29,7 @@ function generateInternalPassword(): string {
 const PHONE_BASED_ROLES = ['vendeur', 'livreur', 'membre', 'equipe'];
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

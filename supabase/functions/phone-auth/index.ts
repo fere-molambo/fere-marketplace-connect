@@ -152,7 +152,7 @@ async function verifyOtpIkoddi(phone: string, otp: string, otpToken: string): Pr
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   console.log(`[phone-auth] Request received: ${req.method} ${req.url}`);
   
   if (req.method === 'OPTIONS') {

@@ -10,7 +10,7 @@ const ORANGE_API_BASE = 'https://api.orange.com';
 // Cache the access token (valid ~90 days)
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

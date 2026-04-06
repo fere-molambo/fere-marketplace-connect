@@ -8,7 +8,7 @@ const corsHeaders = {
 // Orange Money does NOT have an automated refund API.
 // Refunds are tracked in the database and processed manually by admins.
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

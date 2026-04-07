@@ -1,44 +1,73 @@
 
-But
 
-Corriger la vraie cause du message générique sur le web, et donner la même correction à Bolt pour le mobile.
+# Plan : Reduire le Cached Egress Supabase
 
-Diagnostic confirmé
+## Diagnostic
 
-- `phone-auth` ne plante plus.
-- Les logs montrent qu’elle reçoit bien les requêtes et renvoie des erreurs métier normales (`Identifiants incorrects`, blocage temporaire, etc.).
-- Le problème actuel est côté client : tous les appels à `supabase.functions.invoke("phone-auth")` font `throw new Error(error.message)`. Quand Supabase renvoie une erreur HTTP 4xx/5xx, `error.message` devient seulement `Edge Function returned a non-2xx status code`, donc le vrai message backend est perdu.
-- Sur la capture, le numéro saisi semble incomplet, donc le dernier échec visible est cohérent avec une vraie erreur d’identifiants, pas avec un crash serveur.
+Votre projet Supabase Free Plan a depasse le quota de **Cached Egress** (6.75 GB / 5 GB = 135%). Le "Cached Egress" correspond principalement au trafic des **images servies via le CDN de Supabase Storage** (logos boutiques, images produits, stories, avatars, etc.).
 
-Plan d’implémentation
+Deux problemes majeurs identifies dans le code :
 
-1. Centraliser le parsing des erreurs d’Edge Functions
-- Ajouter un helper commun (ex. `src/lib/parseFunctionError.ts`).
-- Gérer `FunctionsHttpError` et lire `await error.context.json()`.
-- Extraire proprement `message`, `error`, `reason`, `remaining_seconds`, `support_phone`, `support_email`.
-- Prévoir un fallback clair pour `FunctionsRelayError` / `FunctionsFetchError`.
+### 1. React Query desactive tout cache (cause principale des requetes repetees)
+```typescript
+// App.tsx — configuration actuelle
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,    // ← Chaque donnee est "perimee" immediatement
+      gcTime: 0,        // ← Le cache est vide en permanence
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,  // ← Re-fetch a chaque focus de fenetre
+    },
+  },
+});
+```
+Resultat : chaque navigation ou retour d'onglet relance TOUTES les requetes, y compris celles qui chargent des listes de produits/services contenant des URLs d'images. Le navigateur re-telecharge ensuite ces images depuis le CDN Supabase.
 
-2. Corriger tous les appels `phone-auth` côté web
-- `src/hooks/useAuth.tsx` : login PIN
-- `src/components/auth/PhoneSignupForm.tsx` : register, verify-registration, resend
-- `src/components/auth/ResetPinFlow.tsx` : reset PIN
-- `src/components/auth/RequestAdminResetDialog.tsx` : demande admin
-- Remplacer partout la logique actuelle par le helper commun pour enfin afficher les vrais messages backend.
+### 2. Cache-busters sur les URLs d'images
+Certains fichiers ajoutent `?t=${Date.now()}` aux URLs publiques, ce qui force le CDN a renvoyer le fichier a chaque fois au lieu de servir depuis le cache navigateur.
 
-3. Améliorer légèrement l’UX du champ téléphone
-- Empêcher les envois manifestement incomplets, ou au minimum afficher une validation plus claire avant l’appel backend.
-- Cela évitera les faux “bugs” quand le numéro saisi ne correspond pas au compte réel.
+### 3. `select("*")` partout
+235 occurrences de `select("*")` : on recupere toutes les colonnes alors que souvent seuls quelques champs sont necessaires, ce qui augmente le volume de donnees transfere.
 
-4. Corriger aussi l’instruction mobile/Bolt
-- Le mobile doit appliquer exactement le même parsing d’erreur.
-- Aucun changement backend supplémentaire n’est prioritaire : l’API renvoie déjà les bonnes infos, c’est leur affichage qui est mauvais.
+## Changements prevus
 
-Prompt Bolt.new
+### Fichier 1 : `src/App.tsx`
+Configurer React Query avec un cache raisonnable :
+- `staleTime: 2 * 60 * 1000` (2 minutes) — les donnees restent "fraiches" 2 min
+- `gcTime: 5 * 60 * 1000` (5 minutes) — le cache est conserve 5 min
+- `refetchOnWindowFocus: false` — ne plus re-fetcher a chaque retour sur l'onglet
 
-“Corrigez la gestion des erreurs pour tous les appels à `supabase.functions.invoke("phone-auth")`. N’affichez plus `error.message` brut quand Supabase renvoie une erreur HTTP. Si l’erreur est une `FunctionsHttpError`, lisez `await error.context.json()` et affichez `payload.message || payload.error`. Gérez aussi explicitement `403` (compte suspendu) et `429` (compte temporairement bloqué avec `remaining_seconds`). Appliquez cela au login, à l’inscription OTP, au reset PIN et à la demande admin. Ne changez pas l’API backend ; corrigez seulement le parsing et l’affichage des erreurs.”
+Cela reduit drastiquement le nombre de requetes API et donc le trafic CDN pour les images referees dans les reponses.
 
-Détails techniques
+### Fichier 2 : `src/components/shops/ShopImageUpload.tsx`
+Supprimer le `?t=${Date.now()}` cache-buster sur les URLs publiques. Utiliser `queryClient.invalidateQueries()` pour rafraichir les donnees apres upload.
 
-- Fichiers concernés : `src/hooks/useAuth.tsx`, `src/components/auth/PhoneSignupForm.tsx`, `src/components/auth/ResetPinFlow.tsx`, `src/components/auth/RequestAdminResetDialog.tsx`, plus un helper commun.
-- Le dernier diagnostic invalide l’hypothèse d’un crash de la fonction : la vraie panne visible pour l’utilisateur est l’affichage d’erreur trop générique.
-- Vérifications à faire après implémentation : login invalide, compte bloqué, compte suspendu, inscription avec numéro déjà utilisé, OTP invalide, login valide.
+### Fichier 3 : `src/components/shops/tabs/ConfigTab.tsx`
+Meme correction : supprimer le cache-buster `?t=${Date.now()}`.
+
+### Fichier 4 : Pages publiques les plus consultees
+Optimiser les `select("*")` sur les pages a fort trafic pour ne recuperer que les colonnes necessaires :
+- `src/pages/Home.tsx` / `ProductsServicesSection.tsx` — produits et services publics
+- `src/pages/PublicShop.tsx` — boutique publique (produits, services, stories)
+- `src/pages/ProductsServices.tsx` — catalogue
+
+Par exemple, au lieu de `select("*")` sur `products`, selectionner uniquement `id, name, price, main_image, shop_id, category_id, ...` (les champs affiches).
+
+## Impact estime
+
+| Optimisation | Reduction estimee |
+|---|---|
+| Cache React Query (2 min stale) | ~50-60% de requetes en moins |
+| Suppression cache-busters | ~10-15% de hits CDN en moins |
+| Select specifique (pages publiques) | ~10-20% de volume par requete |
+| **Total estime** | **~60-70% de reduction du cached egress** |
+
+Avec 6.75 GB actuellement, cela devrait ramener l'usage autour de 2-3 GB, bien sous le quota de 5 GB.
+
+## Details techniques
+
+- Les donnees qui necessitent du temps reel (messages, statuts commandes) garderont des `staleTime` plus courts via des overrides locaux dans leurs hooks respectifs.
+- Les mutations (creation/modification de produit, etc.) continueront a invalider le cache via `queryClient.invalidateQueries()`, donc les donnees seront toujours a jour apres une action utilisateur.
+- Aucun changement de fonctionnalite visible pour l'utilisateur.
+

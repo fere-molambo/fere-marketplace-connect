@@ -109,7 +109,7 @@ export default function PublicShop() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("*")
+        .select("id, name, price, price_type, main_image_url, discount_percent, description, duration_minutes, category_id")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("created_at", { ascending: false });

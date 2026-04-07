@@ -44,10 +44,10 @@ import { DashboardLayout } from "./components/layout/DashboardLayout";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
-      gcTime: 0,
+      staleTime: 2 * 60 * 1000,
+      gcTime: 5 * 60 * 1000,
       refetchOnMount: true,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
     },
   },
 });

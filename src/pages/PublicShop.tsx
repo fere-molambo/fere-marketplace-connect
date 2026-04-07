@@ -75,7 +75,7 @@ export default function PublicShop() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("shop_stories")
-        .select("*")
+        .select("id, media_url, media_type, caption, expires_at, linked_product_id, linked_service_id")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .eq("visibility", "public")

@@ -75,7 +75,7 @@ export default function PublicShop() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("shop_stories")
-        .select("*")
+        .select("id, media_url, media_type, caption, expires_at, linked_product_id, linked_service_id")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .eq("visibility", "public")
@@ -93,7 +93,7 @@ export default function PublicShop() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*")
+        .select("id, name, price, price_type, main_media_url, hover_media_url, discount_percent, description, condition, quantity_available, min_quantity, category_id, subcategory_id, colors, sizes")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
@@ -109,7 +109,7 @@ export default function PublicShop() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("*")
+        .select("id, name, price, price_type, main_media_url, hover_media_url, discount_percent, description, duration, shop_id, requires_booking, travel_fee_type, travel_fee_amount")
         .eq("shop_id", shopId)
         .eq("is_active", true)
         .order("created_at", { ascending: false });

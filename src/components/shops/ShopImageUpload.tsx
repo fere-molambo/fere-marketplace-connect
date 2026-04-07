@@ -3,6 +3,7 @@ import { Camera, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ShopImageUploadProps {
   shopId: string;
@@ -19,6 +20,7 @@ export const ShopImageUpload = ({
 }: ShopImageUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -55,19 +57,18 @@ export const ShopImageUpload = ({
         .from(bucket)
         .getPublicUrl(filePath);
 
-      // Add cache-buster to force browser refresh
-      const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
-
       // Update shop record
       const updateField = imageType === "logo" ? "logo_url" : "banner_url";
       const { error: updateError } = await supabase
         .from("shops")
-        .update({ [updateField]: urlWithCacheBuster })
+        .update({ [updateField]: publicUrl })
         .eq("id", shopId);
 
       if (updateError) throw updateError;
 
       toast.success(`${imageType === "logo" ? "Logo" : "Bannière"} mise à jour avec succès`);
+      queryClient.invalidateQueries({ queryKey: ["shop"] });
+      queryClient.invalidateQueries({ queryKey: ["public-shop"] });
       onUploadComplete();
     } catch (error: any) {
       console.error("Upload error:", error);

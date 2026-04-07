@@ -56,7 +56,7 @@ const ProductsServices = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("product_categories")
-        .select("*")
+        .select("id, name, parent_id, display_order")
         .eq("is_active", true)
         .order("display_order");
       if (error) throw error;
@@ -70,7 +70,7 @@ const ProductsServices = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("flash_sales")
-        .select("*")
+        .select("id, product_id, service_id, flash_price, ends_at")
         .eq("is_active", true)
         .gt("ends_at", new Date().toISOString());
       if (error) throw error;

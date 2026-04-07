@@ -355,7 +355,7 @@ export const ConfigTab = ({ shopId }: ConfigTabProps) => {
         .from("shop-guides")
         .getPublicUrl(filePath);
 
-      const newGuideUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+      const newGuideUrl = publicUrlData.publicUrl;
       
       const { error: updateError } = await supabase
         .from("shops")

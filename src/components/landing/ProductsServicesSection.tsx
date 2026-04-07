@@ -78,7 +78,7 @@ export const ProductsServicesSection = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("flash_sales")
-        .select("*")
+        .select("id, product_id, service_id, flash_price, ends_at")
         .eq("is_active", true)
         .gt("ends_at", new Date().toISOString());
       if (error) throw error;

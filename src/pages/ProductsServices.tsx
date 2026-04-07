@@ -56,7 +56,7 @@ const ProductsServices = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("product_categories")
-        .select("*")
+        .select("id, name, parent_id, display_order")
         .eq("is_active", true)
         .order("display_order");
       if (error) throw error;

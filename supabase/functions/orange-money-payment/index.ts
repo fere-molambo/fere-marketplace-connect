@@ -268,7 +268,7 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
 
   const accessToken = await getAccessToken();
 
-  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/dev/v1/transactionstatus`, {
+  const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/ml/v1/transactionstatus`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,

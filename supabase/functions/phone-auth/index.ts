@@ -51,105 +51,128 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
 }
 
 // ============================================================
-// IKODDI OTP As A Service API
+// ORANGE MALI SMS API — OTP generation (local) + SMS delivery (Orange)
+// Docs: https://developer.orange.com/apis/sms-ml
 // ============================================================
-function getIkoddiConfig() {
-  const apiKey = Deno.env.get('IKODDI_API_KEY');
-  const orgId = Deno.env.get('IKODDI_ORGANIZATION_ID');
-  const otpAppId = Deno.env.get('IKODDI_OTP_APP_ID');
-  if (!apiKey || !orgId || !otpAppId) {
-    throw new Error('Ikoddi credentials not configured (API_KEY, ORGANIZATION_ID, OTP_APP_ID)');
+let cachedOrangeToken: { token: string; expiresAt: number } | null = null;
+
+async function getOrangeAccessToken(forceRefresh = false): Promise<string> {
+  const authHeader = Deno.env.get('ORANGE_SMS_AUTH_HEADER');
+  if (!authHeader) {
+    throw new Error('ORANGE_SMS_AUTH_HEADER not configured');
   }
-  return { apiKey, orgId, otpAppId };
+
+  if (!forceRefresh && cachedOrangeToken && cachedOrangeToken.expiresAt > Date.now() + 60_000) {
+    return cachedOrangeToken.token;
+  }
+
+  const res = await fetch('https://api.orange.com/oauth/v3/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': authHeader.startsWith('Basic ') ? authHeader : `Basic ${authHeader}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json',
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    console.error('[phone-auth] Orange OAuth failed:', res.status, text);
+    throw new Error(`Orange OAuth failed: ${res.status}`);
+  }
+  const data = JSON.parse(text);
+  cachedOrangeToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000),
+  };
+  console.log('[phone-auth] Orange OAuth token refreshed');
+  return cachedOrangeToken.token;
 }
 
-function toIkoddiIdentity(phone: string): string {
-  return phone.replace('+', '');
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function generateOtp(): string {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
+  return n.toString().padStart(6, '0');
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
 }
 
 /**
- * Send OTP via Ikoddi OTP As A Service.
- * Ikoddi generates & sends the code. Returns the otpToken for later verification.
+ * Generate a 6-digit OTP locally, send via Orange Mali SMS API, return the SHA-256 hash
+ * to store in DB for later verification. Returns null if SMS delivery failed.
  */
-async function sendOtpIkoddi(phone: string): Promise<string | null> {
-  const { apiKey, orgId, otpAppId } = getIkoddiConfig();
-  const identity = toIkoddiIdentity(phone);
+async function sendOtpOrange(phone: string): Promise<string | null> {
+  const sender = Deno.env.get('ORANGE_SMS_SENDER_ADDRESS');
+  if (!sender) {
+    console.error('[phone-auth] ORANGE_SMS_SENDER_ADDRESS not configured');
+    return null;
+  }
 
-  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/sms/${identity}`;
-  console.log(`[phone-auth] Ikoddi OTP send → POST ${url}`);
+  const code = generateOtp();
+  const message = `Fere : votre code de verification est ${code}. Valide ${OTP_EXPIRY_MINUTES} minutes. Ne le partagez avec personne.`;
+  const receiver = phone.startsWith('tel:') ? phone : `tel:${phone}`;
+  const url = `https://api.orange.com/smsmessaging/v1/outbound/${encodeURIComponent(sender)}/requests`;
+
+  const payload = {
+    outboundSMSMessageRequest: {
+      address: receiver,
+      senderAddress: sender,
+      outboundSMSTextMessage: { message },
+    },
+  };
+
+  const doPost = async (token: string) => fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-    });
+    let token = await getOrangeAccessToken();
+    let res = await doPost(token);
 
-    const responseText = await response.text();
-    console.log('[phone-auth] Ikoddi OTP response:', response.status, responseText);
+    if (res.status === 401) {
+      console.warn('[phone-auth] Orange SMS 401, refreshing token and retrying');
+      token = await getOrangeAccessToken(true);
+      res = await doPost(token);
+    }
 
-    if (!response.ok) {
-      console.error(`[phone-auth] Ikoddi OTP failed: ${response.status} ${responseText}`);
+    const text = await res.text();
+    if (!res.ok) {
+      console.error('[phone-auth] Orange SMS send failed:', res.status, text);
       return null;
     }
 
-    const data = JSON.parse(responseText);
-    // Ikoddi returns { status: 0, otpToken: "..." } on success
-    if (data.status === 0 && data.otpToken) {
-      console.log(`[phone-auth] OTP sent successfully to ${phone}, otpToken received`);
-      return data.otpToken;
-    }
-
-    console.error(`[phone-auth] Ikoddi OTP unexpected response:`, data);
-    return null;
+    console.log(`[phone-auth] Orange SMS sent to ${phone}`);
+    return await sha256Hex(code);
   } catch (err) {
-    console.error('[phone-auth] Ikoddi OTP send error:', err);
+    console.error('[phone-auth] Orange SMS exception:', err);
     return null;
   }
 }
 
 /**
- * Verify OTP via Ikoddi OTP As A Service.
- * Returns true if the OTP matches.
+ * Verify a submitted OTP against the stored SHA-256 hash.
  */
-async function verifyOtpIkoddi(phone: string, otp: string, otpToken: string): Promise<boolean> {
-  const { apiKey, orgId, otpAppId } = getIkoddiConfig();
-  const identity = toIkoddiIdentity(phone);
-
-  const url = `https://api.ikoddi.com/api/v1/groups/${orgId}/otp/${otpAppId}/verify`;
-  console.log(`[phone-auth] Ikoddi OTP verify → POST ${url}`);
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        verificationKey: otpToken,
-        otp,
-        identity,
-      }),
-    });
-
-    const responseText = await response.text();
-    console.log('[phone-auth] Ikoddi verify response:', response.status, responseText);
-
-    if (!response.ok) {
-      console.error(`[phone-auth] Ikoddi verify failed: ${response.status} ${responseText}`);
-      return false;
-    }
-
-    const data = JSON.parse(responseText);
-    // Ikoddi returns { status: 0, message: "OTP Matched for ..." } on success
-    return data.status === 0;
-  } catch (err) {
-    console.error('[phone-auth] Ikoddi verify error:', err);
-    return false;
-  }
+async function verifyOtpLocal(submittedOtp: string, storedHash: string): Promise<boolean> {
+  if (!storedHash || storedHash === 'FAILED') return false;
+  if (!/^\d{6}$/.test(submittedOtp)) return false;
+  const submittedHash = await sha256Hex(submittedOtp);
+  return constantTimeEqual(submittedHash, storedHash);
 }
 
 Deno.serve(async (req) => {
@@ -246,9 +269,9 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   // Record OTP rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Send OTP via Ikoddi OTP As A Service
-  const otpToken = await sendOtpIkoddi(phone);
-  const smsSent = !!otpToken;
+  // Send OTP via Orange Mali SMS API (returns stored hash on success)
+  const otpHash = await sendOtpOrange(phone);
+  const smsSent = !!otpHash;
 
   // Store otpToken (or placeholder if failed) in pending_registrations
   const { error: upsertError } = await supabaseAdmin
@@ -259,7 +282,7 @@ async function handleRegister(supabaseAdmin: any, body: any) {
       email: email?.trim() || null,
       role,
       pin_hash: pinHash,
-      otp_code: otpToken || 'FAILED',
+      otp_code: otpHash || 'FAILED',
       otp_expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString(),
       otp_attempts: 0,
     }, { onConflict: 'phone' });
@@ -308,8 +331,8 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
     throw new Error('L\'envoi du SMS a échoué. Cliquez sur « Renvoyer le code »');
   }
 
-  // Verify OTP via Ikoddi
-  const otpValid = await verifyOtpIkoddi(phone, otp, pending.otp_code);
+  // Verify OTP locally against stored hash
+  const otpValid = await verifyOtpLocal(otp, pending.otp_code);
 
   if (!otpValid) {
     const nextAttempts = (pending.otp_attempts || 0) + 1;
@@ -492,7 +515,7 @@ async function handleLogin(supabaseAdmin: any, body: any) {
 }
 
 // ============================================================
-// RESET PIN REQUEST (self-service via Ikoddi OTP)
+// RESET PIN REQUEST (self-service via Orange SMS OTP)
 // ============================================================
 async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   const { phone } = body;
@@ -538,16 +561,16 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   // Record rate limit
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
-  // Send OTP via Ikoddi OTP As A Service
-  const otpToken = await sendOtpIkoddi(phone);
-  const smsSent = !!otpToken;
+  // Send OTP via Orange Mali SMS API
+  const otpHash = await sendOtpOrange(phone);
+  const smsSent = !!otpHash;
 
   // Store in pending_pin_resets
   const { error: upsertError } = await supabaseAdmin
     .from('pending_pin_resets')
     .upsert({
       phone,
-      otp_token: otpToken || 'FAILED',
+      otp_token: otpHash || 'FAILED',
       otp_expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString(),
       otp_attempts: 0,
     }, { onConflict: 'phone' });
@@ -566,7 +589,7 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
 }
 
 // ============================================================
-// RESET PIN CONFIRM (verify OTP via Ikoddi + set new PIN)
+// RESET PIN CONFIRM (verify OTP locally + set new PIN)
 // ============================================================
 async function handleResetPinConfirm(supabaseAdmin: any, body: any) {
   const { phone, otp, new_pin } = body;
@@ -599,8 +622,8 @@ async function handleResetPinConfirm(supabaseAdmin: any, body: any) {
     throw new Error('L\'envoi du SMS a échoué. Demandez un nouveau code');
   }
 
-  // Verify OTP via Ikoddi
-  const otpValid = await verifyOtpIkoddi(phone, otp, pending.otp_token);
+  // Verify OTP locally against stored hash
+  const otpValid = await verifyOtpLocal(otp, pending.otp_token);
 
   if (!otpValid) {
     const nextAttempts = (pending.otp_attempts || 0) + 1;

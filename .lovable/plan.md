@@ -1,85 +1,88 @@
-# Migration OTP : Ikoddi/Twilio → Orange Mali SMS API
+## Correction config Orange SMS + logging détaillé pour debug
 
-## Objectif
-Remplacer l'envoi d'OTP via Ikoddi (et toute référence Twilio) par l'API SMS Orange Mali. Aucun changement fonctionnel côté utilisateur ni côté UI. Pas d'impact sur Orange Money Webpay.
+### Pourquoi corriger
 
-## Numéro expéditeur confirmé
-`tel:+22376771321` (Mali) — utilisé comme `senderAddress` dans l'URL outbound Orange.
+La doc Orange officielle (section 3.1) impose `senderAddress = tel:+{country_sender_number}` avec la table par pays. Pour le Mali (MLI) : **`tel:+2230000`**. Le `SMS 928248` visible dans le portail est un *sender name par défaut* appliqué automatiquement côté Orange, pas une adresse API.
 
----
+Zone d'incertitude assumée : Orange Mali Business peut avoir des spécificités locales (sender perso pré-whitelisté, format différent). D'où le logging exhaustif ci-dessous pour diagnostiquer rapidement si le premier essai échoue.
 
-## 1. Secrets à configurer
+### 1. Mise à jour du secret
 
-### À ajouter (via `add_secret`)
-- `ORANGE_SMS_CLIENT_ID` = `obdWUyZUcSIEHGEUDJiL099rzNAVgYwi`
-- `ORANGE_SMS_CLIENT_SECRET` = `0cjT9VJpzgcsgrA8XzNuGaFo6ZGJiQVWcQzOYN0EPtov`
-- `ORANGE_SMS_AUTH_HEADER` = `Basic ...` (header complet fourni par le user)
-- `ORANGE_SMS_SENDER_ADDRESS` = `tel:+22376771321`
+- `ORANGE_SMS_SENDER_ADDRESS` : actuel `tel:+22376771321` → **`tel:+2230000`**
 
-### À supprimer (via `delete_secret`)
-- `IKODDI_API_KEY`
-- `IKODDI_OTP_APP_ID`
-- `IKODDI_ORGANIZATION_ID`
-- `TWILIO_API_KEY`
-- `AFRICASTALKING_USERNAME`
-- `AFRICASTALKING_API_KEY`
+### 2. Refonte de `supabase/functions/phone-auth/index.ts` — partie envoi SMS
 
-Conserver tous les `ORANGE_MONEY_*` (Webpay) intacts.
+**Endpoints :**
+- Token : `https://api.orange.com/oauth/v3/token` (v3, pas v1)
+- Outbound : `https://api.orange.com/smsmessaging/v1/outbound/{senderAddress URL-encoded}/requests`
+- Body : **sans `senderName`** (le défaut Orange s'applique automatiquement)
 
----
+**Logging détaillé à ajouter** (avec un prefixe stable `[OrangeSMS]` pour filtrer dans les logs) :
 
-## 2. Fichier modifié : `supabase/functions/phone-auth/index.ts`
+À chaque étape, logger :
 
-Seul fichier touché. Aucun autre code (UI, DB, autres edge functions) n'est modifié.
+1. **Avant token request** :
+   - `[OrangeSMS] Token request → URL, présence/longueur de AUTH_HEADER (jamais la valeur), cache hit/miss`
+2. **Réponse token** :
+   - `[OrangeSMS] Token response → status, expires_in, token_type, (préfixe access_token : 8 premiers chars uniquement)`
+   - Si erreur : body brut complet (les erreurs OAuth ne contiennent pas de secret exploitable)
+3. **Avant outbound** :
+   - `[OrangeSMS] Outbound request → sender_address (valeur), sender_address_encoded (URL-encodée), recipient (masqué : 4 derniers chiffres), endpoint final, message_length, body JSON complet (le code OTP est éphémère, c'est OK le temps du debug)`
+4. **Réponse outbound** :
+   - `[OrangeSMS] Outbound response → status, content-type, body brut`
+   - Sur 201/200 : `resourceURL`, `resource_id` extrait
+   - Sur 4xx/5xx : body JSON brut + headers de réponse pertinents (`x-request-id`, `www-authenticate` si 401)
+5. **Sur retry après 401** :
+   - `[OrangeSMS] 401 → token expired, forcing refresh, retrying outbound`
+6. **Sur exception réseau** :
+   - `[OrangeSMS] Network error → error.name, error.message, stack`
 
-### Changements internes
-- Suppression complète des fonctions `sendOtpIkoddi()` et `verifyOtpIkoddi()`.
-- Ajout :
-  - `getOrangeAccessToken()` : POST `https://api.orange.com/oauth/v1/token` avec `ORANGE_SMS_AUTH_HEADER`, cache token en mémoire (TTL ~ expires_in - 60s).
-  - `sendOtpOrange(phone, code)` : POST `https://api.orange.com/smsmessaging/v1/outbound/{senderAddress}/requests` avec retry sur 401 (refresh token).
-  - `verifyOtpLocal(phone, code)` : compare hash SHA-256 stocké dans `pending_registrations.otp_code` (comparaison constant-time).
-- Génération OTP locale : 6 chiffres, expiration 10 minutes (inchangé).
-- Format message : `Fere : votre code de vérification est {CODE}. Valide 10 minutes. Ne le partagez avec personne.`
+**Contract de réponse au client** : en cas d'échec SMS, renvoyer un payload structuré au mobile :
+```json
+{
+  "success": false,
+  "stage": "sms_send" | "token" | "validation",
+  "orange_status": 400,
+  "orange_code": "...",
+  "orange_message": "...",
+  "request_id": "..." 
+}
+```
+Sans exposer les secrets, mais assez pour que l'utilisateur puisse copier l'erreur dans le chat et qu'on diagnostique en 1 aller-retour.
 
-### Endpoints (signatures inchangées)
-- `register` → envoie OTP via Orange
-- `verify-registration` → vérifie OTP localement
-- `reset-pin-request` → envoie OTP via Orange
-- `reset-pin-confirm` → vérifie OTP localement
-- `login`, `request-admin-reset`, `admin-fix-user` → aucun changement
+### 3. Stratégie de fallback si `tel:+2230000` ne fonctionne pas
 
-### Gestion d'erreurs
-- 401 token expiré → refresh + 1 retry
-- 403 / quota → erreur claire renvoyée, `sms_sent: false`
-- Autres 4xx/5xx → log + `sms_sent: false`, l'utilisateur voit toast d'erreur générique
+Le code prévoira **un seul comportement** (la valeur du secret), mais on documente une matrice de tests rapides par changement de secret (aucun redeploy nécessaire) :
 
----
+| Test | Valeur secret `ORANGE_SMS_SENDER_ADDRESS` | Si échec, indice |
+|---|---|---|
+| A (officiel doc) | `tel:+2230000` | Si `400 invalid sender` → essayer B |
+| B (short code +) | `tel:+928248` | Si `400` → essayer C |
+| C (short code nu) | `tel:928248` | Si `400` → essayer D |
+| D (numéro complet) | `tel:+22376771321` | Si `400` → contacter support Orange Mali |
 
-## 3. Aucune migration DB
-La table `pending_registrations` continue de stocker le hash OTP dans `otp_code` et `otp_expires_at`. Aucune colonne à ajouter/supprimer.
+Le logging à l'étape 4 ci-dessus permettra d'identifier immédiatement laquelle des valeurs Orange accepte.
 
----
+### 4. Mise à jour de `.lovable/plan.md`
 
-## 4. Mobile (Bolt.new) — message à transmettre
+Refléter : sender `tel:+2230000`, OAuth v3, sender name par défaut géré côté Orange, logging `[OrangeSMS]` activé.
 
-> Côté mobile, **aucun changement de code**. Les actions, payloads et réponses de la fonction `phone-auth` restent strictement identiques (`register`, `verify-registration`, `reset-pin-request`, `reset-pin-confirm`, `login`).
->
-> Seule différence visible : le SMS OTP est désormais envoyé depuis le numéro **+223 76 77 13 21 (Orange Mali)** au lieu d'Ikoddi.
->
-> L'intégration **Orange Money Webpay live** précédente n'est **pas affectée** : elle utilise des secrets séparés (`ORANGE_MONEY_*`) et un endpoint distinct (`orange-money-payment`).
+### 5. Validation
 
----
+1. Déployer `phone-auth`.
+2. Tester avec un vrai numéro `+223...` depuis le mobile ou via `curl_edge_functions`.
+3. Lire les logs `phone-auth` filtrés sur `[OrangeSMS]`.
+4. Si succès : SMS reçu, expéditeur `SMS 928248` (ou nom par défaut Orange Mali) — terminé.
+5. Si `400` au niveau outbound : copier le body de réponse Orange, appliquer la matrice de la section 3.
 
-## 5. Validation après déploiement
-1. Test inscription avec un numéro `+223...` réel → SMS reçu sous 30s.
-2. Test reset PIN → SMS reçu, nouveau PIN accepté.
-3. Logs edge function `phone-auth` : pas d'erreur 401/403 Orange.
-4. Login PIN inchangé.
-5. Test paiement Orange Money Webpay → toujours fonctionnel (régression).
+### 6. Impact mobile
 
----
+**Aucun** côté Bolt. La structure de réponse enrichie (`stage`, `orange_status`, etc.) est **additive** — les champs `success` et `error` existants restent en place et le mobile peut ignorer les nouveaux champs.
 
-## Question avant exécution
-Confirmes-tu que je peux :
-1. **Supprimer** les secrets Ikoddi, Twilio, Africastalking listés ci-dessus ?
-2. **Ajouter** les 4 nouveaux secrets `ORANGE_SMS_*` ?
+### Section technique
+
+- `encodeURIComponent("tel:+2230000")` → `tel%3A%2B2230000` (à utiliser dans le path de l'URL outbound).
+- Le `Authorization` header pour `/oauth/v3/token` reste `Basic <base64(client_id:client_secret)>` → conserver le secret `ORANGE_SMS_AUTH_HEADER` (valeur incluant le `Basic ` prefix).
+- Le token OAuth v3 est typiquement valide ~1h ; garder le cache mémoire avec TTL = `expires_in - 60s`.
+- TPS limité à 5 SMS/seconde → non bloquant pour des OTP individuels.
+- Le logging du body OTP est volontaire pendant la phase de validation. Une fois le canal stabilisé, on retirera la ligne du body et on gardera juste les métadonnées.

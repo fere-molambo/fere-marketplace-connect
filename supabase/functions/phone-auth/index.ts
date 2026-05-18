@@ -52,19 +52,32 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
 
 // ============================================================
 // ORANGE MALI SMS API — OTP generation (local) + SMS delivery (Orange)
-// Docs: https://developer.orange.com/apis/sms-ml
+// Docs: https://developer.orange.com/apis/sms/getting-started
+// Mali sender (official): tel:+2230000 (default sender name applied server-side)
 // ============================================================
 let cachedOrangeToken: { token: string; expiresAt: number } | null = null;
+
+type OrangeSmsDiagnostic = {
+  stage: 'token' | 'sms_send' | 'config' | 'network';
+  orange_status?: number;
+  orange_body?: string;
+  orange_request_id?: string;
+  message: string;
+};
 
 async function getOrangeAccessToken(forceRefresh = false): Promise<string> {
   const authHeader = Deno.env.get('ORANGE_SMS_AUTH_HEADER');
   if (!authHeader) {
+    console.error('[OrangeSMS] Token request → ORANGE_SMS_AUTH_HEADER missing');
     throw new Error('ORANGE_SMS_AUTH_HEADER not configured');
   }
 
   if (!forceRefresh && cachedOrangeToken && cachedOrangeToken.expiresAt > Date.now() + 60_000) {
+    console.log('[OrangeSMS] Token request → cache HIT (expires in', Math.round((cachedOrangeToken.expiresAt - Date.now()) / 1000), 's)');
     return cachedOrangeToken.token;
   }
+
+  console.log(`[OrangeSMS] Token request → URL=https://api.orange.com/oauth/v3/token, auth_header_len=${authHeader.length}, has_basic_prefix=${authHeader.startsWith('Basic ')}, cache=MISS${forceRefresh ? ' (forced)' : ''}`);
 
   const res = await fetch('https://api.orange.com/oauth/v3/token', {
     method: 'POST',
@@ -78,15 +91,23 @@ async function getOrangeAccessToken(forceRefresh = false): Promise<string> {
 
   const text = await res.text();
   if (!res.ok) {
-    console.error('[phone-auth] Orange OAuth failed:', res.status, text);
-    throw new Error(`Orange OAuth failed: ${res.status}`);
+    console.error(`[OrangeSMS] Token response → status=${res.status}, body=${text}`);
+    const err: any = new Error(`Orange OAuth failed: ${res.status}`);
+    err.diagnostic = {
+      stage: 'token' as const,
+      orange_status: res.status,
+      orange_body: text,
+      message: `OAuth Orange a échoué (HTTP ${res.status})`,
+    };
+    throw err;
   }
   const data = JSON.parse(text);
   cachedOrangeToken = {
     token: data.access_token,
     expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000),
   };
-  console.log('[phone-auth] Orange OAuth token refreshed');
+  const tokenPrefix = (data.access_token || '').substring(0, 8);
+  console.log(`[OrangeSMS] Token response → status=200, expires_in=${data.expires_in}s, token_type=${data.token_type}, token_prefix=${tokenPrefix}...`);
   return cachedOrangeToken.token;
 }
 
@@ -109,19 +130,20 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 /**
  * Generate a 6-digit OTP locally, send via Orange Mali SMS API, return the SHA-256 hash
- * to store in DB for later verification. Returns null if SMS delivery failed.
+ * to store in DB for later verification. Returns { hash } on success or { diagnostic } on failure.
  */
-async function sendOtpOrange(phone: string): Promise<string | null> {
+async function sendOtpOrange(phone: string): Promise<{ hash?: string; diagnostic?: OrangeSmsDiagnostic }> {
   const sender = Deno.env.get('ORANGE_SMS_SENDER_ADDRESS');
   if (!sender) {
-    console.error('[phone-auth] ORANGE_SMS_SENDER_ADDRESS not configured');
-    return null;
+    console.error('[OrangeSMS] Config → ORANGE_SMS_SENDER_ADDRESS missing');
+    return { diagnostic: { stage: 'config', message: 'ORANGE_SMS_SENDER_ADDRESS non configuré' } };
   }
 
   const code = generateOtp();
   const message = `Fere : votre code de verification est ${code}. Valide ${OTP_EXPIRY_MINUTES} minutes. Ne le partagez avec personne.`;
   const receiver = phone.startsWith('tel:') ? phone : `tel:${phone}`;
-  const url = `https://api.orange.com/smsmessaging/v1/outbound/${encodeURIComponent(sender)}/requests`;
+  const senderEncoded = encodeURIComponent(sender);
+  const url = `https://api.orange.com/smsmessaging/v1/outbound/${senderEncoded}/requests`;
 
   const payload = {
     outboundSMSMessageRequest: {
@@ -130,6 +152,11 @@ async function sendOtpOrange(phone: string): Promise<string | null> {
       outboundSMSTextMessage: { message },
     },
   };
+
+  // Mask recipient: keep only last 4 digits in logs
+  const recipientMasked = phone.length > 4 ? `***${phone.slice(-4)}` : '***';
+  console.log(`[OrangeSMS] Outbound request → sender="${sender}", sender_encoded="${senderEncoded}", recipient=${recipientMasked}, endpoint=${url}, message_length=${message.length}`);
+  console.log(`[OrangeSMS] Outbound body → ${JSON.stringify(payload)}`);
 
   const doPost = async (token: string) => fetch(url, {
     method: 'POST',
@@ -146,22 +173,59 @@ async function sendOtpOrange(phone: string): Promise<string | null> {
     let res = await doPost(token);
 
     if (res.status === 401) {
-      console.warn('[phone-auth] Orange SMS 401, refreshing token and retrying');
+      console.warn(`[OrangeSMS] 401 → token expired/invalid, forcing refresh, retrying outbound. www-authenticate=${res.headers.get('www-authenticate')}`);
+      // drain body
+      await res.text();
       token = await getOrangeAccessToken(true);
       res = await doPost(token);
     }
 
     const text = await res.text();
+    const requestId = res.headers.get('x-request-id') || res.headers.get('x-correlation-id') || undefined;
+    const contentType = res.headers.get('content-type') || '';
+
     if (!res.ok) {
-      console.error('[phone-auth] Orange SMS send failed:', res.status, text);
-      return null;
+      console.error(`[OrangeSMS] Outbound response → status=${res.status}, content-type=${contentType}, request_id=${requestId || 'n/a'}, body=${text}`);
+      let orangeMsg = `HTTP ${res.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        orangeMsg = parsed?.requestError?.serviceException?.text
+          || parsed?.requestError?.policyException?.text
+          || parsed?.error_description
+          || parsed?.message
+          || orangeMsg;
+      } catch { /* not JSON */ }
+      return {
+        diagnostic: {
+          stage: 'sms_send',
+          orange_status: res.status,
+          orange_body: text,
+          orange_request_id: requestId,
+          message: orangeMsg,
+        },
+      };
     }
 
-    console.log(`[phone-auth] Orange SMS sent to ${phone}`);
-    return await sha256Hex(code);
-  } catch (err) {
-    console.error('[phone-auth] Orange SMS exception:', err);
-    return null;
+    let resourceId: string | undefined;
+    try {
+      const parsed = JSON.parse(text);
+      const resourceURL = parsed?.outboundSMSMessageRequest?.resourceURL;
+      if (resourceURL) resourceId = resourceURL.split('/').pop();
+    } catch { /* ignore */ }
+    console.log(`[OrangeSMS] Outbound response → status=${res.status}, request_id=${requestId || 'n/a'}, resource_id=${resourceId || 'n/a'}, recipient=${recipientMasked} ✅ SENT`);
+    return { hash: await sha256Hex(code) };
+  } catch (err: any) {
+    if (err?.diagnostic) {
+      // Bubble up token-stage diagnostic
+      return { diagnostic: err.diagnostic };
+    }
+    console.error(`[OrangeSMS] Network error → name=${err?.name}, message=${err?.message}, stack=${err?.stack}`);
+    return {
+      diagnostic: {
+        stage: 'network',
+        message: `Erreur réseau Orange: ${err?.message || 'unknown'}`,
+      },
+    };
   }
 }
 
@@ -270,7 +334,8 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
   // Send OTP via Orange Mali SMS API (returns stored hash on success)
-  const otpHash = await sendOtpOrange(phone);
+  const otpResult = await sendOtpOrange(phone);
+  const otpHash = otpResult.hash;
   const smsSent = !!otpHash;
 
   // Store otpToken (or placeholder if failed) in pending_registrations
@@ -293,8 +358,17 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   }
 
   if (!smsSent) {
-    console.error(`[phone-auth] OTP send failed for ${phone}`);
-    return jsonResponse({ success: true, sms_sent: false, message: 'Erreur d\'envoi du SMS. Veuillez réessayer.' });
+    const diag = otpResult.diagnostic;
+    console.error(`[phone-auth] OTP send failed for ${phone}`, diag);
+    return jsonResponse({
+      success: true,
+      sms_sent: false,
+      message: 'Erreur d\'envoi du SMS. Veuillez réessayer.',
+      stage: diag?.stage,
+      orange_status: diag?.orange_status,
+      orange_message: diag?.message,
+      orange_request_id: diag?.orange_request_id,
+    });
   }
 
   return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
@@ -562,7 +636,8 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
   // Send OTP via Orange Mali SMS API
-  const otpHash = await sendOtpOrange(phone);
+  const otpResult = await sendOtpOrange(phone);
+  const otpHash = otpResult.hash;
   const smsSent = !!otpHash;
 
   // Store in pending_pin_resets
@@ -581,8 +656,17 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   }
 
   if (!smsSent) {
-    console.error(`[phone-auth] Reset OTP send failed for ${phone}`);
-    return jsonResponse({ success: true, sms_sent: false, message: 'Erreur d\'envoi du SMS. Veuillez réessayer.' });
+    const diag = otpResult.diagnostic;
+    console.error(`[phone-auth] Reset OTP send failed for ${phone}`, diag);
+    return jsonResponse({
+      success: true,
+      sms_sent: false,
+      message: 'Erreur d\'envoi du SMS. Veuillez réessayer.',
+      stage: diag?.stage,
+      orange_status: diag?.orange_status,
+      orange_message: diag?.message,
+      orange_request_id: diag?.orange_request_id,
+    });
   }
 
   return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });

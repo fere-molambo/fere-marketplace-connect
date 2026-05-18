@@ -334,7 +334,8 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
   // Send OTP via Orange Mali SMS API (returns stored hash on success)
-  const otpHash = await sendOtpOrange(phone);
+  const otpResult = await sendOtpOrange(phone);
+  const otpHash = otpResult.hash;
   const smsSent = !!otpHash;
 
   // Store otpToken (or placeholder if failed) in pending_registrations
@@ -357,8 +358,17 @@ async function handleRegister(supabaseAdmin: any, body: any) {
   }
 
   if (!smsSent) {
-    console.error(`[phone-auth] OTP send failed for ${phone}`);
-    return jsonResponse({ success: true, sms_sent: false, message: 'Erreur d\'envoi du SMS. Veuillez réessayer.' });
+    const diag = otpResult.diagnostic;
+    console.error(`[phone-auth] OTP send failed for ${phone}`, diag);
+    return jsonResponse({
+      success: true,
+      sms_sent: false,
+      message: 'Erreur d\'envoi du SMS. Veuillez réessayer.',
+      stage: diag?.stage,
+      orange_status: diag?.orange_status,
+      orange_message: diag?.message,
+      orange_request_id: diag?.orange_request_id,
+    });
   }
 
   return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });
@@ -626,7 +636,8 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   await supabaseAdmin.from('otp_rate_limits').insert({ phone });
 
   // Send OTP via Orange Mali SMS API
-  const otpHash = await sendOtpOrange(phone);
+  const otpResult = await sendOtpOrange(phone);
+  const otpHash = otpResult.hash;
   const smsSent = !!otpHash;
 
   // Store in pending_pin_resets
@@ -645,8 +656,17 @@ async function handleResetPinRequest(supabaseAdmin: any, body: any) {
   }
 
   if (!smsSent) {
-    console.error(`[phone-auth] Reset OTP send failed for ${phone}`);
-    return jsonResponse({ success: true, sms_sent: false, message: 'Erreur d\'envoi du SMS. Veuillez réessayer.' });
+    const diag = otpResult.diagnostic;
+    console.error(`[phone-auth] Reset OTP send failed for ${phone}`, diag);
+    return jsonResponse({
+      success: true,
+      sms_sent: false,
+      message: 'Erreur d\'envoi du SMS. Veuillez réessayer.',
+      stage: diag?.stage,
+      orange_status: diag?.orange_status,
+      orange_message: diag?.message,
+      orange_request_id: diag?.orange_request_id,
+    });
   }
 
   return jsonResponse({ success: true, sms_sent: true, message: 'Code de vérification envoyé par SMS' });

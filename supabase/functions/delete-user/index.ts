@@ -164,6 +164,9 @@ Deno.serve(async (req) => {
       { table: 'shop_stories', column: 'created_by' },
       { table: 'team_assignment_tags', column: 'created_by' },
       { table: 'tutorials', column: 'created_by' },
+      { table: 'delivery_requests', column: 'driver_id' },
+      { table: 'client_penalties', column: 'waived_by' },
+      { table: 'vendor_admins', column: 'assigned_by' },
     ];
 
     for (const { table, column } of deleteCleanupTargets) {
@@ -182,6 +185,48 @@ Deno.serve(async (req) => {
       if (error) {
         console.warn(`Warning nullifying ${table}.${column}:`, error.message);
       }
+    }
+
+    // Delete service_bookings and orders owned by the user (and their dependents)
+    // These FKs to profiles have no ON DELETE, so we must clean dependents first.
+    const { data: userBookings } = await supabaseAdmin
+      .from('service_bookings')
+      .select('id')
+      .eq('customer_id', userId);
+    const bookingIds = (userBookings ?? []).map(b => b.id);
+
+    const { data: userOrders } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .eq('user_id', userId);
+    const orderIds = (userOrders ?? []).map(o => o.id);
+
+    if (bookingIds.length > 0) {
+      await supabaseAdmin.from('refunds').delete().in('booking_id', bookingIds);
+      await supabaseAdmin.from('pending_payouts').delete().in('booking_id', bookingIds);
+      await supabaseAdmin.from('cancellations').delete().in('booking_id', bookingIds);
+      await supabaseAdmin.from('user_penalties').delete().in('applied_to_booking_id', bookingIds);
+    }
+
+    if (orderIds.length > 0) {
+      await supabaseAdmin.from('refunds').delete().in('order_id', orderIds);
+      await supabaseAdmin.from('pending_payouts').delete().in('order_id', orderIds);
+      await supabaseAdmin.from('cancellations').delete().in('order_id', orderIds);
+      await supabaseAdmin.from('user_penalties').delete().in('applied_to_order_id', orderIds);
+      await supabaseAdmin.from('client_penalties').delete().in('source_order_id', orderIds);
+      await supabaseAdmin.from('client_penalties').delete().in('applied_to_order_id', orderIds);
+    }
+
+    if (bookingIds.length > 0) {
+      const { error: bookingDelErr } = await supabaseAdmin
+        .from('service_bookings').delete().in('id', bookingIds);
+      if (bookingDelErr) console.warn('Warning deleting service_bookings:', bookingDelErr.message);
+    }
+
+    if (orderIds.length > 0) {
+      const { error: orderDelErr } = await supabaseAdmin
+        .from('orders').delete().in('id', orderIds);
+      if (orderDelErr) console.warn('Warning deleting orders:', orderDelErr.message);
     }
 
     // Clean up conversations: remove participant entries, then orphan conversations

@@ -425,6 +425,7 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
   const internalPassword = generateInternalPassword();
   const fictiveEmail = `${phone.replace('+', '')}@phone.fere.app`;
 
+  let userId: string;
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: fictiveEmail,
     password: internalPassword,
@@ -436,11 +437,38 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
   });
 
   if (authError) {
-    console.error('[phone-auth] Auth create error:', authError);
-    throw new Error('Erreur lors de la création du compte: ' + authError.message);
-  }
+    const msg = (authError.message || '').toLowerCase();
+    const isDuplicate = msg.includes('already been registered') || msg.includes('already registered') || msg.includes('already exists');
+    if (!isDuplicate) {
+      console.error('[phone-auth] Auth create error:', authError);
+      throw new Error('Erreur lors de la création du compte: ' + authError.message);
+    }
 
-  const userId = authData.user.id;
+    // Recover orphaned account from a previous failed attempt: find existing user and reset password
+    console.warn('[phone-auth] User already exists for', fictiveEmail, '— recovering account');
+    const { data: list, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    if (listErr) {
+      throw new Error('Erreur lors de la récupération du compte existant');
+    }
+    const existing = list.users.find((u: any) => u.email === fictiveEmail);
+    if (!existing) {
+      throw new Error('Compte existant introuvable. Contactez le support.');
+    }
+    userId = existing.id;
+    const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: internalPassword,
+      email_confirm: true,
+      user_metadata: { nom_complet: pending.full_name, contact: phone },
+    });
+    if (updErr) {
+      throw new Error('Erreur lors de la mise à jour du compte: ' + updErr.message);
+    }
+    // Clean previous pin/role rows so re-inserts succeed
+    await supabaseAdmin.from('user_pins').delete().eq('user_id', userId);
+    await supabaseAdmin.from('user_roles').delete().eq('user_id', userId);
+  } else {
+    userId = authData.user.id;
+  }
 
   // Wait for handle_new_user trigger
   await new Promise(resolve => setTimeout(resolve, 1500));

@@ -473,6 +473,17 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
   // Wait for handle_new_user trigger
   await new Promise(resolve => setTimeout(resolve, 1500));
 
+  // Ensure profile row exists. The handle_new_user trigger only fires on INSERT,
+  // so the "recovering account" branch (updateUserById) leaves profiles empty
+  // when a prior profile was deleted without removing auth.users. Upsert is
+  // idempotent and also safe on the nominal path.
+  await supabaseAdmin.from('profiles').upsert({
+    id: userId,
+    nom_complet: pending.full_name,
+    contact: phone,
+    email: pending.email || null,
+  }, { onConflict: 'id' });
+
   // Update profile with optional email if provided
   if (pending.email) {
     await supabaseAdmin

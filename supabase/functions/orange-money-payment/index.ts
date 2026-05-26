@@ -35,6 +35,20 @@ Deno.serve(async (req) => {
 
     const { action } = body;
 
+    // Auto-detect Orange Money webhook (no `action` field, but has `notif_token` + `txnid`)
+    const isOrangeWebhook = !action && !!body?.notif_token && !!body?.txnid;
+    const ua = req.headers.get('user-agent') || '';
+    const isOrangeUA = ua.toLowerCase().includes('mpayment');
+
+    if (isOrangeWebhook || (isOrangeUA && !action)) {
+      console.log('[orange-money] Webhook auto-detected', JSON.stringify({
+        via: isOrangeWebhook ? 'body' : 'user_agent',
+        has_notif_token: !!body?.notif_token,
+        has_txnid: !!body?.txnid,
+      }));
+      return await handleWebhook(supabaseClient, body);
+    }
+
     if (action === 'get_token') {
       return await handleGetToken();
     } else if (action === 'initialize') {

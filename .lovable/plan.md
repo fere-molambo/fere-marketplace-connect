@@ -1,33 +1,53 @@
-## Objectif
+## Diagnostic confirmé
 
-Le paiement Orange Money fonctionne maintenant. Ajout de logs structurés et non sensibles dans `supabase/functions/orange-money-payment/index.ts` pour faciliter le diagnostic en cas de problème futur, sans modifier le comportement.
+Bolt se trompe. Notre edge function utilise déjà les bonnes URLs `/ml/v1/` (prod Mali) — pas `/dev/v1/`. La cause réelle est visible dans les auth logs Supabase (11:05:03):
 
-## Changements
+```
+status: 403
+error_code: bad_jwt
+msg: "invalid claim: missing sub claim"
+```
 
-1. **Log d'entrée enrichi** : action, payment_type, amount, related_id, présence des URLs, origin, user-agent (au lieu du dump complet du body qui peut contenir des données checkout volumineuses).
+L'app Android envoie un token sans claim `sub` — probablement l'anon key au lieu du JWT de session utilisateur, ou un token vide/expiré non rafraîchi avant l'appel. iOS fonctionne car la session est valide.
 
-2. **OAuth (`getAccessToken`)** :
-   - Log quand un token caché est réutilisé.
-   - Log du préfixe (`Basic`) et de la longueur de `ORANGE_MONEY_AUTH_HEADER` sans jamais logger sa valeur.
-   - En cas d'échec OAuth : log structuré `http_status` + `error` + `error_description` + `message`.
+## Plan
 
-3. **WebPay initialize** :
-   - Log avant l'appel : order_id, amount, currency, longueurs des URLs (return/cancel/notif) — utile car Orange impose 120 chars max.
-   - Log après l'appel : `http_status`, présence de `payment_url`/`pay_token`/`notif_token`, plus `message`/`description`/`code` retournés par Orange.
-   - Log explicite en cas d'échec avec order_id, user_id, payment_type, amount.
-   - Log de succès avec order_id, user_id, payment_type.
+### 1. Améliorer les logs auth dans `orange-money-payment/index.ts`
 
-4. **Verify** :
-   - Log de début avec order_id et présence du pay_token.
-   - Log de réponse Orange structuré (`http_status`, `om_status`, `txnid`, `message`).
+Avant l'appel `auth.getUser(token)`, logger (sans exposer le token complet):
+- présence du header `Authorization`
+- longueur du token
+- 8 premiers caractères du token (assez pour distinguer anon key vs JWT utilisateur)
+- nombre de segments (`.split('.').length` — un JWT valide = 3)
+- décodage du payload (sans vérif) pour exposer: `sub` présent ou non, `role`, `exp` (expiré ou non), `iss`
 
-5. **Erreur globale** : ajout du `stack` dans le `catch` racine.
+Après l'appel:
+- message d'erreur exact de Supabase
+- code d'erreur
 
-## Ce qui ne change PAS
+Ces logs permettront de confirmer immédiatement, au prochain essai Android, si:
+- aucun token n'est envoyé,
+- l'anon key est envoyée (role: "anon", pas de sub),
+- un JWT utilisateur expiré est envoyé (sub présent, exp dépassé),
+- un JWT malformé est envoyé.
 
-- Aucune logique métier modifiée.
-- Aucun secret, pay_token complet, notif_token ou access_token n'est logué.
-- Format des réponses HTTP identique.
-- Pas de migration DB, pas de changement frontend, pas de changement mobile.
+Aucun secret/token complet n'est loggé — seulement préfixe + métadonnées du payload.
 
-Aucun rebuild d'APK Bolt n'est nécessaire — la fonction est redéployée automatiquement après l'édition.
+### 2. Message prêt à coller dans Bolt (sera fourni après implémentation)
+
+Texte expliquant:
+- les URLs sont déjà `/ml/v1/` côté backend, pas besoin d'y toucher
+- la vraie cause est côté app Android: la session Supabase envoyée à `supabase.functions.invoke(...)` est invalide (bad_jwt, missing sub)
+- ce qu'il faut vérifier dans l'app Android (await `supabase.auth.getSession()` + refresh avant l'appel, vérifier que `supabase-js` est bien initialisé avec l'anon key correcte, ne PAS surcharger manuellement le header Authorization avec l'anon key)
+
+### Aucun changement
+
+- Pas de migration DB
+- Pas de changement frontend web
+- Pas de changement de logique métier
+- Pas de modification des URLs Orange (déjà correctes)
+- Aucun rebuild APK nécessaire côté Lovable
+
+### Fichier modifié
+
+- `supabase/functions/orange-money-payment/index.ts` (ajout de logs uniquement, ~15 lignes)

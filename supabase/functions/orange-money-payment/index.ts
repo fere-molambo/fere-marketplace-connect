@@ -24,13 +24,19 @@ Deno.serve(async (req) => {
     // Log only non-sensitive top-level fields for diagnostics
     console.log('[orange-money] Request received', JSON.stringify({
       action: body?.action,
-      payment_type: body?.payment_type,
+      payment_type_top: body?.payment_type ?? null,
+      payment_type_meta: body?.metadata?.payment_type ?? null,
+      body_keys: Object.keys(body || {}),
+      metadata_keys: Object.keys(body?.metadata || {}),
       amount: body?.amount,
       related_id: body?.related_id,
-      has_return_url: !!body?.return_url,
-      has_cancel_url: !!body?.cancel_url,
+      has_return_url_top: !!body?.return_url,
+      has_return_url_meta: !!body?.metadata?.return_url,
+      has_cancel_url_top: !!body?.cancel_url,
+      has_cancel_url_meta: !!body?.metadata?.cancel_url,
       origin: req.headers.get('origin') || null,
       user_agent: req.headers.get('user-agent') || null,
+      app_version: req.headers.get('x-app-version') || null,
     }));
 
     const { action } = body;

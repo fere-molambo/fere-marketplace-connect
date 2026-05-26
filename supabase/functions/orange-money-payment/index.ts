@@ -21,7 +21,17 @@ Deno.serve(async (req) => {
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    console.log('[orange-money] Request:', JSON.stringify(body));
+    // Log only non-sensitive top-level fields for diagnostics
+    console.log('[orange-money] Request received', JSON.stringify({
+      action: body?.action,
+      payment_type: body?.payment_type,
+      amount: body?.amount,
+      related_id: body?.related_id,
+      has_return_url: !!body?.return_url,
+      has_cancel_url: !!body?.cancel_url,
+      origin: req.headers.get('origin') || null,
+      user_agent: req.headers.get('user-agent') || null,
+    }));
 
     const { action } = body;
 
@@ -38,7 +48,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     const error = err as Error;
-    console.error('[orange-money] Error:', error);
+    console.error('[orange-money] Error:', error?.message, error?.stack);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -60,6 +70,7 @@ async function handleGetToken() {
 async function getAccessToken(): Promise<string> {
   // Return cached token if still valid (with 1h buffer)
   if (cachedToken && cachedToken.expiresAt > Date.now() + 3600000) {
+    console.log('[orange-money] OAuth: using cached token');
     return cachedToken.token;
   }
 
@@ -67,6 +78,11 @@ async function getAccessToken(): Promise<string> {
   if (!authHeader) {
     throw new Error('ORANGE_MONEY_AUTH_HEADER not configured');
   }
+  const headerPrefix = authHeader.split(' ')[0] || '';
+  console.log('[orange-money] OAuth: requesting new token', JSON.stringify({
+    auth_header_prefix: headerPrefix,
+    auth_header_length: authHeader.length,
+  }));
 
   const response = await fetch(`${ORANGE_API_BASE}/oauth/v3/token`, {
     method: 'POST',
@@ -82,7 +98,12 @@ async function getAccessToken(): Promise<string> {
   console.log('[orange-money] Token response status:', response.status);
 
   if (!response.ok || !data.access_token) {
-    console.error('[orange-money] Token error:', JSON.stringify(data));
+    console.error('[orange-money] OAuth failed', JSON.stringify({
+      http_status: response.status,
+      error: data?.error,
+      error_description: data?.error_description,
+      message: data?.message,
+    }));
     throw new Error(data.error_description || data.error || 'Failed to get Orange Money access token');
   }
 
@@ -170,6 +191,15 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   // Production Mali: XOF currency, /ml/v1/ endpoints
   const currency = 'XOF';
 
+  console.log('[orange-money] WebPay request', JSON.stringify({
+    order_id: orderId,
+    amount,
+    currency,
+    return_url_len: finalReturnUrl.length,
+    cancel_url_len: finalCancelUrl.length,
+    notif_url_len: notifUrl.length,
+  }));
+
   // Call Orange Money Web Payment API (LIVE Mali)
   const omResponse = await fetch(`${ORANGE_API_BASE}/orange-money-webpay/ml/v1/webpayment`, {
     method: 'POST',
@@ -191,9 +221,23 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   });
 
   const omData = await omResponse.json();
-  console.log('[orange-money] Initialize response:', JSON.stringify(omData));
+  console.log('[orange-money] WebPay response', JSON.stringify({
+    http_status: omResponse.status,
+    has_payment_url: !!omData?.payment_url,
+    pay_token_present: !!omData?.pay_token,
+    notif_token_present: !!omData?.notif_token,
+    message: omData?.message,
+    description: omData?.description,
+    code: omData?.code,
+  }));
 
   if (!omResponse.ok || !omData.payment_url) {
+    console.error('[orange-money] WebPay failed — saving transaction as failed', JSON.stringify({
+      order_id: orderId,
+      user_id: user.id,
+      payment_type,
+      amount,
+    }));
     // Save failed attempt
     await supabaseClient.from('payment_transactions').insert({
       user_id: user.id,
@@ -208,6 +252,12 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
 
     throw new Error(omData.message || omData.description || 'Failed to initialize Orange Money payment');
   }
+
+  console.log('[orange-money] WebPay OK', JSON.stringify({
+    order_id: orderId,
+    user_id: user.id,
+    payment_type,
+  }));
 
   // Save transaction with pay_token and notif_token
   const { error: insertError } = await supabaseClient.from('payment_transactions').insert({
@@ -252,6 +302,11 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
     throw new Error('order_id is required');
   }
 
+  console.log('[orange-money] Verify start', JSON.stringify({
+    order_id,
+    pay_token_provided: !!pay_token,
+  }));
+
   // Get the transaction to retrieve pay_token if not provided
   const { data: transaction } = await supabaseClient
     .from('payment_transactions')
@@ -283,7 +338,12 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
   });
 
   const omData = await omResponse.json();
-  console.log('[orange-money] Verify response:', JSON.stringify(omData));
+  console.log('[orange-money] Verify response', JSON.stringify({
+    http_status: omResponse.status,
+    om_status: omData?.status,
+    txnid: omData?.txnid,
+    message: omData?.message,
+  }));
 
   // Map Orange Money status to our status
   const statusMap: Record<string, string> = {

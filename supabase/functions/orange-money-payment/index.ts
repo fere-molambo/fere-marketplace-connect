@@ -190,15 +190,19 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   }
   console.log('[orange-money] Auth: user verified', JSON.stringify({ user_id: user.id }));
 
-  const { 
-    amount: clientAmount, 
-    email, 
-    payment_type, 
-    related_id, 
+  const {
+    amount: clientAmount,
+    email,
+    related_id,
     metadata,
-    return_url,
-    cancel_url,
   } = body;
+
+  // Defensive read: accept payment_type / return_url / cancel_url either
+  // at the top level of the body OR nested inside metadata. Some mobile
+  // bundles may package them differently.
+  const payment_type = body.payment_type ?? metadata?.payment_type ?? null;
+  const return_url = body.return_url ?? metadata?.return_url ?? null;
+  const cancel_url = body.cancel_url ?? metadata?.cancel_url ?? null;
 
   // Validate payment_type BEFORE calling Orange Money — otherwise the INSERT
   // into payment_transactions fails (NOT NULL constraint) and we end up with

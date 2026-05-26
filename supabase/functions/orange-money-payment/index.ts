@@ -24,13 +24,19 @@ Deno.serve(async (req) => {
     // Log only non-sensitive top-level fields for diagnostics
     console.log('[orange-money] Request received', JSON.stringify({
       action: body?.action,
-      payment_type: body?.payment_type,
+      payment_type_top: body?.payment_type ?? null,
+      payment_type_meta: body?.metadata?.payment_type ?? null,
+      body_keys: Object.keys(body || {}),
+      metadata_keys: Object.keys(body?.metadata || {}),
       amount: body?.amount,
       related_id: body?.related_id,
-      has_return_url: !!body?.return_url,
-      has_cancel_url: !!body?.cancel_url,
+      has_return_url_top: !!body?.return_url,
+      has_return_url_meta: !!body?.metadata?.return_url,
+      has_cancel_url_top: !!body?.cancel_url,
+      has_cancel_url_meta: !!body?.metadata?.cancel_url,
       origin: req.headers.get('origin') || null,
       user_agent: req.headers.get('user-agent') || null,
+      app_version: req.headers.get('x-app-version') || null,
     }));
 
     const { action } = body;
@@ -184,15 +190,19 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   }
   console.log('[orange-money] Auth: user verified', JSON.stringify({ user_id: user.id }));
 
-  const { 
-    amount: clientAmount, 
-    email, 
-    payment_type, 
-    related_id, 
+  const {
+    amount: clientAmount,
+    email,
+    related_id,
     metadata,
-    return_url,
-    cancel_url,
   } = body;
+
+  // Defensive read: accept payment_type / return_url / cancel_url either
+  // at the top level of the body OR nested inside metadata. Some mobile
+  // bundles may package them differently.
+  const payment_type = body.payment_type ?? metadata?.payment_type ?? null;
+  const return_url = body.return_url ?? metadata?.return_url ?? null;
+  const cancel_url = body.cancel_url ?? metadata?.cancel_url ?? null;
 
   // Validate payment_type BEFORE calling Orange Money — otherwise the INSERT
   // into payment_transactions fails (NOT NULL constraint) and we end up with

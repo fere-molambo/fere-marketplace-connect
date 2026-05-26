@@ -124,14 +124,51 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   // Auth check
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
+    console.error('[orange-money] Auth: missing Authorization header');
     throw new Error('Authorization required');
   }
 
   const token = authHeader.replace('Bearer ', '');
+
+  // Non-sensitive diagnostics: only metadata, never the full token
+  const segments = token.split('.');
+  let payloadInfo: Record<string, unknown> = { decodable: false };
+  if (segments.length === 3) {
+    try {
+      const padded = segments[1] + '='.repeat((4 - segments[1].length % 4) % 4);
+      const json = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
+      const now = Math.floor(Date.now() / 1000);
+      payloadInfo = {
+        decodable: true,
+        has_sub: !!json.sub,
+        role: json.role || null,
+        iss: json.iss || null,
+        exp: json.exp || null,
+        expired: typeof json.exp === 'number' ? json.exp < now : null,
+        aud: json.aud || null,
+      };
+    } catch (_e) {
+      payloadInfo = { decodable: false, decode_error: true };
+    }
+  }
+  console.log('[orange-money] Auth: token received', JSON.stringify({
+    token_length: token.length,
+    token_prefix: token.substring(0, 8),
+    segments: segments.length,
+    ...payloadInfo,
+  }));
+
   const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
   if (authError || !user) {
+    console.error('[orange-money] Auth: getUser failed', JSON.stringify({
+      error_message: authError?.message || null,
+      error_status: (authError as any)?.status || null,
+      error_code: (authError as any)?.code || null,
+      user_present: !!user,
+    }));
     throw new Error('Invalid authentication');
   }
+  console.log('[orange-money] Auth: user verified', JSON.stringify({ user_id: user.id }));
 
   const { 
     amount: clientAmount, 

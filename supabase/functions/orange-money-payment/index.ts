@@ -194,6 +194,18 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
     cancel_url,
   } = body;
 
+  // Validate payment_type BEFORE calling Orange Money — otherwise the INSERT
+  // into payment_transactions fails (NOT NULL constraint) and we end up with
+  // an orphan payment at Orange Money that we can never track.
+  const validTypes = ['order', 'order_balance', 'service_booking', 'tokens', 'subscription', 'commission_payout'];
+  if (!payment_type || !validTypes.includes(payment_type)) {
+    console.error('[orange-money] Invalid payment_type', JSON.stringify({
+      received: payment_type,
+      user_agent: req.headers.get('user-agent') || null,
+    }));
+    throw new Error(`payment_type is required and must be one of: ${validTypes.join(', ')}`);
+  }
+
   // For order_balance payments, use server-side amount
   let amount = clientAmount;
   if (payment_type === 'order_balance' && related_id) {

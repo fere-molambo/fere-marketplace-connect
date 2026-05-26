@@ -35,6 +35,20 @@ Deno.serve(async (req) => {
 
     const { action } = body;
 
+    // Auto-detect Orange Money webhook (no `action` field, but has `notif_token` + `txnid`)
+    const isOrangeWebhook = !action && !!body?.notif_token && !!body?.txnid;
+    const ua = req.headers.get('user-agent') || '';
+    const isOrangeUA = ua.toLowerCase().includes('mpayment');
+
+    if (isOrangeWebhook || (isOrangeUA && !action)) {
+      console.log('[orange-money] Webhook auto-detected', JSON.stringify({
+        via: isOrangeWebhook ? 'body' : 'user_agent',
+        has_notif_token: !!body?.notif_token,
+        has_txnid: !!body?.txnid,
+      }));
+      return await handleWebhook(supabaseClient, body);
+    }
+
     if (action === 'get_token') {
       return await handleGetToken();
     } else if (action === 'initialize') {
@@ -179,6 +193,18 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
     return_url,
     cancel_url,
   } = body;
+
+  // Validate payment_type BEFORE calling Orange Money — otherwise the INSERT
+  // into payment_transactions fails (NOT NULL constraint) and we end up with
+  // an orphan payment at Orange Money that we can never track.
+  const validTypes = ['order', 'order_balance', 'service_booking', 'tokens', 'subscription', 'commission_payout'];
+  if (!payment_type || !validTypes.includes(payment_type)) {
+    console.error('[orange-money] Invalid payment_type', JSON.stringify({
+      received: payment_type,
+      user_agent: req.headers.get('user-agent') || null,
+    }));
+    throw new Error(`payment_type is required and must be one of: ${validTypes.join(', ')}`);
+  }
 
   // For order_balance payments, use server-side amount
   let amount = clientAmount;

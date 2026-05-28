@@ -1,54 +1,20 @@
-## Constat
+## Correction OAuth Orange Money — inverser priorité du header
 
-L’erreur visible n’est plus un problème de session mobile ni de WebView :
+### Problème
+La fonction `orange-money-payment` reconstruit actuellement le header `Basic` à partir de `ORANGE_MONEY_CLIENT_ID:ORANGE_MONEY_CLIENT_SECRET` (priorité) et reçoit `Wrong password for client` d'Orange, même après mise à jour des secrets. Le `Authorization header` fourni directement par le portail Orange (`Basic b2JkV1V5...`) est garanti correct.
 
-```text
-OAuth token error: 401
-invalid_client / Wrong password for client ...
-```
+### Changement
+Dans `supabase/functions/orange-money-payment/index.ts` (fonction `getAccessToken`, lignes ~90-115) :
 
-Cela vient de l’authentification serveur vers Orange Money. La fonction appelle Orange OAuth avec `ORANGE_MONEY_AUTH_HEADER`, mais ce secret est invalide, mal encodé, ou ne correspond pas au bon environnement Orange Money.
+1. **Priorité 1** : utiliser `ORANGE_MONEY_AUTH_HEADER` tel quel s'il est défini (préfixer `Basic ` si absent, trim).
+2. **Fallback** : reconstruire `Basic ` + `btoa(client_id:client_secret)` uniquement si `AUTH_HEADER` absent.
+3. Conserver le log `auth_source` pour confirmer la source utilisée.
 
-## Plan de correction
+### Test après déploiement
+- Appel `get_token` → doit retourner `success: true`
+- Si échec persistant avec `auth_source: env_auth_header` → cliquer **Renew** sur le portail Orange et recopier les 3 valeurs (Client secret + Authorization header).
 
-1. **Corriger les secrets Orange Money**
-   - Mettre à jour `ORANGE_MONEY_AUTH_HEADER` avec exactement :
-     ```text
-     Basic BASE64(client_id:client_secret)
-     ```
-   - S’assurer que `client_id`, `client_secret` et `merchant_key` viennent de la même application Orange Money et du même environnement que l’endpoint utilisé.
-
-2. **Rendre la fonction plus robuste**
-   - Modifier `orange-money-payment` pour reconstruire automatiquement le header Basic depuis `ORANGE_MONEY_CLIENT_ID` + `ORANGE_MONEY_CLIENT_SECRET` si `ORANGE_MONEY_AUTH_HEADER` est absent ou incorrect.
-   - Ne jamais exposer les secrets dans les logs.
-   - Améliorer le message d’erreur côté app : afficher “Configuration Orange Money invalide” au lieu de montrer le JSON brut OAuth.
-
-3. **Vérifier l’environnement Orange Money**
-   - La fonction utilise actuellement :
-     - OAuth : `https://api.orange.com/oauth/v3/token`
-     - WebPay Mali live : `/orange-money-webpay/ml/v1/...`
-     - Devise : `XOF`
-   - Confirmer que les identifiants Orange utilisés sont bien ceux de WebPay Mali live. Si ce sont des identifiants sandbox/dev, adapter l’endpoint et la devise selon l’environnement.
-
-4. **Déployer et tester l’edge function**
-   - Déployer `orange-money-payment`.
-   - Tester d’abord l’action `get_token` pour vérifier que le token Orange est obtenu.
-   - Ensuite tester un paiement mobile complet : initialisation → WebView Orange → retour HTTPS → vérification.
-
-## Ce dont j’ai besoin de toi
-
-Comme la valeur du secret est masquée, je peux corriger le code et ouvrir la demande de mise à jour sécurisée des secrets, mais tu devras entrer les valeurs Orange Money dans le formulaire sécurisé Lovable.
-
-Valeurs à préparer depuis le portail Orange Developer :
-
-```text
-ORANGE_MONEY_CLIENT_ID
-ORANGE_MONEY_CLIENT_SECRET
-ORANGE_MONEY_MERCHANT_KEY
-```
-
-Et si tu veux garder `ORANGE_MONEY_AUTH_HEADER`, sa valeur doit être exactement :
-
-```text
-Basic <base64_de_CLIENT_ID:CLIENT_SECRET>
-```
+### Portée
+- 1 fichier modifié : `supabase/functions/orange-money-payment/index.ts`
+- Aucun changement DB, frontend, ou autres edge functions
+- Déploiement automatique

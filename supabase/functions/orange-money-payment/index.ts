@@ -94,24 +94,23 @@ async function getAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  // Build Basic auth header. Prefer rebuilding from CLIENT_ID/CLIENT_SECRET
-  // to avoid encoding errors in ORANGE_MONEY_AUTH_HEADER.
+  // Prefer ORANGE_MONEY_AUTH_HEADER (copied verbatim from the Orange Developer
+  // portal — guaranteed correct). Fall back to rebuilding from CLIENT_ID +
+  // CLIENT_SECRET only if the env header is missing.
+  const envAuthHeader = Deno.env.get('ORANGE_MONEY_AUTH_HEADER');
   const clientId = Deno.env.get('ORANGE_MONEY_CLIENT_ID');
   const clientSecret = Deno.env.get('ORANGE_MONEY_CLIENT_SECRET');
   let authHeader: string;
   let authSource: string;
-  if (clientId && clientSecret) {
+  if (envAuthHeader && envAuthHeader.trim().length > 0) {
+    const trimmed = envAuthHeader.trim();
+    authHeader = trimmed.startsWith('Basic ') ? trimmed : `Basic ${trimmed}`;
+    authSource = 'env_auth_header';
+  } else if (clientId && clientSecret) {
     authHeader = 'Basic ' + btoa(`${clientId}:${clientSecret}`);
     authSource = 'rebuilt_from_client_id_secret';
   } else {
-    const envAuthHeader = Deno.env.get('ORANGE_MONEY_AUTH_HEADER');
-    if (!envAuthHeader) {
-      throw new Error('Orange Money credentials missing: set ORANGE_MONEY_CLIENT_ID and ORANGE_MONEY_CLIENT_SECRET');
-    }
-    authHeader = envAuthHeader.trim().startsWith('Basic ')
-      ? envAuthHeader.trim()
-      : `Basic ${envAuthHeader.trim()}`;
-    authSource = 'env_auth_header';
+    throw new Error('Orange Money credentials missing: set ORANGE_MONEY_AUTH_HEADER or ORANGE_MONEY_CLIENT_ID + ORANGE_MONEY_CLIENT_SECRET');
   }
   console.log('[orange-money] OAuth: requesting new token', JSON.stringify({
     auth_source: authSource,

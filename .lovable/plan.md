@@ -1,48 +1,24 @@
-## Option 2 — Page de rebond HTML avec deep link
+Le problème observé n’est plus le domaine noir Lovable : le retour arrive bien sur Fere, mais l’app mobile appelle ensuite l’edge function avec `action: "complete_payment"`, alors que `orange-money-payment` n’accepte actuellement que `verify`. Les logs montrent plusieurs erreurs `Invalid action` juste après le webhook réussi, donc l’app mobile n’arrive pas à finaliser et rouvre la page Orange Money.
 
-### Sécurité — vérifiée
-- La page reçoit uniquement `ref` (= `order_id` Orange Money) dans l'URL. Aucun secret, aucun token, aucun montant.
-- Le deep link `fere://payment/callback?ref=...` ne contient que cette référence publique.
-- La vérification réelle du paiement (`action: verify`) reste côté app mobile et exige :
-  - le `pay_token` stocké en `AsyncStorage` (jamais exposé dans l'URL)
-  - la session Supabase authentifiée du client
-- Un attaquant qui forgerait un deep link `fere://payment/callback?ref=XXX` ne peut rien faire : sans le `pay_token` local + session, le `verify` échoue côté edge function.
-- ✅ Aucune élévation de privilège possible.
+Plan de correction :
 
-### Changements
+1. Ajouter la compatibilité mobile dans `supabase/functions/orange-money-payment/index.ts`
+   - Accepter `action: "complete_payment"` comme alias de vérification/finalisation.
+   - Lire `reference` ou `order_id` indifféremment.
+   - Lire `pay_token` depuis le body ou depuis `payment_transactions.metadata`.
+   - Si la transaction est déjà `success` via webhook, répondre directement succès sans recontacter Orange inutilement.
 
-**1 fichier modifié** — `supabase/functions/orange-money-payment/index.ts`
+2. Normaliser les statuts retournés à l’app mobile
+   - Retourner `success` quand le paiement est confirmé.
+   - Retourner `pending` si Orange/webhook n’a pas encore fini.
+   - Retourner `failed` uniquement si Orange confirme l’échec.
+   - Inclure `reference`, `amount`, `currency`, `payment_type`, `related_id`, `metadata` pour que l’app mobile puisse continuer son process.
 
-Dans `handleInitialize`, remplacer le `return_url` HTTPS canonique actuel par une URL pointant vers une page de rebond dédiée :
+3. Éviter la boucle Orange Money
+   - Ne pas transformer un statut `pending` immédiat en erreur bloquante côté fonction.
+   - Faire en sorte que les appels répétés `complete_payment` finissent par renvoyer succès dès que le webhook a mis `payment_transactions.status = success`.
 
-```
-https://jajfuajmkjulujnwfqen.lovable.app/payment/return?ref={orderId}
-```
-
-(au lieu de `/payment/callback?ref={orderId}`)
-
-Le `cancel_url` devient `/payment/return?ref={orderId}&cancel=1`.
-
-**1 fichier créé** — `public/payment/return.html` (page statique, hors React, ultra-légère)
-
-Contenu :
-- Récupère `?ref=...` et `?cancel=...` depuis l'URL
-- Affiche un message "Paiement traité, retour à l'application…"
-- Exécute immédiatement `window.location.href = "fere://payment/callback?ref=" + ref` (ou `fere://checkout?cancel=1`)
-- Fallback après 3 s : bouton "Retour à Fere" qui re-tente le deep link
-- Aucun JS Supabase, aucun appel API, aucune dépendance — purement statique
-
-### Comportement final
-
-- **Web (navigateur normal)** : utilisateur arrive sur `/payment/return?ref=...` → le deep link `fere://` échoue silencieusement → bouton fallback visible. On peut aussi ajouter une redirection JS vers `/payment/callback?ref=...` après 3 s pour conserver le flux web React existant.
-- **Mobile (WebView Orange Money)** : navigateur tente `fere://payment/callback?ref=...` → iOS/Android intercepte et ouvre l'app native Fere → l'app récupère `ref` (deep link handler existant déjà côté Bolt) et lance la vérification avec `pay_token` stocké.
-
-### Portée
-- 1 edge function modifiée (2 lignes : URLs)
-- 1 fichier HTML statique ajouté dans `public/`
-- 0 changement DB, 0 changement React, 0 changement Bolt
-- Aucun impact sur le flux web actuel (sera juste redirigé via la page de rebond, transparent)
-
-### Test
-- Web : checkout depuis navigateur → page rebond → redirection vers `/payment/callback` → vérification normale
-- Mobile : checkout depuis app → WebView OM → clic "revenir au site marchand" → page rebond → app native s'ouvre via deep link
+4. Vérification après changement
+   - Déployer l’edge function `orange-money-payment`.
+   - Relire les logs sur un nouveau paiement : on doit voir `complete_payment` traité correctement, plus d’erreur `Invalid action`.
+   - Confirmer que le webhook continue de mettre la transaction en `success` et que l’app peut finaliser la commande.

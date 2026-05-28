@@ -60,12 +60,12 @@ Deno.serve(async (req) => {
       return await handleGetToken();
     } else if (action === 'initialize') {
       return await handleInitialize(req, supabaseClient, body);
-    } else if (action === 'verify') {
+    } else if (action === 'verify' || action === 'complete_payment' || action === 'status') {
       return await handleVerify(req, supabaseClient, body);
     } else if (action === 'webhook') {
       return await handleWebhook(supabaseClient, body);
     } else {
-      throw new Error('Invalid action. Use: get_token, initialize, verify, webhook');
+      throw new Error('Invalid action. Use: get_token, initialize, verify, complete_payment, webhook');
     }
   } catch (err) {
     const error = err as Error;

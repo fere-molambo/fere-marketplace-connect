@@ -8,6 +8,7 @@ const corsHeaders = {
 const ORANGE_API_BASE = 'https://api.orange.com';
 
 // Cache the access token (valid ~90 days)
+// Credentials rotated 2026-05-28 — bump to invalidate in-memory token cache on redeploy
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 Deno.serve(async (req) => {

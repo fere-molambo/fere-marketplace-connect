@@ -1,24 +1,40 @@
-Le problème observé n’est plus le domaine noir Lovable : le retour arrive bien sur Fere, mais l’app mobile appelle ensuite l’edge function avec `action: "complete_payment"`, alors que `orange-money-payment` n’accepte actuellement que `verify`. Les logs montrent plusieurs erreurs `Invalid action` juste après le webhook réussi, donc l’app mobile n’arrive pas à finaliser et rouvre la page Orange Money.
+## Plan : sécuriser le .env
 
-Plan de correction :
+### Constat
+Le `.env` actuel ne contient que des valeurs **publiques et sans risque** :
+- `VITE_SUPABASE_PROJECT_ID` — identifiant public du projet
+- `VITE_SUPABASE_PUBLISHABLE_KEY` — clé `anon` Supabase (conçue pour être exposée côté client, protégée par RLS)
+- `VITE_SUPABASE_URL` — URL publique du projet
 
-1. Ajouter la compatibilité mobile dans `supabase/functions/orange-money-payment/index.ts`
-   - Accepter `action: "complete_payment"` comme alias de vérification/finalisation.
-   - Lire `reference` ou `order_id` indifféremment.
-   - Lire `pay_token` depuis le body ou depuis `payment_transactions.metadata`.
-   - Si la transaction est déjà `success` via webhook, répondre directement succès sans recontacter Orange inutilement.
+Aucun secret sensible (`SERVICE_ROLE_KEY`, clés Orange Money, Ikoddi, etc.) n'est dans ce fichier — ils vivent uniquement dans les Edge Function Secrets Supabase.
 
-2. Normaliser les statuts retournés à l’app mobile
-   - Retourner `success` quand le paiement est confirmé.
-   - Retourner `pending` si Orange/webhook n’a pas encore fini.
-   - Retourner `failed` uniquement si Orange confirme l’échec.
-   - Inclure `reference`, `amount`, `currency`, `payment_type`, `related_id`, `metadata` pour que l’app mobile puisse continuer son process.
+**Conclusion :** pas besoin de faire tourner les clés. Mais par hygiène, on évite que `.env` continue d'être commité.
 
-3. Éviter la boucle Orange Money
-   - Ne pas transformer un statut `pending` immédiat en erreur bloquante côté fonction.
-   - Faire en sorte que les appels répétés `complete_payment` finissent par renvoyer succès dès que le webhook a mis `payment_transactions.status = success`.
+### Actions recommandées
 
-4. Vérification après changement
-   - Déployer l’edge function `orange-money-payment`.
-   - Relire les logs sur un nouveau paiement : on doit voir `complete_payment` traité correctement, plus d’erreur `Invalid action`.
-   - Confirmer que le webhook continue de mettre la transaction en `success` et que l’app peut finaliser la commande.
+1. **Ajouter `.env` au `.gitignore`** (et `.env.local`, `.env.*.local` par précaution)
+   - Empêche tout futur commit accidentel si un secret y est ajouté un jour.
+   - L'historique Git reste inchangé — mais comme les valeurs sont publiques, ce n'est pas un problème.
+
+2. **Créer un `.env.example`** avec les noms de variables sans valeurs
+   - Sert de référence pour les nouveaux contributeurs / clones du repo.
+   - Contenu :
+     ```
+     VITE_SUPABASE_PROJECT_ID=""
+     VITE_SUPABASE_PUBLISHABLE_KEY=""
+     VITE_SUPABASE_URL=""
+     ```
+
+3. **Garder le `.env` local** — Lovable a besoin de ces variables pour faire tourner l'app dans le preview. On ne le supprime pas, on l'ignore juste pour les futurs commits.
+
+### Ce qu'on ne fait PAS
+- Pas de rotation de la clé anon (inutile, elle est publique par design)
+- Pas de `git rm --cached .env` ni de réécriture d'historique (les valeurs sont publiques, donc sans intérêt)
+- Pas de modification des Edge Function Secrets (ils sont déjà sécurisés)
+
+### Détails techniques
+Modifications à apporter :
+- `/.gitignore` : ajouter les lignes `.env`, `.env.local`, `.env.*.local`
+- `/.env.example` : nouveau fichier avec les noms de variables (valeurs vides)
+
+Aucun changement de code applicatif, aucune migration DB, aucun redéploiement d'edge function.

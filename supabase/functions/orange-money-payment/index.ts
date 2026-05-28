@@ -288,12 +288,12 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
 
   const finalReturnUrl = (isHttp(return_url)
     ? return_url!
-    : `${httpsOrigin}/payment/callback?ref=${orderId}`
+    : `${httpsOrigin}/payment/return.html?ref=${orderId}`
   ).substring(0, 120);
 
   const finalCancelUrl = (isHttp(cancel_url)
     ? cancel_url!
-    : `${httpsOrigin}/checkout`
+    : `${httpsOrigin}/payment/return.html?ref=${orderId}&cancel=1`
   ).substring(0, 120);
 
   if (!isHttp(return_url) || !isHttp(cancel_url)) {

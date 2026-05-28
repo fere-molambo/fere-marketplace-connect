@@ -416,15 +416,18 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
 // ACTION: verify — Check transaction status
 // ============================================================
 async function handleVerify(req: Request, supabaseClient: any, body: any) {
-  const { order_id, pay_token } = body;
+  // Accept several aliases used by web + mobile clients
+  const order_id = body.order_id || body.reference || body.orderId || null;
+  const pay_token = body.pay_token || body.payToken || null;
 
   if (!order_id) {
-    throw new Error('order_id is required');
+    throw new Error('order_id (or reference) is required');
   }
 
   console.log('[orange-money] Verify start', JSON.stringify({
     order_id,
     pay_token_provided: !!pay_token,
+    action: body.action,
   }));
 
   // Get the transaction to retrieve pay_token if not provided
@@ -434,11 +437,52 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
     .eq('reference', order_id)
     .single();
 
+  // Short-circuit: webhook may have already confirmed the payment.
+  // Return success immediately so the mobile app can proceed without
+  // hammering the Orange Money status API.
+  if (transaction && (transaction.status === 'success' || transaction.status === 'failed')) {
+    console.log('[orange-money] Verify short-circuit (status already set by webhook)', JSON.stringify({
+      order_id,
+      status: transaction.status,
+    }));
+    return new Response(
+      JSON.stringify({
+        success: true,
+        status: transaction.status,
+        reference: order_id,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        payment_type: transaction.payment_type,
+        related_id: transaction.related_id,
+        txnid: (transaction.paystack_response as any)?.txnid
+          || (transaction.paystack_response as any)?.webhook?.txnid
+          || null,
+        metadata: transaction.metadata,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   const finalPayToken = pay_token || transaction?.metadata?.pay_token;
   const amount = transaction?.amount;
 
   if (!finalPayToken || !amount) {
-    throw new Error('Missing pay_token or amount for verification');
+    // Don't hard-fail the mobile client: report pending so it can retry.
+    console.error('[orange-money] Verify: missing pay_token or amount', JSON.stringify({
+      order_id,
+      has_transaction: !!transaction,
+      has_pay_token: !!finalPayToken,
+      has_amount: !!amount,
+    }));
+    return new Response(
+      JSON.stringify({
+        success: true,
+        status: 'pending',
+        reference: order_id,
+        message: 'Payment not yet recorded, please retry',
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   const accessToken = await getAccessToken();
@@ -478,7 +522,9 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
   const paymentStatus = statusMap[omStatus] || 'failed';
 
   // Update transaction
-  if (transaction) {
+  // Only overwrite the status when we have a definitive answer, OR when the
+  // transaction is still pending. Never downgrade a webhook-confirmed success.
+  if (transaction && transaction.status !== 'success') {
     await supabaseClient
       .from('payment_transactions')
       .update({
@@ -492,10 +538,12 @@ async function handleVerify(req: Request, supabaseClient: any, body: any) {
   return new Response(
     JSON.stringify({
       success: true,
-      status: paymentStatus,
+      status: transaction?.status === 'success' ? 'success' : paymentStatus,
       reference: order_id,
       amount: transaction?.amount,
       currency: transaction?.currency,
+      payment_type: transaction?.payment_type,
+      related_id: transaction?.related_id,
       txnid: omData.txnid,
       metadata: transaction?.metadata,
     }),

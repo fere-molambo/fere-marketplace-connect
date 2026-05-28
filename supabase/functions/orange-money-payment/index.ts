@@ -280,7 +280,7 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   const httpsOrigin = (() => {
     const reqOrigin = req.headers.get('origin');
     if (isHttp(reqOrigin)) return reqOrigin!;
-    return 'https://jajfuajmkjulujnwfqen.lovable.app';
+    return 'https://fere.app';
   })();
 
   const returnScheme = typeof return_url === 'string' ? return_url.split(':')[0] : null;

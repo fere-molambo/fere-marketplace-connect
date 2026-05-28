@@ -94,14 +94,29 @@ async function getAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  const authHeader = Deno.env.get('ORANGE_MONEY_AUTH_HEADER');
-  if (!authHeader) {
-    throw new Error('ORANGE_MONEY_AUTH_HEADER not configured');
+  // Build Basic auth header. Prefer rebuilding from CLIENT_ID/CLIENT_SECRET
+  // to avoid encoding errors in ORANGE_MONEY_AUTH_HEADER.
+  const clientId = Deno.env.get('ORANGE_MONEY_CLIENT_ID');
+  const clientSecret = Deno.env.get('ORANGE_MONEY_CLIENT_SECRET');
+  let authHeader: string;
+  let authSource: string;
+  if (clientId && clientSecret) {
+    authHeader = 'Basic ' + btoa(`${clientId}:${clientSecret}`);
+    authSource = 'rebuilt_from_client_id_secret';
+  } else {
+    const envAuthHeader = Deno.env.get('ORANGE_MONEY_AUTH_HEADER');
+    if (!envAuthHeader) {
+      throw new Error('Orange Money credentials missing: set ORANGE_MONEY_CLIENT_ID and ORANGE_MONEY_CLIENT_SECRET');
+    }
+    authHeader = envAuthHeader.trim().startsWith('Basic ')
+      ? envAuthHeader.trim()
+      : `Basic ${envAuthHeader.trim()}`;
+    authSource = 'env_auth_header';
   }
-  const headerPrefix = authHeader.split(' ')[0] || '';
   console.log('[orange-money] OAuth: requesting new token', JSON.stringify({
-    auth_header_prefix: headerPrefix,
+    auth_source: authSource,
     auth_header_length: authHeader.length,
+    client_id_present: !!clientId,
   }));
 
   const response = await fetch(`${ORANGE_API_BASE}/oauth/v3/token`, {
@@ -123,7 +138,12 @@ async function getAccessToken(): Promise<string> {
       error: data?.error,
       error_description: data?.error_description,
       message: data?.message,
+      auth_source: authSource,
     }));
+    // User-friendly message: don't leak the raw Orange JSON to the UI
+    if (data?.error === 'invalid_client' || response.status === 401) {
+      throw new Error('Configuration Orange Money invalide (identifiants OAuth refusés). Vérifiez ORANGE_MONEY_CLIENT_ID et ORANGE_MONEY_CLIENT_SECRET.');
+    }
     throw new Error(data.error_description || data.error || 'Failed to get Orange Money access token');
   }
 

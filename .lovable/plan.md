@@ -1,20 +1,26 @@
-## Correction OAuth Orange Money — inverser priorité du header
+## Forcer return_url / cancel_url HTTPS pour Orange Money
 
 ### Problème
-La fonction `orange-money-payment` reconstruit actuellement le header `Basic` à partir de `ORANGE_MONEY_CLIENT_ID:ORANGE_MONEY_CLIENT_SECRET` (priorité) et reçoit `Wrong password for client` d'Orange, même après mise à jour des secrets. Le `Authorization header` fourni directement par le portail Orange (`Basic b2JkV1V5...`) est garanti correct.
+Le mobile envoie `return_url: fere://payment/callback?...` (deep link). Orange Money répond `400 Invalid body field — only http and https are accepted` (code 24).
 
 ### Changement
-Dans `supabase/functions/orange-money-payment/index.ts` (fonction `getAccessToken`, lignes ~90-115) :
+Dans `supabase/functions/orange-money-payment/index.ts`, fonction `handleInitialize` (lignes ~270-278) :
 
-1. **Priorité 1** : utiliser `ORANGE_MONEY_AUTH_HEADER` tel quel s'il est défini (préfixer `Basic ` si absent, trim).
-2. **Fallback** : reconstruire `Basic ` + `btoa(client_id:client_secret)` uniquement si `AUTH_HEADER` absent.
-3. Conserver le log `auth_source` pour confirmer la source utilisée.
+1. Détecter si `return_url` / `cancel_url` reçus commencent par `http://` ou `https://`.
+2. Sinon (deep link comme `fere://`), les remplacer par des URLs HTTPS canoniques :
+   - `https://jajfuajmkjulujnwfqen.lovable.app/payment/callback?ref={orderId}`
+   - `https://jajfuajmkjulujnwfqen.lovable.app/checkout`
+3. Logger le scheme original pour diagnostic (sans exposer la valeur complète).
+4. Les URLs `https://` existantes passent telles quelles.
 
-### Test après déploiement
-- Appel `get_token` → doit retourner `success: true`
-- Si échec persistant avec `auth_source: env_auth_header` → cliquer **Renew** sur le portail Orange et recopier les 3 valeurs (Client secret + Authorization header).
+### Comportement mobile
+Le WebView intercepte déjà les URLs HTTPS via `onNavigationStateChange` — la sanitisation côté serveur n'affecte que ce qui est envoyé à Orange, pas la détection client.
+
+### Test
+- Redéployer
+- Vérifier les logs : `WebPay response` doit retourner `http_status: 200` avec `payment_url` présent
+- Tester un checkout mobile complet
 
 ### Portée
 - 1 fichier modifié : `supabase/functions/orange-money-payment/index.ts`
-- Aucun changement DB, frontend, ou autres edge functions
-- Déploiement automatique
+- Aucun changement DB, frontend, mobile

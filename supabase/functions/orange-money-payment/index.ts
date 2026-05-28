@@ -268,13 +268,40 @@ async function handleInitialize(req: Request, supabaseClient: any, body: any) {
   // Get access token
   const accessToken = await getAccessToken();
 
-  // Build URLs (max 120 chars each)
-  const origin = return_url 
-    ? new URL(return_url).origin 
-    : (req.headers.get('origin') || 'https://jajfuajmkjulujnwfqen.lovable.app');
-  
-  const finalReturnUrl = (return_url || `${origin}/payment/callback`).substring(0, 120);
-  const finalCancelUrl = (cancel_url || `${origin}/checkout`).substring(0, 120);
+  // Build URLs (max 120 chars each).
+  // Orange Money only accepts http(s) — deep links like `fere://` are rejected
+  // with "Invalid body field" (code 24). When the mobile client sends a custom
+  // scheme, fall back to canonical HTTPS URLs that the WebView can intercept
+  // via onNavigationStateChange.
+  const isHttp = (u: string | null) =>
+    typeof u === 'string' && /^https?:\/\//i.test(u);
+
+  const httpsOrigin = (() => {
+    const reqOrigin = req.headers.get('origin');
+    if (isHttp(reqOrigin)) return reqOrigin!;
+    return 'https://jajfuajmkjulujnwfqen.lovable.app';
+  })();
+
+  const returnScheme = typeof return_url === 'string' ? return_url.split(':')[0] : null;
+  const cancelScheme = typeof cancel_url === 'string' ? cancel_url.split(':')[0] : null;
+
+  const finalReturnUrl = (isHttp(return_url)
+    ? return_url!
+    : `${httpsOrigin}/payment/callback?ref=${orderId}`
+  ).substring(0, 120);
+
+  const finalCancelUrl = (isHttp(cancel_url)
+    ? cancel_url!
+    : `${httpsOrigin}/checkout`
+  ).substring(0, 120);
+
+  if (!isHttp(return_url) || !isHttp(cancel_url)) {
+    console.log('[orange-money] Sanitized non-http URLs', JSON.stringify({
+      return_scheme: returnScheme,
+      cancel_scheme: cancelScheme,
+      using_origin: httpsOrigin,
+    }));
+  }
   
   // Webhook URL = edge function URL
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

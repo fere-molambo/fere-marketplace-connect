@@ -1,40 +1,57 @@
-## Plan : sécuriser le .env
+## Migration : propagation du paiement aux commandes multi-vendeur
 
-### Constat
-Le `.env` actuel ne contient que des valeurs **publiques et sans risque** :
-- `VITE_SUPABASE_PROJECT_ID` — identifiant public du projet
-- `VITE_SUPABASE_PUBLISHABLE_KEY` — clé `anon` Supabase (conçue pour être exposée côté client, protégée par RLS)
-- `VITE_SUPABASE_URL` — URL publique du projet
+### Objectif
+Corriger un bug latent sur le multi-vendeur : actuellement, seule la 1ère commande d'un panier multi-boutiques reçoit `payment_status = 'partial'` après l'acompte OM. Les autres restent `pending` malgré le paiement effectif.
 
-Aucun secret sensible (`SERVICE_ROLE_KEY`, clés Orange Money, Ikoddi, etc.) n'est dans ce fichier — ils vivent uniquement dans les Edge Function Secrets Supabase.
+### Aucun changement de process métier
+- Mono-vendeur produit : identique
+- Multi-vendeur produit : identique (juste cohérence DB rétablie)
+- Livraison / paiement du solde : **inchangé** (reste 1 paiement par livraison via `payment_type = 'order_balance'`)
+- Service booking : **inchangé**
+- Commissions, TVA, payouts, refunds, cancellations : **inchangés**
 
-**Conclusion :** pas besoin de faire tourner les clés. Mais par hygiène, on évite que `.env` continue d'être commité.
+### Changement technique
+Une seule migration SQL qui modifie la fonction `sync_order_payment_from_transaction()` :
 
-### Actions recommandées
+**Avant** (branche `payment_type = 'order'`) :
+```sql
+UPDATE orders SET payment_status='partial', ... WHERE id = NEW.related_id;
+```
 
-1. **Ajouter `.env` au `.gitignore`** (et `.env.local`, `.env.*.local` par précaution)
-   - Empêche tout futur commit accidentel si un secret y est ajouté un jour.
-   - L'historique Git reste inchangé — mais comme les valeurs sont publiques, ce n'est pas un problème.
+**Après** :
+```sql
+-- Si metadata.payment_group_id présent → propager à toutes les commandes du groupe
+-- Sinon (legacy) → comportement actuel (1 seule commande via related_id)
+UPDATE orders 
+SET payment_status='partial', payment_reference=NEW.reference, advance_paid=..., updated_at=now()
+WHERE (
+  (NEW.metadata->>'payment_group_id' IS NOT NULL 
+   AND payment_group_id = (NEW.metadata->>'payment_group_id')::uuid)
+  OR
+  (NEW.metadata->>'payment_group_id' IS NULL AND id = NEW.related_id)
+);
+```
 
-2. **Créer un `.env.example`** avec les noms de variables sans valeurs
-   - Sert de référence pour les nouveaux contributeurs / clones du repo.
-   - Contenu :
-     ```
-     VITE_SUPABASE_PROJECT_ID=""
-     VITE_SUPABASE_PUBLISHABLE_KEY=""
-     VITE_SUPABASE_URL=""
-     ```
+Les branches `order_balance` et `service_booking` restent strictement identiques.
 
-3. **Garder le `.env` local** — Lovable a besoin de ces variables pour faire tourner l'app dans le preview. On ne le supprime pas, on l'ignore juste pour les futurs commits.
+### Détails clés
+- **`advance_paid`** : sur la commande `related_id` on stocke le montant total payé (acompte global), sur les autres commandes du groupe on met leur propre `advance_amount` calculé (chaque order a déjà sa colonne `advance_amount` remplie au checkout). Décision technique : mettre `advance_paid = advance_amount` pour chaque commande du groupe ≠ `related_id`, et `advance_paid = NEW.amount` pour celle = `related_id`. Cela garde la somme cohérente.
+- **`payment_reference`** : même référence OM pour toutes les commandes du groupe (normal, c'est la même transaction).
+- **Idempotence** : `WHERE payment_status != 'partial' AND payment_status != 'paid'` ajouté pour ne pas écraser des états ultérieurs si la fonction est rejouée.
 
-### Ce qu'on ne fait PAS
-- Pas de rotation de la clé anon (inutile, elle est publique par design)
-- Pas de `git rm --cached .env` ni de réécriture d'historique (les valeurs sont publiques, donc sans intérêt)
-- Pas de modification des Edge Function Secrets (ils sont déjà sécurisés)
+### Pas de changement code
+- `src/pages/Checkout.tsx` : déjà conforme (envoie `metadata.payment_group_id`, crée N orders avec même `payment_group_id`)
+- `src/pages/PaymentCallback.tsx` : inchangé
+- Edge function `orange-money-payment` : inchangée (propage déjà `metadata` dans `payment_transactions`)
+- Mobile (Bolt) : compatible automatiquement dès que Claude pushe son patch (N orders + 1 OM call avec `metadata.payment_group_id`)
 
-### Détails techniques
-Modifications à apporter :
-- `/.gitignore` : ajouter les lignes `.env`, `.env.local`, `.env.*.local`
-- `/.env.example` : nouveau fichier avec les noms de variables (valeurs vides)
+### Vérification post-migration
+1. Test mono-vendeur web → `partial` sur l'unique commande ✓
+2. Test multi-vendeur web (2 boutiques) → `partial` sur les 2 commandes ✓
+3. Test paiement du solde → toujours 1 commande à la fois (logique inchangée) ✓
+4. Test service booking → inchangé ✓
 
-Aucun changement de code applicatif, aucune migration DB, aucun redéploiement d'edge function.
+### Ordre de déploiement recommandé
+1. Cette migration SQL (corrige web multi-vendeur immédiatement)
+2. Claude pushe son patch mobile (mono-vendeur OK + multi-vendeur OK grâce à la migration)
+3. Tests croisés mono + multi sur web et mobile

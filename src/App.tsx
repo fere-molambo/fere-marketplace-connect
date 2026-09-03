@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/contexts/CartContext";
 import { CartModal } from "@/components/cart/CartModal";
+import ConsentGate from "@/components/legal/ConsentGate";
 import Home from "./pages/Home";
 import { CguPage, PrivacyPage, CookiesPage } from "./pages/LegalPage";
 import Auth from "./pages/Auth";
@@ -60,6 +61,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <CartModal />
+          <ConsentGate />
           <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/auth" element={<Auth />} />

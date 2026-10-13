@@ -14,7 +14,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { exportToExcel } from "@/components/payments/paymentUtils";
 
-type TransactionType = "all" | "order" | "service_booking" | "commission_payout" | "subscription";
+type TransactionType = "all" | "order" | "order_balance" | "service_booking" | "commission_payout" | "subscription";
 
 export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState<TransactionType>("all");
@@ -48,8 +48,14 @@ export default function Transactions() {
   // payment_transactions ne porte aucune cle vers la boutique : related_id
   // pointe vers une commande ou une reservation. On resout le vendeur en deux
   // requetes groupees, comme c'est deja fait pour les remboursements.
+  // order_balance est le paiement du solde a la livraison : son related_id
+  // pointe lui aussi vers une commande. L'oublier laissait un tiers des
+  // transactions sans vendeur.
   const orderIds = transactions
-    .filter((tx: any) => tx.payment_type === "order" && tx.related_id)
+    .filter(
+      (tx: any) =>
+        (tx.payment_type === "order" || tx.payment_type === "order_balance") && tx.related_id,
+    )
     .map((tx: any) => tx.related_id);
   const bookingIds = transactions
     .filter((tx: any) => tx.payment_type === "service_booking" && tx.related_id)
@@ -321,7 +327,9 @@ export default function Transactions() {
                   <SelectItem value="all">Tous les types</SelectItem>
                   <SelectItem value="order">Commandes</SelectItem>
                   <SelectItem value="service_booking">Services</SelectItem>
-                  
+                  {/* 34 paiements de solde etaient invisibles : aucun des deux
+                      filtres existants ne les couvrait. */}
+                  <SelectItem value="order_balance">Soldes à la livraison</SelectItem>
                 </SelectContent>
               </Select>
 

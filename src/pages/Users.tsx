@@ -11,10 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { DeletionRequestsTab, useDeletionRequestsCount } from "@/components/users/DeletionRequestsTab";
+import { DriversTab, usePendingDriversCount } from "@/components/users/DriversTab";
 
 export default function Users() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("users");
+  const pendingDrivers = usePendingDriversCount();
   const { canCreateUsers, isSuperAdmin, isAdmin } = useUserRoles();
   const queryClient = useQueryClient();
   const pendingDeletions = useDeletionRequestsCount();
@@ -85,6 +87,16 @@ export default function Users() {
         <TabsList>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           {(isSuperAdmin || isAdmin) && (
+            <TabsTrigger value="drivers" className="relative">
+              Livreurs
+              {pendingDrivers > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1 text-xs">
+                  {pendingDrivers}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
+          {(isSuperAdmin || isAdmin) && (
             <TabsTrigger value="deletions" className="relative">
               Demandes de suppression
               {pendingDeletions > 0 && (
@@ -95,6 +107,12 @@ export default function Users() {
             </TabsTrigger>
           )}
         </TabsList>
+
+        {(isSuperAdmin || isAdmin) && (
+          <TabsContent value="drivers" className="mt-4">
+            <DriversTab />
+          </TabsContent>
+        )}
 
         <TabsContent value="users" className="mt-4 space-y-4">
           <div className="relative">

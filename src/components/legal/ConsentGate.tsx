@@ -147,18 +147,24 @@ const ConsentGate = () => {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button onClick={handleAccept} disabled={!canAccept} className="w-full">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accepter et continuer"}
-          </Button>
+          {/* Ces boutons doivent rester dans un conteneur : la regle
+              [&>button]:hidden, qui masque la croix de fermeture, cachait aussi
+              tout bouton enfant direct de la fenetre — les utilisateurs se
+              retrouvaient bloques sans aucun moyen d'accepter. */}
+          <div className="flex flex-col gap-2">
+            <Button onClick={handleAccept} disabled={!canAccept} className="w-full">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accepter et continuer"}
+            </Button>
 
-          <button
-            type="button"
-            onClick={handleRefuse}
-            disabled={submitting}
-            className="text-sm text-muted-foreground hover:underline"
-          >
-            Refuser et se déconnecter
-          </button>
+            <button
+              type="button"
+              onClick={handleRefuse}
+              disabled={submitting}
+              className="text-sm text-muted-foreground hover:underline"
+            >
+              Refuser et se déconnecter
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 

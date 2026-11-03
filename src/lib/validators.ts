@@ -122,6 +122,13 @@ export const phoneSignupSchema = z.object({
   confirmPin: z
     .string()
     .regex(/^\d{6}$/, "Le PIN doit contenir exactement 6 chiffres"),
+  // Consentement obligatoire recueilli avant la creation du compte (APDP).
+  acceptCgu: z
+    .boolean()
+    .refine((v) => v === true, "Vous devez accepter les conditions générales d'utilisation"),
+  acceptPrivacy: z
+    .boolean()
+    .refine((v) => v === true, "Vous devez accepter la politique de confidentialité"),
 }).refine((data) => data.pin === data.confirmPin, {
   message: "Les PIN ne correspondent pas",
   path: ["confirmPin"],

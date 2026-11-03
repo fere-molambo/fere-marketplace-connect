@@ -19,6 +19,9 @@ import OtpVerificationStep from "./OtpVerificationStep";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeFunction } from "@/lib/parseFunctionError";
+import { Checkbox } from "@/components/ui/checkbox";
+import LegalTextDialog from "@/components/legal/LegalTextDialog";
+import { buildSignupConsents, type LegalDocKey } from "@/lib/consent";
 
 interface PhoneSignupFormProps {
   onSuccess: () => void;
@@ -31,6 +34,7 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(true);
+  const [openDoc, setOpenDoc] = useState<LegalDocKey | null>(null);
 
   const form = useForm<PhoneSignupFormData>({
     resolver: zodResolver(phoneSignupSchema),
@@ -41,6 +45,8 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
       role: "membre",
       pin: "",
       confirmPin: "",
+      acceptCgu: false,
+      acceptPrivacy: false,
     },
   });
 
@@ -53,6 +59,7 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
         pin: data.pin,
         role: data.role,
         email: data.email || undefined,
+        consents: buildSignupConsents(),
       });
 
       setRegisteredPhone(data.phone);
@@ -96,6 +103,9 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
         pin: formData.pin,
         role: formData.role,
         email: formData.email || undefined,
+        // Le renvoi recree l'inscription en attente : sans cela le consentement
+        // deja donne a l'etape precedente serait perdu.
+        consents: buildSignupConsents(),
       });
 
       setSmsSent(result?.sms_sent !== false);
@@ -248,6 +258,68 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
           )}
         />
 
+        <div className="space-y-3 rounded-lg border border-border/60 p-3">
+          <FormField
+            control={form.control}
+            name="acceptCgu"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <div className="flex items-start gap-3">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-0.5"
+                    />
+                  </FormControl>
+                  <span className="text-sm text-muted-foreground">
+                    J'ai lu et j'accepte les{" "}
+                    <button
+                      type="button"
+                      onClick={() => setOpenDoc("cgu")}
+                      className="font-medium text-primary underline underline-offset-2"
+                    >
+                      conditions générales d'utilisation
+                    </button>
+                    <span className="ml-1 text-destructive">*</span>
+                  </span>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="acceptPrivacy"
+            render={({ field }) => (
+              <FormItem className="space-y-1">
+                <div className="flex items-start gap-3">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-0.5"
+                    />
+                  </FormControl>
+                  <span className="text-sm text-muted-foreground">
+                    J'ai lu et j'accepte la{" "}
+                    <button
+                      type="button"
+                      onClick={() => setOpenDoc("privacy")}
+                      className="font-medium text-primary underline underline-offset-2"
+                    >
+                      politique de confidentialité
+                    </button>
+                    <span className="ml-1 text-destructive">*</span>
+                  </span>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <Button
           type="submit"
           className="w-full"
@@ -255,6 +327,8 @@ const PhoneSignupForm = ({ onSuccess }: PhoneSignupFormProps) => {
         >
           {form.formState.isSubmitting ? "Inscription..." : "S'inscrire"}
         </Button>
+
+        <LegalTextDialog document={openDoc} onClose={() => setOpenDoc(null)} />
       </form>
     </Form>
   );

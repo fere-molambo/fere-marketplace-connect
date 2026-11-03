@@ -9,16 +9,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Receipt, Search, Filter, ShoppingBag, Briefcase, RefreshCcw, Download } from "lucide-react";
+import { Receipt, Search, Filter, ShoppingBag, Briefcase, RefreshCcw, Download, ArrowUpDown, Store } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { exportToExcel } from "@/components/payments/paymentUtils";
 
-type TransactionType = "all" | "order" | "service_booking" | "commission_payout" | "subscription";
+type TransactionType = "all" | "order" | "order_balance" | "service_booking" | "commission_payout" | "subscription";
 
 export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState<TransactionType>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [vendorSort, setVendorSort] = useState<"none" | "asc" | "desc">("none");
   const navigate = useNavigate();
 
   const { data: transactions = [], isLoading } = useQuery({
@@ -42,6 +44,62 @@ export default function Transactions() {
       return data;
     },
   });
+
+  // payment_transactions ne porte aucune cle vers la boutique : related_id
+  // pointe vers une commande ou une reservation. On resout le vendeur en deux
+  // requetes groupees, comme c'est deja fait pour les remboursements.
+  // order_balance est le paiement du solde a la livraison : son related_id
+  // pointe lui aussi vers une commande. L'oublier laissait un tiers des
+  // transactions sans vendeur.
+  const orderIds = transactions
+    .filter(
+      (tx: any) =>
+        (tx.payment_type === "order" || tx.payment_type === "order_balance") && tx.related_id,
+    )
+    .map((tx: any) => tx.related_id);
+  const bookingIds = transactions
+    .filter((tx: any) => tx.payment_type === "service_booking" && tx.related_id)
+    .map((tx: any) => tx.related_id);
+
+  const { data: vendorRows = [] } = useQuery({
+    queryKey: ["transaction-vendors", orderIds, bookingIds],
+    enabled: orderIds.length > 0 || bookingIds.length > 0,
+    queryFn: async () => {
+      const pairs: { id: string; vendor: string }[] = [];
+
+      if (orderIds.length > 0) {
+        const { data } = await supabase
+          .from("orders")
+          .select("id, shop:shops(name)")
+          .in("id", orderIds);
+        for (const row of data || []) {
+          pairs.push({ id: row.id, vendor: (row as any).shop?.name || "" });
+        }
+      }
+
+      if (bookingIds.length > 0) {
+        const { data } = await supabase
+          .from("service_bookings")
+          .select("id, service:services(shop:shops(name))")
+          .in("id", bookingIds);
+        for (const row of data || []) {
+          pairs.push({ id: row.id, vendor: (row as any).service?.shop?.name || "" });
+        }
+      }
+
+      return pairs;
+    },
+  });
+
+  const vendorByRelatedId = new Map<string, string>(
+    vendorRows.map((r: any) => [r.id, r.vendor]),
+  );
+  const vendorOf = (tx: any) =>
+    (tx.related_id && vendorByRelatedId.get(tx.related_id)) || "";
+
+  const vendorOptions = Array.from(
+    new Set(vendorRows.map((r: any) => r.vendor).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "fr"));
 
   // Fetch refunds to match with transactions
   const { data: refunds = [] } = useQuery({
@@ -166,15 +224,23 @@ export default function Transactions() {
     }
   };
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      tx.reference.toLowerCase().includes(query) ||
-      tx.user?.nom_complet?.toLowerCase().includes(query) ||
-      tx.user?.email?.toLowerCase().includes(query)
-    );
-  });
+  const filteredTransactions = transactions
+    .filter((tx) => {
+      if (vendorFilter !== "all" && vendorOf(tx) !== vendorFilter) return false;
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        tx.reference.toLowerCase().includes(query) ||
+        tx.user?.nom_complet?.toLowerCase().includes(query) ||
+        tx.user?.email?.toLowerCase().includes(query) ||
+        vendorOf(tx).toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (vendorSort === "none") return 0;
+      const cmp = vendorOf(a).localeCompare(vendorOf(b), "fr");
+      return vendorSort === "asc" ? cmp : -cmp;
+    });
 
   const handleExportExcel = () => {
     const typeLabel = (t: string) => t === "order" ? "Commande" : t === "service_booking" ? "Service" : t;
@@ -185,6 +251,7 @@ export default function Transactions() {
         Référence: tx.reference,
         Type: typeLabel(tx.payment_type),
         Client: tx.user?.nom_complet || "N/A",
+        Vendeur: vendorOf(tx) || "N/A",
         Contact: tx.user?.contact || "",
         Montant: tx.amount,
         Devise: tx.currency,
@@ -260,7 +327,24 @@ export default function Transactions() {
                   <SelectItem value="all">Tous les types</SelectItem>
                   <SelectItem value="order">Commandes</SelectItem>
                   <SelectItem value="service_booking">Services</SelectItem>
-                  
+                  {/* 34 paiements de solde etaient invisibles : aucun des deux
+                      filtres existants ne les couvrait. */}
+                  <SelectItem value="order_balance">Soldes à la livraison</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={vendorFilter} onValueChange={setVendorFilter}>
+                <SelectTrigger className="w-52">
+                  <Store className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Vendeur" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les vendeurs</SelectItem>
+                  {vendorOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={handleExportExcel}>
@@ -285,6 +369,18 @@ export default function Transactions() {
                     <TableHead>Référence</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Client</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVendorSort((v) => (v === "asc" ? "desc" : v === "desc" ? "none" : "asc"))
+                        }
+                        className="flex items-center gap-1 hover:text-foreground"
+                      >
+                        Vendeur
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">Montant</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Remb.</TableHead>
@@ -303,6 +399,9 @@ export default function Transactions() {
                           <p className="font-medium">{tx.user?.nom_complet || "N/A"}</p>
                           <p className="text-sm text-muted-foreground">{tx.user?.contact}</p>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {vendorOf(tx) || <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {tx.amount.toLocaleString()} {tx.currency}

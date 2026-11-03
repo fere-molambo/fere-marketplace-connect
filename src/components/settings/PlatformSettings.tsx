@@ -8,6 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 export const PlatformSettings = () => {
@@ -89,6 +100,23 @@ export const PlatformSettings = () => {
 
   const handleTextUpdate = async (field: string, value: string) => {
     await updateSettings.mutateAsync({ [field]: value });
+  };
+
+  /**
+   * Publie une nouvelle version d'un document legal (1.4 -> 1.5). Chaque
+   * utilisateur devra re-accepter a sa prochaine ouverture : a ne faire que
+   * pour une modification de fond, pas pour une correction de forme.
+   */
+  const bumpLegalVersion = async (
+    field: "cgu_version" | "privacy_version",
+    label: string,
+  ) => {
+    const current = String((settings as any)?.[field] ?? "1.0");
+    const [major, minor] = current.split(".");
+    const next = `${major || "1"}.${Number(minor ?? 0) + 1}`;
+
+    await updateSettings.mutateAsync({ [field]: next });
+    toast.success(`${label} : version ${next} publiée, le consentement sera redemandé`);
   };
 
   if (isLoading) {
@@ -370,6 +398,76 @@ export const PlatformSettings = () => {
               rows={6}
               placeholder="Votre politique de cookies..."
             />
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+            <div>
+              <p className="text-sm font-medium">Versions en vigueur</p>
+              <p className="text-xs text-muted-foreground">
+                CGU {String((settings as any)?.cgu_version ?? "1.0")} · Confidentialité{" "}
+                {String((settings as any)?.privacy_version ?? "1.0")}
+              </p>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Corriger une faute ne demande rien aux utilisateurs. En revanche, si vous
+              modifiez le fond d'un document, publiez une nouvelle version : chacun devra
+              l'accepter à nouveau à sa prochaine ouverture de l'application ou du site.
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Publier une nouvelle version des CGU
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Redemander le consentement aux CGU ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tous les utilisateurs, mobile et web, devront accepter les nouvelles
+                      CGU avant de pouvoir continuer à utiliser FERE. Cette action ne
+                      s'annule pas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => bumpLegalVersion("cgu_version", "CGU")}>
+                      Publier
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Publier une nouvelle version de la confidentialité
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Redemander le consentement à la politique de confidentialité ?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tous les utilisateurs, mobile et web, devront accepter la nouvelle
+                      politique avant de pouvoir continuer à utiliser FERE. Cette action ne
+                      s'annule pas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => bumpLegalVersion("privacy_version", "Confidentialité")}
+                    >
+                      Publier
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </CardContent>
       </Card>

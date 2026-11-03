@@ -350,6 +350,10 @@ async function handleRegister(supabaseAdmin: any, body: any) {
       otp_code: otpHash || 'FAILED',
       otp_expires_at: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString(),
       otp_attempts: 0,
+      // Consentement CGU / confidentialité coché sur le formulaire d'inscription.
+      // Null si le client est une version antérieure : la barrière de consentement
+      // au démarrage prendra alors le relais à la première connexion.
+      consents: body.consents ?? null,
     }, { onConflict: 'phone' });
 
   if (upsertError) {
@@ -511,6 +515,46 @@ async function handleVerifyRegistration(supabaseAdmin: any, body: any) {
 
   if (roleError) {
     console.error('[phone-auth] Role insert error:', roleError);
+  }
+
+  // Trace du consentement CGU / confidentialité (exigence APDP). Un échec
+  // d'archivage ne doit pas faire échouer la création du compte : la barrière
+  // de consentement au démarrage redemandera l'acceptation.
+  const consents = pending.consents;
+  if (consents?.cgu === true && consents?.privacy === true) {
+    try {
+      const { data: settings } = await supabaseAdmin
+        .from('platform_settings')
+        .select('cgu_version, privacy_version')
+        .limit(1)
+        .maybeSingle();
+
+      const source = consents.source === 'web' ? 'web' : 'mobile';
+      const appVersion = consents.app_version ?? null;
+
+      const { error: consentError } = await supabaseAdmin.from('user_consents').insert([
+        {
+          user_id: userId,
+          document: 'cgu',
+          version: settings?.cgu_version ?? '1.0',
+          source,
+          app_version: appVersion,
+        },
+        {
+          user_id: userId,
+          document: 'privacy',
+          version: settings?.privacy_version ?? '1.0',
+          source,
+          app_version: appVersion,
+        },
+      ]);
+
+      if (consentError) {
+        console.error('[phone-auth] Consent insert error:', consentError);
+      }
+    } catch (consentErr) {
+      console.error('[phone-auth] Consent insert failed:', consentErr);
+    }
   }
 
   // Delete pending registration

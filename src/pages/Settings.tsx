@@ -9,7 +9,8 @@ import { HelpSettings } from "@/components/settings/HelpSettings";
 import { AIIntegrationsSettings } from "@/components/settings/AIIntegrationsSettings";
 import { CancellationSettings } from "@/components/settings/CancellationSettings";
 import { FinancialPoliciesSettings } from "@/components/settings/FinancialPoliciesSettings";
-import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle, Sparkles, XCircle, Coins } from "lucide-react";
+import { AuditLogTab } from "@/components/settings/AuditLogTab";
+import { User, KeyRound, Building2, Database, Tags, Home, HelpCircle, Sparkles, XCircle, Coins, ScrollText } from "lucide-react";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
 export default function Settings() {
@@ -67,6 +68,12 @@ export default function Settings() {
               </TabsTrigger>
             )}
             {canManagePlatform && (
+              <TabsTrigger value="audit" className="flex items-center gap-2">
+                <ScrollText className="h-4 w-4" />
+                <span className="hidden sm:inline">Journal</span>
+              </TabsTrigger>
+            )}
+            {canManagePlatform && (
               <TabsTrigger value="ai" className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
                 <span className="hidden sm:inline">Intégrations IA</span>
@@ -115,6 +122,11 @@ export default function Settings() {
         {canManagePlatform && (
           <TabsContent value="help" className="mt-6">
             <HelpSettings />
+          </TabsContent>
+        )}
+        {canManagePlatform && (
+          <TabsContent value="audit" className="mt-6">
+            <AuditLogTab />
           </TabsContent>
         )}
         {canManagePlatform && (
